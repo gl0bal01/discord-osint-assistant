@@ -6,7 +6,7 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D16.9.0-brightgreen.svg)](https://nodejs.org/)
 [![Discord.js](https://img.shields.io/badge/Discord.js-v14.17.3-blue.svg)](https://discord.js.org/)
 [![Version](https://img.shields.io/badge/Version-2.0.0-orange.svg)](https://github.com/gl0bal01/discord-osint-assistant/releases)
-
+[![DOI](https://zenodo.org/badge/1007802575.svg)](https://doi.org/10.5281/zenodo.15741849)
 
 [![OSINT](https://img.shields.io/badge/Category-OSINT-red.svg)]()
 [![Security](https://img.shields.io/badge/Category-Security-darkred.svg)]()
