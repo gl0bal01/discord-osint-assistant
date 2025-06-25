@@ -39,7 +39,7 @@ keywords:
 license: MIT
 version: "2.0.0"
 date-released: "2025-06-25"
-doi: "10.5281/zenodo.XXXXXXX" # Will be assigned by Zenodo
+doi: "10.5281/zenodo.15741850" # Will be assigned by Zenodo
 commit: "main"
 references:
   - type: software
