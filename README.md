@@ -54,7 +54,6 @@ A comprehensive Discord bot designed for Open Source Intelligence (OSINT) gather
 | `/bob-dns` | Comprehensive DNS analysis | Records analysis, security detection, nameserver info |
 | `/bob-whoxy` | WHOIS history and reverse lookups | Historical data, registrant tracking, change analysis |
 | `/bob-hostio` | Domain hosting intelligence | Infrastructure analysis, hosting details, technology stack |
-| `/bob-nuclei` | Username investigation | Most reliable tool, no false/positive |
 | `/bob-recon-web` | Web reconnaissance | Technology detection, service enumeration, security headers |
 | `/bob-redirect-chain` | URL redirect analysis | Redirect tracking, destination analysis, security assessment |
 | `/bob-favicons` | Website favicon analysis | Icon extraction, hash analysis, brand identification |
@@ -62,8 +61,10 @@ A comprehensive Discord bot designed for Open Source Intelligence (OSINT) gather
 ### Identity & Social Intelligence
 | Command | Description | Features |
 |---------|-------------|----------|
+| `/bob-nuclei` | Username investigation | Most reliable tool, no false/positive |
 | `/bob-sherlock` | Multi-platform username search | 400+ platforms, real-time tracking, results export |
 | `/bob-maigret` | Enhanced username investigation | Advanced reconnaissance, deep profile analysis |
+| `/bob-linkook` | Username investigation | Discover linked social accounts |
 | `/bob-generate-usernames` | Username variation generation | Pattern creation, format variations, enumeration lists |
 | `/bob-ghunt` | Google account investigation | Gmail analysis, profile discovery, account correlation |
 
@@ -90,8 +91,8 @@ A comprehensive Discord bot designed for Open Source Intelligence (OSINT) gather
 ### Business & Corporate Intelligence
 | Command | Description | Features |
 |---------|-------------|----------|
-| `/bob-pappers` | French business registry | Company information, corporate structure, legal status |
-| `/bob-nike` | Product authentication | Look up email address or a name on Nike Run Club (NRC) fitness app |
+| `/bob-pappers` | Business registry | Company information, corporate structure, legal status |
+| `/bob-nike` | Look up email address or a name | On Nike Run Club (NRC) fitness app |
 | `/bob-vpic` | Vehicle identification by VIN | Car details, manufacturer data, specification lookup |
 
 ### AI & Analysis Tools
@@ -106,7 +107,6 @@ A comprehensive Discord bot designed for Open Source Intelligence (OSINT) gather
 |---------|-------------|----------|
 | `/bob-extract-links` | URL extraction from text | Pattern matching, validation, bulk processing |
 | `/bob-dork` | Google dorking assistance | Query generation, search optimization, target enumeration |
-| `/bob-linkook` | Username investigation | Discover linked social accounts |
 | `/bob-monitor` | Target monitoring setup | Continuous surveillance, alert configuration |
 | `/bob-health` | System health monitoring | Bot status, API connectivity, performance metrics |
 
@@ -148,7 +148,7 @@ CLIENT_ID=your_application_client_id
 GUILD_ID=your_development_server_id
 
 # Notification Channel for Monitored Websites
-MONITOR_CHANNEL_ID=your_discord_channel_id
+MONITOR_CHANNEL_ID=your_monitor_notification_discord_channel_id
 
 # Core API Keys (Recommended)
 WHOXY_API_KEY=your_whoxy_api_key
