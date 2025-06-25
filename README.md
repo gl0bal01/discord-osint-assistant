@@ -225,47 +225,36 @@ discord-osint-assistant/
 ├── .env.example                 # Environment template
 ├── 
 ├── commands/                    # Complete command suite
-│   ├── Core Intelligence/
-│   │   ├── dns.js              # DNS analysis and reconnaissance
-│   │   ├── whoxy.js            # WHOIS history and reverse lookup
-│   │   ├── nuclei.js           # Most reliable username search
-│   │   ├── exif.js             # Image metadata with GPS mapping
-│   │   ├── blockchain.js       # Cryptocurrency investigation
-│   │   └── chat.js             # AI-powered analysis assistant
-│   │
-│   ├── Network & Security/
-│   │   ├── hostio.js           # Domain hosting intelligence
-│   │   ├── recon-web.js        # Web reconnaissance
-│   │   ├── redirect-chain.js   # URL redirect analysis
-│   │   └── favicons.js         # Website favicon analysis
-│   │
-│   ├── Transportation/
-│   │   ├── aviation.js         # Aviation intelligence
-│   │   ├── airport.js          # Airport information
-│   │   ├── flight-number.js    # Flight tracking
-│   │   └── vessels.js          # Maritime tracking
-│   │
-│   ├── Business Intelligence/
-│   │   ├── pappers.js          # French business registry
-│   │   ├── nike.js             # Product authentication
-│   │   └── vpic.js             # Vehicle identification
-│   │
-│   ├── Identity & Social/
-│   │   ├── sherlock.js         # Multi-platform username search
-│   │   ├── maigret.js          # Enhanced username investigation
-│   │   ├── linkook.js          # Discover linked/connected social accounts
-│   │   └── ghunt.js            # Google account investigation
-│   │
-│   ├── Analysis & Utilities/
-│   │   ├── extract-links.js    # URL extraction
-│   │   ├── jwt.js              # Token analysis
-│   │   ├── dork.js             # Google dorking
-│   │   ├── xeuledoc.js         # Document analysis
-│   │   ├── blockchain-detect.js # Crypto address detection
-│   │   ├── generate-usernames.js # Username generation
-│   │   ├── rekognition.js      # AWS facial recognition
-│   │   ├── monitor.js          # Target monitoring
-│   │   └── health.js           # System monitoring
+│   ├── dns.js              # DNS analysis and reconnaissance
+│   ├── whoxy.js            # WHOIS history and reverse lookup
+│   ├── nuclei.js           # Most reliable username search
+│   ├── exif.js             # Image metadata with GPS mapping
+│   ├── blockchain.js       # Cryptocurrency investigation
+│   |── chat.js             # AI-powered analysis assistant
+│   ├── hostio.js           # Domain hosting intelligence
+│   ├── recon-web.js        # Web reconnaissance
+│   ├── redirect-chain.js   # URL redirect analysis
+│   ├── favicons.js         # Website favicon analysis
+│   ├── aviation.js         # Aviation intelligence
+│   ├── airport.js          # Airport information
+│   ├── flight-number.js    # Flight tracking
+│   ├── vessels.js          # Maritime tracking
+│   ├── pappers.js          # Business registry
+│   ├── nike.js             # Product authentication
+│   ├── vpic.js             # Vehicle identification
+│   ├── sherlock.js         # Multi-platform username search
+│   ├── maigret.js          # Enhanced username investigation
+│   ├── linkook.js          # Discover linked/connected social accounts
+│   ├── ghunt.js            # Google account investigation
+│   ├── extract-links.js    # URL extraction
+│   ├── jwt.js              # Token analysis
+│   ├── dork.js             # Google dorking
+│   ├── xeuledoc.js         # Document analysis
+│   ├── blockchain-detect.js # Crypto address detection
+│   ├── generate-usernames.js # Username generation
+│   ├── rekognition.js      # AWS facial recognition
+│   ├── monitor.js          # Target monitoring
+│   ├── health.js           # System monitoring
 │   │
 ├── utils/                       # Utility functions
 │   └── validation.js           # Input validation and sanitization
@@ -362,7 +351,7 @@ Use `/bob-health detailed:true check-apis:true check-tools:true` to verify:
 
 **Current Version**: 2.0.0  
 **Author**: gl0bal01  
-**License**: ISC  
+**License**: MIT  
 **Node.js**: >=16.9.0 required  
 
 ### Key Features in v2.0
