@@ -1,0 +1,70 @@
+{
+  "name": "discord-osint-assistant",
+  "version": "2.0.0",
+  "description": "A powerful Discord bot for Open Source Intelligence (OSINT) gathering and analysis",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "deploy": "node deploy-commands.js",
+    "deploy:global": "node deploy-commands.js --global",
+    "deploy:force": "npm run clear && npm run deploy",
+    "clear": "node clear-commands.js --force",
+    "clear:global": "node clear-commands.js --global --force",
+    "clear:all": "node clear-commands.js --all --force",
+    "clear:list": "node clear-commands.js --list",
+    "redeploy": "npm run clear && npm run deploy",
+    "redeploy:global": "npm run clear:global && npm run deploy:global",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint .",
+    "clean": "rm -rf temp/* || rmdir /s /q temp 2>nul || true"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "osint",
+    "intelligence",
+    "reconnaissance",
+    "investigation",
+    "security",
+    "analysis",
+    "blockchain",
+    "social-engineering",
+    "cybersecurity"
+  ],
+  "author": "gl0bal01",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gl0bal01/discord-osint-assistant.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gl0bal01/discord-osint-assistant/issues"
+  },
+  "homepage": "https://github.com/gl0bal01/discord-osint-assistant#readme",
+  "engines": {
+    "node": ">=16.9.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-rekognition": "^3.787.0",
+    "@discordjs/builders": "^1.10.0",
+    "@discordjs/rest": "^2.4.2",
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "discord-api-types": "^0.37.116",
+    "discord.js": "^14.17.3",
+    "dotenv": "^16.4.7",
+    "jsdom": "^26.0.0",
+    "murmurhash": "^2.0.1",
+    "node-fetch": "^3.3.2",
+    "playwright": "^1.49.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "nodemon": "^3.0.0"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.8",
+    "utf-8-validate": "^6.0.4"
+  }
+}

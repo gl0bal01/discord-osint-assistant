@@ -1,0 +1,384 @@
+# Discord OSINT Assistant v2.0
+
+<div align="center">
+
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
+[![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D16.9.0-brightgreen.svg)](https://nodejs.org/)
+[![Discord.js](https://img.shields.io/badge/Discord.js-v14.17.3-blue.svg)](https://discord.js.org/)
+[![Version](https://img.shields.io/badge/Version-2.0.0-orange.svg)](https://github.com/gl0bal01/discord-osint-assistant/releases)
+
+
+[![OSINT](https://img.shields.io/badge/Category-OSINT-red.svg)]()
+[![Security](https://img.shields.io/badge/Category-Security-darkred.svg)]()
+[![Intelligence](https://img.shields.io/badge/Category-Intelligence-purple.svg)]()
+[![Discord Bot](https://img.shields.io/badge/Type-Discord%20Bot-5865F2.svg)](https://discord.com/developers/docs)
+[![Blockchain Analysis](https://img.shields.io/badge/Feature-Blockchain%20Analysis-gold.svg)]()
+[![AI Powered](https://img.shields.io/badge/Feature-AI%20Powered-cyan.svg)]()
+
+
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/gl0bal01/discord-osint-assistant/pulls)
+
+
+</div>
+
+A comprehensive Discord bot designed for Open Source Intelligence (OSINT) gathering and analysis. This professional-grade bot provides investigators, researchers, and security professionals with a complete suite of intelligence gathering tools directly from Discord.
+
+## 🌟 Features Overview
+
+### Core OSINT Intelligence Capabilities
+- **Domain & Network Analysis**: DNS lookups, WHOIS history, subdomain enumeration, and web technology detection
+- **Identity Investigation**: Multi-platform username searches, profile enumeration, and social media reconnaissance  
+- **Image Intelligence**: EXIF metadata extraction with GPS coordinate mapping and facial recognition
+- **Blockchain Analysis**: Cryptocurrency address investigation, transaction analysis, and address detection
+- **Transportation Intelligence**: Aviation tracking, airport data, flight information, and maritime vessel tracking
+- **Business Intelligence**: Company information gathering, corporate data analysis, and registry searches
+
+### Advanced Analysis Tools
+- **AI-Powered Analysis**: Multi-model AI integration for data interpretation and report generation
+- **Document Processing**: JWT token analysis, document metadata extraction, and file analysis
+- **Network Reconnaissance**: Vulnerability scanning, port analysis, and security assessment
+- **Link Analysis**: URL investigation, redirect chain analysis, and favicon reconnaissance
+- **Geospatial Intelligence**: GPS coordinate analysis, location mapping, and geographic correlation
+
+### Specialized OSINT Features
+- **Social Engineering Tools**: Username generation, profile discovery, and account enumeration
+- **Search Intelligence**: Google dorking assistance, advanced search query generation
+- **Monitoring Capabilities**: Target monitoring, real-time alerts, and continuous surveillance
+- **Data Extraction**: Link extraction, pattern recognition, and automated data parsing
+
+## 🛠️ Complete Command Reference
+
+### Domain & Network Intelligence
+| Command | Description | Features |
+|---------|-------------|----------|
+| `/bob-dns` | Comprehensive DNS analysis | Records analysis, security detection, nameserver info |
+| `/bob-whoxy` | WHOIS history and reverse lookups | Historical data, registrant tracking, change analysis |
+| `/bob-hostio` | Domain hosting intelligence | Infrastructure analysis, hosting details, technology stack |
+| `/bob-nuclei` | Username investigation | Most reliable tool, no false/positive |
+| `/bob-recon-web` | Web reconnaissance | Technology detection, service enumeration, security headers |
+| `/bob-redirect-chain` | URL redirect analysis | Redirect tracking, destination analysis, security assessment |
+| `/bob-favicons` | Website favicon analysis | Icon extraction, hash analysis, brand identification |
+
+### Identity & Social Intelligence
+| Command | Description | Features |
+|---------|-------------|----------|
+| `/bob-sherlock` | Multi-platform username search | 400+ platforms, real-time tracking, results export |
+| `/bob-maigret` | Enhanced username investigation | Advanced reconnaissance, deep profile analysis |
+| `/bob-generate-usernames` | Username variation generation | Pattern creation, format variations, enumeration lists |
+| `/bob-ghunt` | Google account investigation | Gmail analysis, profile discovery, account correlation |
+
+### Image & Media Analysis
+| Command | Description | Features |
+|---------|-------------|----------|
+| `/bob-exif` | Image metadata extraction | GPS coordinates, camera data, privacy mode, map integration |
+| `/bob-rekognition` | AWS facial recognition | Face detection, celebrity recognition, demographic analysis |
+
+### Blockchain & Cryptocurrency
+| Command | Description | Features |
+|---------|-------------|----------|
+| `/bob-blockchain` | Cryptocurrency address analysis | Multi-network support, transaction history, risk assessment |
+| `/bob-blockchain-detect` | Crypto address detection | Format identification, confidence scoring, explorer links |
+
+### Transportation & Aviation
+| Command | Description | Features |
+|---------|-------------|----------|
+| `/bob-aviation` | Aviation intelligence | Flight tracking, aircraft data, airline operations |
+| `/bob-airport` | Airport information lookup | Facility data, runway information, operational status |
+| `/bob-flight-number` | Specific flight tracking | Real-time status, route analysis, delay information |
+| `/bob-vessels` | Maritime vessel tracking | Ship information, location tracking, maritime intelligence |
+
+### Business & Corporate Intelligence
+| Command | Description | Features |
+|---------|-------------|----------|
+| `/bob-pappers` | French business registry | Company information, corporate structure, legal status |
+| `/bob-nike` | Product authentication | Look up email address or a name on Nike Run Club (NRC) fitness app |
+| `/bob-vpic` | Vehicle identification by VIN | Car details, manufacturer data, specification lookup |
+
+### AI & Analysis Tools
+| Command | Description | Features |
+|---------|-------------|----------|
+| `/bob-chat` | AI-powered analysis assistant | Multi-model support, OSINT analysis, code generation |
+| `/bob-jwt` | JWT token analysis | Token decoding, security analysis, payload extraction |
+| `/bob-xeuledoc` | Document analysis | Metadata extraction, content analysis, file intelligence |
+
+### Utilities & Support
+| Command | Description | Features |
+|---------|-------------|----------|
+| `/bob-extract-links` | URL extraction from text | Pattern matching, validation, bulk processing |
+| `/bob-dork` | Google dorking assistance | Query generation, search optimization, target enumeration |
+| `/bob-linkook` | Username investigation | Discover linked social accounts |
+| `/bob-monitor` | Target monitoring setup | Continuous surveillance, alert configuration |
+| `/bob-health` | System health monitoring | Bot status, API connectivity, performance metrics |
+
+## 🚀 Quick Installation Guide
+
+### Prerequisites
+- **Node.js** v16.9.0 or higher
+- **Discord Bot Token**
+- **External Tools**: ExifTool, Sherlock, Maigret, Nuclei (optional)
+- **API Keys**: Various services for full functionality (see Configuration)
+
+### Basic Setup
+```bash
+# Clone repository
+git clone https://github.com/gl0bal01/discord-osint-assistant.git
+cd discord-osint-assistant
+
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your tokens and API keys
+
+# Deploy commands
+npm run deploy
+
+# Start bot
+npm start
+```
+
+## ⚙️ Configuration
+
+### Required Environment Variables
+```env
+# Discord Configuration (Required)
+DISCORD_TOKEN=your_discord_bot_token
+CLIENT_ID=your_application_client_id
+GUILD_ID=your_development_server_id
+
+# Notification Channel for Monitored Websites
+MONITOR_CHANNEL_ID=your_discord_channel_id
+
+# Core API Keys (Recommended)
+WHOXY_API_KEY=your_whoxy_api_key
+DNSDUMPSTER_TOKEN=your_dnsdumpster_token
+HOSTIO_API_KEY=your_hostio_api_key
+AVIATIONSTACK_API_KEY=your_aviationstack_api_key
+AIRPORTDB_API_KEY=your_airportdb_api_key
+
+# Advanced Features (Optional)
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_REGION=us-east-1
+PAPPERS_API_KEY=your_pappers_api_key
+
+# 1MIN AI
+AI_API_KEY=your_ai_api_key
+
+# Tool Paths (Optional - if not in PATH)
+EXIFTOOL_PATH=exiftool
+SHERLOCK_PATH=sherlock
+NUCLEI_PATH=nuclei
+NUCLEI_TEMPLATE_PATH=/username/nuclei-templates/http/osint/user-enumeration
+MAIGRET_PATH=maigret
+```
+
+### External Tool Integration
+- **ExifTool**: Image metadata extraction with GPS mapping
+- **Sherlock**: Username investigation across 400+ platforms
+- **Maigret**: Enhanced username reconnaissance
+- **Nuclei**: Most reliable username search
+
+## 📊 Usage Examples
+
+### Basic Domain Investigation
+```
+/bob-dns domain:example.com
+/bob-whoxy type:domain domain:example.com
+/bob-hostio domain:example.com
+```
+
+### Identity Investigation
+```
+/bob-sherlock username:target_user
+/bob-generate-usernames firstname:John lastname:Doe
+/bob-ghunt email:target@example.com
+```
+
+### Image Analysis
+```
+/bob-exif image_url:https://example.com/image.jpg privacy:true
+/bob-rekognition image_url:https://example.com/photo.jpg
+```
+
+### Blockchain Investigation
+```
+/bob-blockchain address btc 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa
+/bob-blockchain-detect text:"Check this address: 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+```
+
+### AI-Powered Analysis
+```
+/bob-chat ask message:"Analyze this OSINT data" context:osint
+/bob-chat code request:"Generate Python script for data parsing" language:python
+```
+
+## 🏗️ Architecture
+
+```
+discord-osint-assistant/
+├── README.md                    # Project documentation
+├── package.json                 # Dependencies and scripts
+├── index.js                     # Main bot entry point
+├── deploy-commands.js           # Command deployment utility
+├── .env.example                 # Environment template
+├── 
+├── commands/                    # Complete command suite
+│   ├── Core Intelligence/
+│   │   ├── dns.js              # DNS analysis and reconnaissance
+│   │   ├── whoxy.js            # WHOIS history and reverse lookup
+│   │   ├── nuclei.js           # Most reliable username search
+│   │   ├── exif.js             # Image metadata with GPS mapping
+│   │   ├── blockchain.js       # Cryptocurrency investigation
+│   │   └── chat.js             # AI-powered analysis assistant
+│   │
+│   ├── Network & Security/
+│   │   ├── hostio.js           # Domain hosting intelligence
+│   │   ├── recon-web.js        # Web reconnaissance
+│   │   ├── redirect-chain.js   # URL redirect analysis
+│   │   └── favicons.js         # Website favicon analysis
+│   │
+│   ├── Transportation/
+│   │   ├── aviation.js         # Aviation intelligence
+│   │   ├── airport.js          # Airport information
+│   │   ├── flight-number.js    # Flight tracking
+│   │   └── vessels.js          # Maritime tracking
+│   │
+│   ├── Business Intelligence/
+│   │   ├── pappers.js          # French business registry
+│   │   ├── nike.js             # Product authentication
+│   │   └── vpic.js             # Vehicle identification
+│   │
+│   ├── Identity & Social/
+│   │   ├── sherlock.js         # Multi-platform username search
+│   │   ├── maigret.js          # Enhanced username investigation
+│   │   ├── linkook.js          # Discover linked/connected social accounts
+│   │   └── ghunt.js            # Google account investigation
+│   │
+│   ├── Analysis & Utilities/
+│   │   ├── extract-links.js    # URL extraction
+│   │   ├── jwt.js              # Token analysis
+│   │   ├── dork.js             # Google dorking
+│   │   ├── xeuledoc.js         # Document analysis
+│   │   ├── blockchain-detect.js # Crypto address detection
+│   │   ├── generate-usernames.js # Username generation
+│   │   ├── rekognition.js      # AWS facial recognition
+│   │   ├── monitor.js          # Target monitoring
+│   │   └── health.js           # System monitoring
+│   │
+├── utils/                       # Utility functions
+│   └── validation.js           # Input validation and sanitization
+│
+├── addons/                     # Configuration files
+│   └── GPS2MapUrl.config      # ExifTool GPS mapping
+│
+└── docs/                       # Documentation
+    ├── INSTALLATION.md         # Detailed setup guide
+    └── [Additional guides]     # Usage and configuration guides
+```
+
+## 🔒 Security & Privacy
+
+### Built-in Security Features
+- **Input Validation**: Comprehensive sanitization prevents injection attacks
+- **Privacy Modes**: Sensitive data handling for investigations
+- **Rate Limiting**: API quota management and abuse prevention
+- **Audit Logging**: Complete activity tracking for accountability
+- **Error Handling**: Secure error responses prevent information disclosure
+
+### Privacy Considerations
+- Configurable privacy modes for sensitive operations
+- Automatic cleanup of temporary files
+- Secure API key management
+- GDPR-compliant data handling practices
+
+## 📈 Performance & Scalability
+
+### System Requirements
+- **Minimum**: 2GB RAM, Node.js 16.9.0+, 1GB storage
+- **Recommended**: 4GB+ RAM, SSD storage, stable internet
+- **Production**: Load balancing, monitoring, log rotation
+
+### Performance Features
+- Asynchronous processing for concurrent operations
+- Intelligent timeout handling for long-running tasks
+- Memory-efficient file processing
+- Optimized API request patterns
+
+## 🤝 Contributing
+
+### Development Setup
+```bash
+# Development mode with auto-restart
+npm run dev
+
+# Linting
+npm run lint
+
+# Cleanup temporary files
+npm run clean
+```
+
+### Adding New Commands
+1. Create command file in `/commands/` directory
+2. Follow established patterns and documentation standards
+3. Include comprehensive error handling and validation
+4. Add JSDoc documentation
+5. Update README and related documentation
+
+## 📄 Legal & Compliance
+
+### Usage Guidelines
+This tool is designed for legitimate OSINT research, security testing, and educational purposes. Users must:
+- Comply with applicable laws and regulations
+- Respect platform terms of service
+- Obtain proper authorization for investigations
+- Use responsibly and ethically
+
+### Disclaimer
+The authors are not responsible for misuse of this software. Users bear full responsibility for ensuring legal compliance in their jurisdiction.
+
+## 🆘 Support & Resources
+
+### Documentation
+- **Complete Setup Guide**: [docs/INSTALLATION.md](docs/INSTALLATION.md)
+- **Command Reference**: Individual command help available via Discord
+- **Configuration Guide**: Environment setup and API integration
+
+### Health Monitoring
+Use `/bob-health detailed:true check-apis:true check-tools:true` to verify:
+- System status and performance
+- API connectivity and quotas
+- External tool availability
+- Configuration validation
+
+### Community & Support
+- **GitHub Issues**: Bug reports and feature requests
+- **Documentation**: Comprehensive guides and examples
+- **Discord Support**: Community assistance and updates
+
+## 🚀 Version Information
+
+**Current Version**: 2.0.0  
+**Author**: gl0bal01  
+**License**: ISC  
+**Node.js**: >=16.9.0 required  
+
+### Key Features in v2.0
+- Comprehensive OSINT commands
+- Multi-AI model integration
+- Advanced blockchain analysis
+- Enhanced privacy controls
+- Professional documentation
+- Production-ready architecture
+
+---
+
+**Discord OSINT Assistant** - Professional intelligence gathering made accessible through Discord.
+
+*Empowering investigators, researchers, and security professionals with comprehensive OSINT capabilities.*
+
+**🎆 Made with ❤️ for the Osint community**
+
+[![GitHub](https://img.shields.io/badge/GitHub-gl0bal01-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/gl0bal01)

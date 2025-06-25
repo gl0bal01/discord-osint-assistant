@@ -1,0 +1,76 @@
+cff-version: 1.2.0
+title: "Discord OSINT Assistant: A Comprehensive Open Source Intelligence Gathering Platform"
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+authors:
+  - given-names: "gl0bal01"
+    alias: "gl0bal01" 
+    orcid: "https://orcid.org/0009-0003-0062-4876"
+    given-names: "Fabien"
+    family-names: "Grenier"
+repository-code: "https://github.com/gl0bal01/discord-osint-assistant"
+url: "https://github.com/gl0bal01/discord-osint-assistant"
+abstract: >-
+  A comprehensive Discord bot designed for Open Source Intelligence (OSINT) 
+  gathering and analysis. This professional-grade platform provides 
+  investigators, researchers, and security professionals with 29 specialized 
+  commands for digital reconnaissance, covering domain analysis, identity 
+  investigation, blockchain analysis, transportation intelligence, and 
+  AI-powered analysis capabilities. The system integrates multiple external 
+  APIs and tools including ExifTool, Sherlock, Nuclei, and AWS services to 
+  provide a complete OSINT workflow within Discord's collaborative environment.
+keywords:
+  - "OSINT"
+  - "Open Source Intelligence"
+  - "Digital Forensics"
+  - "Cybersecurity"
+  - "Social Media Intelligence"
+  - "Discord Bot"
+  - "Intelligence Gathering"
+  - "Reconnaissance"
+  - "Information Security"
+  - "Blockchain Analysis"
+  - "Domain Analysis"
+  - "Identity Investigation"
+  - "Transportation Intelligence"
+  - "Geospatial Intelligence"
+  - "Image Analysis"
+  - "Network Security"
+license: MIT
+version: "2.0.0"
+date-released: "2025-06-25"
+doi: "10.5281/zenodo.XXXXXXX" # Will be assigned by Zenodo
+commit: "main"
+references:
+  - type: software
+    title: "ExifTool"
+    url: "https://exiftool.org/"
+    notes: "Used for image metadata extraction"
+  - type: software
+    title: "Sherlock"
+    url: "https://github.com/sherlock-project/sherlock"
+    notes: "Used for username investigation across social platforms"
+  - type: software
+    title: "Discord.js"
+    url: "https://discord.js.org/"
+    notes: "Discord API wrapper for Node.js"
+  - type: software
+    title: "Nikelligence"
+    url: "https://github.com/castrickclues/Nikelligence"
+    notes: "OSINT tool for Nike product investigation"
+  - type: software
+    title: "Maigret"
+    url: "https://github.com/soxoj/maigret"
+    notes: "Collect a dossier on a person by username from thousands of sites"
+  - type: software
+    title: "Linkook"
+    url: "https://github.com/JackJuly/linkook"
+    notes: "LinkedIn OSINT and reconnaissance tool"
+  - type: software
+    title: "GHunt"
+    url: "https://github.com/mxrch/GHunt"
+    notes: "Google account investigation tool"
+  - type: software
+    title: "XEuledoc"
+    url: "https://github.com/Malfrats/xeuledoc"
+    notes: "Document metadata extraction and analysis tool"
