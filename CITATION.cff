@@ -3,11 +3,10 @@ title: "Discord OSINT Assistant: A Comprehensive Open Source Intelligence Gather
 message: "If you use this software, please cite it using the metadata from this file."
 type: software
 authors:
-  - given-names: "gl0bal01"
+  - given-names: "Fabien"
+    family-names: "Grenier"
     alias: "gl0bal01" 
     orcid: "https://orcid.org/0009-0003-0062-4876"
-    given-names: "Fabien"
-    family-names: "Grenier"
 repository-code: "https://github.com/gl0bal01/discord-osint-assistant"
 url: "https://github.com/gl0bal01/discord-osint-assistant"
 abstract: >-
