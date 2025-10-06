@@ -17,7 +17,7 @@
 
 
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/gl0bal01/discord-osint-assistant/pulls)
-
+[![GitHub](https://img.shields.io/badge/GitHub-gl0bal01-181717?logo=github&logoColor=white)](https://github.com/gl0bal01)
 
 </div>
 
