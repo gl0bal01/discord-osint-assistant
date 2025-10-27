@@ -27,7 +27,6 @@ const { AttachmentBuilder } = require('discord.js');
 const { exec } = require('child_process');
 const fs = require('fs');
 const https = require('https');
-const http = require('http');
 const path = require('path');
 const util = require('util');
 const { URL } = require('url');
@@ -78,9 +77,10 @@ module.exports = {
             if (!isValidUrl(imageUrl)) {
                 return interaction.reply({
                     content: '❌ **Invalid URL Format**\n' +
-                            'Please provide a valid HTTP or HTTPS URL to an image.\n\n' +
+                            'Please provide a valid HTTPS URL to an image.\n\n' +
                             '**Example:** `https://example.com/photo.jpg`\n' +
-                            '**Supported formats:** JPEG, PNG, GIF, WEBP, TIFF, BMP',
+                            '**Supported formats:** JPEG, PNG, GIF, WEBP, TIFF, BMP\n' +
+                            '**Note:** Only HTTPS URLs are accepted for security reasons.',
                     ephemeral: true
                 });
             }
@@ -89,14 +89,15 @@ module.exports = {
             let parsedUrl;
             try {
                 parsedUrl = new URL(imageUrl);
-                if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+                if (parsedUrl.protocol !== 'https:') {
                     throw new Error('Invalid protocol');
                 }
             } catch (error) {
                 return interaction.reply({
                     content: '❌ **URL Validation Failed**\n' +
                             'The provided URL is not accessible or uses an unsupported protocol.\n' +
-                            'Only HTTP and HTTPS URLs are supported.',
+                            'Only HTTPS URLs are supported for security reasons.\n' +
+                            'HTTP connections transmit data in cleartext and are not allowed.',
                     ephemeral: true
                 });
             }
@@ -178,18 +179,17 @@ module.exports = {
 async function downloadImageFromUrl(url, filePath) {
     return new Promise((resolve, reject) => {
         console.log(`⬇️ [EXIF] Downloading image from: ${url}`);
-        
-        const protocol = url.startsWith('https') ? https : http;
+
         const file = fs.createWriteStream(filePath);
-        
+
         // Set timeout for download
         const timeout = setTimeout(() => {
             file.close();
             fs.unlink(filePath, () => {});
             reject(new Error('Download timeout after 30 seconds'));
         }, 30000);
-        
-        protocol.get(url, {
+
+        https.get(url, {
             headers: {
                 'User-Agent': 'Discord-OSINT-Assistant/2.0 (Image-Analyzer)'
             }

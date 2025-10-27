@@ -273,15 +273,17 @@ module.exports = {
                             
                             // Parse the domain for display purposes
                             const parsedUrl = new URL(targetUrl);
-                            const domainName = parsedUrl.hostname;
-                            
+                            const rawDomainName = parsedUrl.hostname;
+                            // Sanitize the domain name to prevent path traversal
+                            const domainName = sanitizeFilenameComponent(rawDomainName);
+
                             // Fetch the webpage content
                             const response = await axios.get(targetUrl);
                             const html = response.data;
-                            
+
                             // Use cheerio to parse HTML
                             const $ = cheerio.load(html);
-                            
+
                             // Array to store favicon data
                             let faviconData = null;
                             
@@ -334,13 +336,21 @@ module.exports = {
                             // If it's an image, save it
                             if (contentType.startsWith('image/')) {
                                 // Extract extension from content-type
-                                let extension = contentType.split('/')[1].split(';')[0];
-                                extension = extension === 'svg+xml' ? 'svg' : extension;
-                                
-                                // Create a filename
+                                let rawExtension = contentType.split('/')[1].split(';')[0];
+                                rawExtension = rawExtension === 'svg+xml' ? 'svg' : rawExtension;
+                                // Validate and sanitize the extension
+                                const extension = validateImageExtension(rawExtension);
+
+                                // Create a filename with sanitized components
                                 const filename = `favicon-${domainName}.${extension}`;
                                 const filePath = path.join(tempDir, filename);
-                                
+
+                                // Validate the path is within the temp directory
+                                if (!isPathSafe(filePath, tempDir)) {
+                                    console.error('Path traversal attempt detected:', filePath);
+                                    throw new Error('Invalid file path detected');
+                                }
+
                                 // Save the file
                                 fs.writeFileSync(filePath, Buffer.from(faviconResponse.data));
                                 
@@ -464,4 +474,83 @@ function isValidDomain(domain) {
     // Basic domain validation
     const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
     return domainRegex.test(domain);
+}
+
+/**
+ * Sanitize filename component to prevent path traversal attacks
+ * @param {string} input - The input string to sanitize
+ * @returns {string} Sanitized filename component
+ */
+function sanitizeFilenameComponent(input) {
+    if (!input || typeof input !== 'string') {
+        return 'unknown';
+    }
+
+    // Remove any path separators and parent directory references
+    let sanitized = input
+        .replace(/\.\./g, '')      // Remove parent directory references
+        .replace(/[\/\\]/g, '')     // Remove path separators
+        .replace(/\0/g, '')         // Remove null bytes
+        .replace(/:/g, '')          // Remove colons (Windows drive letters)
+        .replace(/\*/g, '')         // Remove wildcards
+        .replace(/\?/g, '')         // Remove question marks
+        .replace(/"/g, '')          // Remove quotes
+        .replace(/</g, '')          // Remove angle brackets
+        .replace(/>/g, '')          // Remove angle brackets
+        .replace(/\|/g, '');        // Remove pipes
+
+    // Only allow alphanumeric, dashes, underscores, and dots
+    sanitized = sanitized.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+    // Prevent empty strings or strings that are only dots
+    if (!sanitized || /^\.+$/.test(sanitized)) {
+        return 'unknown';
+    }
+
+    // Limit length to prevent issues
+    return sanitized.substring(0, 100);
+}
+
+/**
+ * Validate and sanitize file extension for images
+ * @param {string} extension - The file extension to validate
+ * @returns {string} Validated extension or 'ico' as default
+ */
+function validateImageExtension(extension) {
+    // Whitelist of allowed image extensions
+    const allowedExtensions = ['ico', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'];
+
+    if (!extension || typeof extension !== 'string') {
+        return 'ico';
+    }
+
+    // Sanitize the extension
+    const sanitized = extension.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // Check if it's in the whitelist
+    if (allowedExtensions.includes(sanitized)) {
+        return sanitized;
+    }
+
+    return 'ico'; // Default fallback
+}
+
+/**
+ * Validate that a file path is within the expected directory
+ * @param {string} filePath - The complete file path to validate
+ * @param {string} expectedDir - The directory that should contain the file
+ * @returns {boolean} True if the path is safe
+ */
+function isPathSafe(filePath, expectedDir) {
+    try {
+        const normalizedPath = path.normalize(filePath);
+        const normalizedDir = path.normalize(expectedDir);
+
+        // Ensure the resolved path starts with the expected directory
+        return normalizedPath.startsWith(normalizedDir + path.sep) ||
+               normalizedPath === normalizedDir;
+    } catch (error) {
+        console.error('Error validating path:', error);
+        return false;
+    }
 }
