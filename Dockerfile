@@ -3,9 +3,9 @@ FROM node:18-slim
 # Create app directory
 WORKDIR /app
 
-# Install only production dependencies
-COPY package.json ./
-RUN npm install --omit=dev
+# Install only production dependencies (reproducible via lockfile)
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
 # Copy application code
 COPY . .

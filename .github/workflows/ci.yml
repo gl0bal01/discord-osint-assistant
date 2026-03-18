@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm install
+      - run: npm ci
       - run: npm test
       - run: npm run lint
 
@@ -29,8 +29,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
-      - run: npm install
-      - run: npm audit --audit-level=critical
+      - run: npm ci
+      - run: npm audit --audit-level=high
 
   docker:
     runs-on: ubuntu-latest
