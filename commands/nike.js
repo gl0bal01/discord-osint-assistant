@@ -20,8 +20,18 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
-// Path to store the token data
-const TOKEN_FILE_PATH = path.join(__dirname, '..', 'data', 'nike_token.json');
+let cachedToken = null;
+let tokenExpiry = 0;
+
+function getToken() {
+    if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
+    return null;
+}
+
+function setToken(token, expiresIn = 3600000) {
+    cachedToken = token;
+    tokenExpiry = Date.now() + expiresIn;
+}
 
 // Small helper to split a string into pieces at most 2000 chars each.
 function chunkString(str, size = 2000) {
@@ -148,48 +158,6 @@ function generateHTMLReport(objects, searchString) {
   return html;
 }
 
-// Token management functions
-function loadTokenData() {
-  try {
-    if (fs.existsSync(TOKEN_FILE_PATH)) {
-      const data = fs.readFileSync(TOKEN_FILE_PATH, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (err) {
-    console.error('Error loading token data:', err);
-  }
-  
-  // Return default structure if file doesn't exist or has an error
-  return { token: process.env.NIKE_TOKEN || '', timestamp: Date.now() };
-}
-
-function saveTokenData(tokenData) {
-  try {
-    // Make sure the directory exists
-    const dir = path.dirname(TOKEN_FILE_PATH);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    
-    fs.writeFileSync(TOKEN_FILE_PATH, JSON.stringify(tokenData), 'utf8');
-    return true;
-  } catch (err) {
-    console.error('Error saving token data:', err);
-    return false;
-  }
-}
-
-function isTokenExpired(tokenData) {
-  // No token means it's expired
-  if (!tokenData.token) {
-    return true;
-  }
-  
-  // Check if token is older than 50 minutes (3000000 ms)
-  // Using 50 minutes instead of 60 to have a buffer
-  const tokenAge = Date.now() - tokenData.timestamp;
-  return tokenAge > 3000000;
-}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -216,38 +184,29 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply(); // Defer the reply since we might need time for token operations
     
-    // Load token data from file
-    let tokenData = loadTokenData();
-    
     // Check if a new token was provided
     const newToken = interaction.options.getString('token');
     if (newToken) {
-      tokenData = { token: newToken, timestamp: Date.now() };
-      const saved = saveTokenData(tokenData);
-      if (saved) {
-        await interaction.editReply({
-          content: '✅ New token saved successfully! This token will be used for searches until it expires (typically after 1 hour).',
-          ephemeral: true,
-        });
-      } else {
-        await interaction.editReply({
-          content: '❌ Failed to save the new token.',
-          ephemeral: true,
-        });
-        return;
-      }
+      setToken(newToken);
+      await interaction.editReply({
+        content: '✅ New token saved successfully! This token will be used for searches until it expires (typically after 1 hour).',
+        ephemeral: true,
+      });
     }
-    
-    // Check if token is expired
-    if (isTokenExpired(tokenData)) {
+
+    // Load token from in-memory cache
+    let token = getToken() || process.env.NIKE_TOKEN || '';
+
+    // Check if token is available
+    if (!token) {
       return interaction.editReply({
         content: '❌ Token has expired (tokens typically expire after 1 hour). Please provide a new token using the `token` option.',
         ephemeral: false,
       });
     }
-    
+
     // If we have a token but aren't sure if it's valid yet, let the user know
-    if (tokenData.token && !newToken) {
+    if (token && !newToken) {
       await interaction.followUp({
         content: 'ℹ️ Using saved token. If the lookup fails with an authorization error, you\'ll need to provide a new token.',
         ephemeral: true
@@ -280,17 +239,16 @@ module.exports = {
     const HEADERS = {
       'User-Agent': 'NRC/4.36.0 (prod; 1711163123; Android 11.1.0; samsung SM-G781B)',
       Appid: 'com.nike.sport.running.droid',
-      Authorization: `Bearer ${tokenData.token}`,
+      Authorization: `Bearer ${token}`,
     };
 
     try {
       const response = await axios.get(URL, { headers: HEADERS });
 
       if (response.status === 401) {
-        // Mark token as expired
-        tokenData.timestamp = 0;
-        saveTokenData(tokenData);
-        
+        // Clear cached token
+        setToken('', 0);
+
         return interaction.editReply({
           content: '❌ Token expired. Please provide a new token using the `/nike-lookup token:your_new_token` command.',
           ephemeral: false,
@@ -432,10 +390,9 @@ module.exports = {
       
       // Check if it's a 401 error (Unauthorized - likely expired token)
       if (err.response && err.response.status === 401) {
-        // Mark token as expired
-        tokenData.timestamp = 0;
-        saveTokenData(tokenData);
-        
+        // Clear cached token
+        setToken('', 0);
+
         return interaction.editReply({
           content: '❌ Token expired. Please provide a new token using the `/nike-lookup token:your_new_token` command.',
           ephemeral: false,

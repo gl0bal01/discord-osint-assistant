@@ -12,8 +12,6 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-require('dotenv').config();
-
 // Definitions of available fields for company endpoint
 const AVAILABLE_FIELD_GROUPS = {
     'officers': 'Company officers and directors',
