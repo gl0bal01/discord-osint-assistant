@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /app/temp:size=100M,uid=999,gid=999
+      - /tmp:size=50M
+    mem_limit: 512m
+    memswap_limit: 512m
+    pids_limit: 50

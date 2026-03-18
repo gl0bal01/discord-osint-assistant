@@ -10,7 +10,7 @@
 
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
-const { validateUrlNotInternal } = require('../utils/ssrf');
+const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { isValidUrl } = require('../utils/validation');
 const fs = require('fs');
 const path = require('path');
@@ -21,14 +21,24 @@ const { URL } = require('url');
 const { RekognitionClient, DetectLabelsCommand, DetectTextCommand, 
   DetectFacesCommand, DetectModerationLabelsCommand, 
   RecognizeCelebritiesCommand, CompareFacesCommand } = require('@aws-sdk/client-rekognition');
-// Initialize the AWS Rekognition client (v3)
-const rekognitionClient = new RekognitionClient({
-    region: process.env.AWS_REGION || 'us-east-1',
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+// Lazy-initialized AWS Rekognition client (v3)
+let _rekognitionClient = null;
+
+function getRekognitionClient() {
+    if (!_rekognitionClient) {
+        if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+            throw new Error('AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.');
+        }
+        _rekognitionClient = new RekognitionClient({
+            region: process.env.AWS_REGION || 'us-east-1',
+            credentials: {
+                accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+            }
+        });
     }
-});
+    return _rekognitionClient;
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -194,9 +204,10 @@ async function handleAnalyze(interaction, tempDir) {
             
             try {
                 // Download the attachment
-                const response = await axios.get(uploadedImage.url, { 
+                const response = await axios.get(uploadedImage.url, {
                     responseType: 'arraybuffer',
-                    timeout: 10000 // 10 second timeout
+                    timeout: 10000, // 10 second timeout
+                    ...getSafeAxiosConfig()
                 });
                 
                 imageBuffer = Buffer.from(response.data);
@@ -439,9 +450,10 @@ async function handleCompare(interaction, tempDir) {
             
             try {
                 // Download the attachment
-                const response = await axios.get(sourceAttachment.url, { 
+                const response = await axios.get(sourceAttachment.url, {
                     responseType: 'arraybuffer',
-                    timeout: 10000
+                    timeout: 10000,
+                    ...getSafeAxiosConfig()
                 });
                 
                 sourceImageBuffer = Buffer.from(response.data);
@@ -495,9 +507,10 @@ async function handleCompare(interaction, tempDir) {
             
             try {
                 // Download the attachment
-                const response = await axios.get(targetAttachment.url, { 
+                const response = await axios.get(targetAttachment.url, {
                     responseType: 'arraybuffer',
-                    timeout: 10000
+                    timeout: 10000,
+                    ...getSafeAxiosConfig()
                 });
                 
                 targetImageBuffer = Buffer.from(response.data);
@@ -651,9 +664,10 @@ async function downloadImage(url, tempDir, prefix = '') {
         const filePath = path.join(tempDir, fileName);
         
         // Download the image
-        const response = await axios.get(url, { 
+        const response = await axios.get(url, {
             responseType: 'arraybuffer',
-            timeout: 10000 // 10 second timeout
+            timeout: 10000, // 10 second timeout
+            ...getSafeAxiosConfig()
         });
         
         // Check if the response is an image
@@ -720,7 +734,7 @@ async function detectLabels(imageBuffer) {
     };
     
     const command = new DetectLabelsCommand(params);
-    const response = await rekognitionClient.send(command);
+    const response = await getRekognitionClient().send(command);
     return response;
 }
 
@@ -737,7 +751,7 @@ async function detectText(imageBuffer) {
     };
     
     const command = new DetectTextCommand(params);
-    const response = await rekognitionClient.send(command);
+    const response = await getRekognitionClient().send(command);
     return response;
 }
 
@@ -755,7 +769,7 @@ async function detectFaces(imageBuffer) {
     };
     
     const command = new DetectFacesCommand(params);
-    const response = await rekognitionClient.send(command);
+    const response = await getRekognitionClient().send(command);
     return response;
 }
 
@@ -773,7 +787,7 @@ async function detectModerationLabels(imageBuffer) {
     };
     
     const command = new DetectModerationLabelsCommand(params);
-    const response = await rekognitionClient.send(command);
+    const response = await getRekognitionClient().send(command);
     return response;
 }
 
@@ -790,7 +804,7 @@ async function recognizeCelebrities(imageBuffer) {
     };
     
     const command = new RecognizeCelebritiesCommand(params);
-    const response = await rekognitionClient.send(command);
+    const response = await getRekognitionClient().send(command);
     return response;
 }
 
@@ -813,6 +827,6 @@ async function compareFaces(sourceImageBuffer, targetImageBuffer, similarityThre
     };
     
     const command = new CompareFacesCommand(params);
-    const response = await rekognitionClient.send(command);
+    const response = await getRekognitionClient().send(command);
     return response;
 }

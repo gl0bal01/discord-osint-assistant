@@ -12,7 +12,7 @@ const OPTIONAL = {
     SHERLOCK_PATH: { desc: 'Path to sherlock binary', default: 'sherlock' },
     MAIGRET_PATH: { desc: 'Path to maigret binary', default: 'maigret' },
     NUCLEI_PATH: { desc: 'Path to nuclei binary', default: 'nuclei' },
-    NUCLEI_TEMPLATE_PATH: { desc: 'Path to nuclei templates', default: '/root/nuclei-templates/http/osint/user-enumeration' },
+    NUCLEI_TEMPLATE_PATH: { desc: 'Path to nuclei templates', default: '/opt/nuclei-templates/http/osint/user-enumeration' },
     EXIFTOOL_PATH: { desc: 'Path to exiftool binary', default: 'exiftool' },
     JWT_TOOL_PATH: { desc: 'Path to jwt_tool', default: '/opt/tools/jwt_tool' },
     OPENAI_API_KEY: { desc: 'OpenAI API key for chat', default: null },

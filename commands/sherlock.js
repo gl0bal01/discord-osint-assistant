@@ -25,7 +25,7 @@
  */
 
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
-const { safeSpawnToFile } = require('../utils/process');
+const { safeSpawnToFile, getSafeEnv } = require('../utils/process');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
@@ -142,7 +142,7 @@ async function executeSherlockScan(sherlockPath, username, outputFile, timeout, 
 
     return safeSpawnToFile(sherlockPath, args, outputFile, {
         timeout: timeout * 1000,
-        env: { ...process.env, PYTHONUNBUFFERED: '1' }
+        env: { ...getSafeEnv(), PYTHONUNBUFFERED: '1' }
     });
 }
 

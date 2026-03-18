@@ -163,7 +163,7 @@ module.exports = {
             
             // Construct Nuclei args array (no shell interpolation)
             const nucleiBinary = process.env.NUCLEI_PATH || 'nuclei';
-            const templatesPath = process.env.NUCLEI_TEMPLATE_PATH || '/root/nuclei-templates/http/osint/user-enumeration';
+            const templatesPath = process.env.NUCLEI_TEMPLATE_PATH || '/opt/nuclei-templates/http/osint/user-enumeration';
             const args = [
                 '-t', templatesPath,
                 '-tags', tagsList.join(','),

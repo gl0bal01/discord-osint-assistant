@@ -22,6 +22,27 @@ const { checkRateLimit } = require('./utils/ratelimit');
 const { loadConfig } = require('./utils/config');
 const config = loadConfig();
 
+// Clean up orphaned temp files from previous runs
+const tempDir = path.join(__dirname, 'temp');
+if (fs.existsSync(tempDir)) {
+    const files = fs.readdirSync(tempDir);
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    for (const file of files) {
+        try {
+            const filePath = path.join(tempDir, file);
+            const stat = fs.statSync(filePath);
+            if (now - stat.mtimeMs > maxAge) {
+                if (stat.isDirectory()) {
+                    fs.rmSync(filePath, { recursive: true, force: true });
+                } else {
+                    fs.unlinkSync(filePath);
+                }
+            }
+        } catch { /* ignore cleanup errors */ }
+    }
+}
+
 // Initialize Discord client with required intents
 const client = new Client({ 
     intents: [

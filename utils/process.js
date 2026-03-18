@@ -11,6 +11,19 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 
 /**
+ * Create a minimal environment for child processes.
+ * Only includes PATH and locale — no API keys, tokens, or secrets.
+ */
+function getSafeEnv() {
+    return {
+        PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+        HOME: process.env.HOME || '/tmp',
+        LANG: process.env.LANG || 'en_US.UTF-8',
+        NODE_ENV: process.env.NODE_ENV || 'production'
+    };
+}
+
+/**
  * Safely run an external command using spawn (no shell).
  * @param {string} command - Path to binary
  * @param {string[]} args - Array of arguments (NOT interpolated into a shell string)
@@ -22,7 +35,7 @@ function safeSpawn(command, args = [], options = {}) {
         timeout = 300000,
         maxBuffer = 10 * 1024 * 1024,
         cwd,
-        env = process.env
+        env = getSafeEnv()
     } = options;
 
     return new Promise((resolve, reject) => {
@@ -45,8 +58,11 @@ function safeSpawn(command, args = [], options = {}) {
             }
         });
 
+        const MAX_STDERR = 1024 * 1024; // 1MB
         proc.stderr.on('data', (data) => {
-            stderr += data.toString();
+            if (stderr.length < MAX_STDERR) {
+                stderr += data.toString();
+            }
         });
 
         const timeoutId = setTimeout(() => {
@@ -84,7 +100,8 @@ function safeSpawnToFile(command, args = [], outputFilePath, options = {}) {
     const {
         timeout = 300000,
         cwd,
-        env = process.env
+        env = getSafeEnv(),
+        maxFileSize = 50 * 1024 * 1024 // 50MB default
     } = options;
 
     return new Promise((resolve, reject) => {
@@ -92,15 +109,31 @@ function safeSpawnToFile(command, args = [], outputFilePath, options = {}) {
         const proc = spawn(command, args, {
             cwd,
             env,
-            stdio: ['ignore', outStream, 'pipe'],
+            stdio: ['ignore', 'pipe', 'pipe'],
             shell: false
         });
 
         let stderr = '';
         let killed = false;
+        let bytesWritten = 0;
+        const MAX_STDERR = 1024 * 1024; // 1MB
+
+        proc.stdout.on('data', (chunk) => {
+            bytesWritten += chunk.length;
+            if (bytesWritten > maxFileSize) {
+                killed = true;
+                proc.kill('SIGTERM');
+                outStream.end();
+                reject(new Error(`Output file exceeded maximum size of ${maxFileSize} bytes`));
+                return;
+            }
+            outStream.write(chunk);
+        });
 
         proc.stderr.on('data', (data) => {
-            stderr += data.toString();
+            if (stderr.length < MAX_STDERR) {
+                stderr += data.toString();
+            }
         });
 
         const timeoutId = setTimeout(() => {
@@ -128,4 +161,4 @@ function safeSpawnToFile(command, args = [], outputFilePath, options = {}) {
     });
 }
 
-module.exports = { safeSpawn, safeSpawnToFile };
+module.exports = { safeSpawn, safeSpawnToFile, getSafeEnv };

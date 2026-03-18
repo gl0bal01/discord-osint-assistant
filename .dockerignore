@@ -7,3 +7,13 @@ docs/
 *.md
 .eslintrc*
 .gitignore
+.github/
+eslint.config.js
+ghunt_results/
+*.test.js
+vitest.config.*
+CONTRIBUTING.md
+SECURITY.md
+REPOSITORY_SUMMARY.md
+CITATION.cff
+zenodo.json

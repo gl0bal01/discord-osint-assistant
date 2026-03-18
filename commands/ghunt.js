@@ -326,7 +326,7 @@ module.exports = {
         const userTag = interaction.user.tag || username;
         
         // Directory for results
-        const resultsDir = path.join(__dirname, '../ghunt_results');
+        const resultsDir = path.join(__dirname, '../temp/ghunt_results');
         if (!fs.existsSync(resultsDir)) {
             fs.mkdirSync(resultsDir, { recursive: true });
         }

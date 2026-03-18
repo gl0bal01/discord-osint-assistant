@@ -42,7 +42,7 @@ const crypto = require('crypto');
 // Configuration - adjust these paths according to your environment
 const CONFIG = {
     JWT_TOOL_PATH: process.env.JWT_TOOL_PATH || '/opt/tools/jwt_tool',
-    TEMP_FOLDER: process.env.JWT_TEMP_FOLDER || '/tmp/jwt_analysis',
+    TEMP_FOLDER: process.env.JWT_TEMP_FOLDER || path.join(__dirname, '..', 'temp', 'jwt_analysis'),
     DEFAULT_WORDLIST: process.env.JWT_WORDLIST || '/opt/rockyou.txt',
     COMMAND_TIMEOUT: parseInt(process.env.JWT_TIMEOUT) || 120000, // 2 minutes
     MAX_OUTPUT_SIZE: 10 * 1024 * 1024, // 10MB max output file size
