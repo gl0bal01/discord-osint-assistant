@@ -31,18 +31,13 @@
  * Author: gl0bal01
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
-const { exec } = require('child_process');
+const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discord.js');
+const { safeSpawn, safeSpawnToFile } = require('../utils/process');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const os = require('os');
-const util = require('util');
 const crypto = require('crypto');
-
-// Promisify exec for cleaner async/await usage
-const execPromise = util.promisify(exec);
 
 // Configuration - adjust these paths according to your environment
 const CONFIG = {
@@ -59,16 +54,6 @@ const CONFIG = {
 const JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
 
 // Utility functions
-const sanitizeInput = (input) => {
-    if (!input) return '';
-    return input.replace(/[;&|`$(){}[\]\\]/g, '\\$&');
-};
-
-const escapeShellArg = (arg) => {
-    if (!arg) return "''";
-    return `'${arg.replace(/'/g, "'\\''")}'`;
-};
-
 const generateSecureFilename = (prefix) => {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const random = crypto.randomBytes(8).toString('hex');
@@ -100,51 +85,27 @@ const cleanupOldFiles = async () => {
 setInterval(cleanupOldFiles, CONFIG.CLEANUP_INTERVAL);
 
 const findJwtTool = async () => {
-    // Try configured path first
     try {
-        await execPromise(`test -x "${CONFIG.JWT_TOOL_PATH}"`);
+        await safeSpawn('test', ['-x', CONFIG.JWT_TOOL_PATH], { timeout: 5000 });
         return CONFIG.JWT_TOOL_PATH;
-    } catch (error) {
-        // Ignore and continue
-    }
-
-    // Try to find jwt_tool in PATH
+    } catch {}
     try {
-        const { stdout } = await execPromise('which jwt_tool');
-        if (stdout.trim()) {
-            return 'jwt_tool';
-        }
-    } catch (error) {
-        // Ignore and continue
-    }
-
-    // Try Python version as fallback
-    const pythonPath = `${CONFIG.JWT_TOOL_PATH}/venv/bin/python3 ${CONFIG.JWT_TOOL_PATH}/jwt_tool.py`;
+        const { stdout } = await safeSpawn('which', ['jwt_tool'], { timeout: 5000 });
+        if (stdout.trim()) return 'jwt_tool';
+    } catch {}
+    const pyScript = `${CONFIG.JWT_TOOL_PATH}/jwt_tool.py`;
     try {
-        await execPromise(`test -f "${CONFIG.JWT_TOOL_PATH}/jwt_tool.py"`);
-        return pythonPath;
-    } catch (error) {
-        // Ignore and continue
-    }
-
-    throw new Error('jwt_tool not found. Please check installation and configuration.');
+        await safeSpawn('test', ['-f', pyScript], { timeout: 5000 });
+        return `${CONFIG.JWT_TOOL_PATH}/venv/bin/python3`;
+    } catch {}
+    throw new Error('jwt_tool not found.');
 };
 
-const executeJwtCommand = async (command, outputFile) => {
-    const fullCmd = `timeout ${Math.floor(CONFIG.COMMAND_TIMEOUT / 1000)} ${command} > "${outputFile}" 2>&1`;
-    
-    console.log(`Executing JWT command: ${command}`);
-    
+const executeJwtCommand = async (cmd, args, outputFile) => {
     try {
-        await execPromise(fullCmd, { 
-            timeout: CONFIG.COMMAND_TIMEOUT,
-            maxBuffer: CONFIG.MAX_OUTPUT_SIZE 
-        });
+        await safeSpawnToFile(cmd, args, outputFile, { timeout: CONFIG.COMMAND_TIMEOUT });
     } catch (error) {
-        // Command may exit with non-zero code but still produce useful output
-        console.warn(`Command execution warning: ${error.message}`);
-        
-        // Check if output file exists and has content
+        const fsSync = require('fs');
         if (!fsSync.existsSync(outputFile) || fsSync.statSync(outputFile).size === 0) {
             throw new Error(`No output generated. Command failed: ${error.message}`);
         }
@@ -272,22 +233,22 @@ module.exports = {
             // Create secure output file
             outputFile = path.join(CONFIG.TEMP_FOLDER, generateSecureFilename(`jwt-${subcommand}`));
 
-            let cmd = '';
+            let jwtArgs = [];
             let embedTitle = '';
             let embedColor = 0x0099FF;
 
-            // Build command based on subcommand
+            // Build args array based on subcommand (no shell interpolation)
             switch (subcommand) {
                 case 'analyze':
                     const verbose = interaction.options.getBoolean('verbose') || false;
-                    cmd = `${jwtToolCmd} ${verbose ? '-v' : ''} ${escapeShellArg(token)}`;
+                    jwtArgs = verbose ? ['-v', token] : [token];
                     embedTitle = '🔍 JWT Analysis Results';
                     embedColor = 0x0099FF;
                     break;
 
                 case 'tamper':
                     const action = interaction.options.getString('action');
-                    const claim = sanitizeInput(interaction.options.getString('claim'));
+                    const claim = interaction.options.getString('claim');
                     const value = interaction.options.getString('value');
                     const secret = interaction.options.getString('secret');
                     const algorithm = interaction.options.getString('algorithm') || 'hs256';
@@ -311,17 +272,17 @@ module.exports = {
                         return interaction.editReply({ embeds: [embed] });
                     }
 
-                    // Build tamper command
-                    const baseCmd = `${jwtToolCmd} -v ${escapeShellArg(token)} -I`;
-                    const signCmd = `-S ${algorithm} -p ${escapeShellArg(secret)}`;
+                    // Build tamper args
+                    const baseArgs = ['-v', token, '-I'];
+                    const signArgs = ['-S', algorithm, '-p', secret];
 
                     switch (action) {
                         case 'modify':
                         case 'add':
-                            cmd = `${baseCmd} -pc ${escapeShellArg(claim)} -pv ${escapeShellArg(value)} ${signCmd}`;
+                            jwtArgs = [...baseArgs, '-pc', claim, '-pv', value, ...signArgs];
                             break;
                         case 'delete':
-                            cmd = `${baseCmd} -rm ${escapeShellArg(claim)} ${signCmd}`;
+                            jwtArgs = [...baseArgs, '-rm', claim, ...signArgs];
                             break;
                     }
 
@@ -330,9 +291,15 @@ module.exports = {
                     break;
 
                 case 'crack':
-                    const wordlist = interaction.options.getString('wordlist') || CONFIG.DEFAULT_WORDLIST;
+                    const wordlistInput = interaction.options.getString('wordlist');
+                    let wordlist = CONFIG.DEFAULT_WORDLIST;
+                    if (wordlistInput) {
+                        const wordlistDir = path.dirname(CONFIG.DEFAULT_WORDLIST);
+                        const safeName = path.basename(wordlistInput);
+                        wordlist = path.join(wordlistDir, safeName);
+                    }
                     const mode = interaction.options.getString('mode') || 'dict';
-                    
+
                     // Validate wordlist exists
                     if (!fsSync.existsSync(wordlist)) {
                         const embed = createResultEmbed(
@@ -343,10 +310,10 @@ module.exports = {
                         return interaction.editReply({ embeds: [embed] });
                     }
 
-                    cmd = `${jwtToolCmd} -v ${escapeShellArg(token)} -C -d ${escapeShellArg(wordlist)}`;
-                    
+                    jwtArgs = ['-v', token, '-C', '-d', wordlist];
+
                     if (mode === 'brute') {
-                        cmd += ' -b';
+                        jwtArgs.push('-b');
                     }
 
                     embedTitle = '🔓 JWT Cracking Results';
@@ -362,8 +329,8 @@ module.exports = {
             );
             await interaction.editReply({ embeds: [progressEmbed] });
 
-            // Execute command
-            await executeJwtCommand(cmd, outputFile);
+            // Execute command using safe spawn (no shell interpolation)
+            await executeJwtCommand(jwtToolCmd, jwtArgs, outputFile);
 
             // Read and process output
             const outputContent = await fs.readFile(outputFile, 'utf8');

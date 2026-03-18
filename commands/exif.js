@@ -22,19 +22,14 @@
  * Usage: /bob-exif url:https://example.com/image.jpg
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { AttachmentBuilder } = require('discord.js');
-const { exec } = require('child_process');
+const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { safeSpawn } = require('../utils/process');
 const fs = require('fs');
 const https = require('https');
 const path = require('path');
-const util = require('util');
 const { URL } = require('url');
 const crypto = require('crypto');
 const { isValidUrl, sanitizeInput } = require('../utils/validation');
-
-// Promisify exec for async/await usage
-const execPromise = util.promisify(exec);
 const fsPromises = require('fs').promises;
 
 // Ensure the temp directory exists
@@ -70,7 +65,7 @@ module.exports = {
             // Get and validate URL input
             const rawUrl = interaction.options.getString('url');
             const imageUrl = sanitizeInput(rawUrl);
-            const includeDetailed = interaction.options.getBoolean('detailed') || true;
+            const includeDetailed = interaction.options.getBoolean('detailed') ?? true;
             const privacyMode = interaction.options.getBoolean('privacy-mode') || false;
             
             // Validate URL format
@@ -330,44 +325,37 @@ async function isImageFile(filePath) {
  */
 async function extractExifData(imagePath, includeDetailed = false) {
     try {
-        // Get ExifTool path from environment or use default
         const exiftoolPath = process.env.EXIFTOOL_PATH || 'exiftool';
-        
-        // Build ExifTool command
         const configPath = path.resolve('./addons/GPS2MapUrl.config');
-        let command = `"${exiftoolPath}" -config "${configPath}" -json`;
-        
+        const args = ['-config', configPath, '-json'];
+
         if (!includeDetailed) {
             // Only extract essential metadata
-            command += ' -EXIF:* -GPS:* -IPTC:* -XMP:* -ICC_Profile:ColorSpace -File:*';
+            args.push('-EXIF:*', '-GPS:*', '-IPTC:*', '-XMP:*', '-ICC_Profile:ColorSpace', '-File:*');
         }
-        
-        command += ` "${imagePath}"`;
-        
-        console.log(`🔧 [EXIF] Running ExifTool command: ${command}`);
-        
-        // Execute ExifTool with timeout
-        const { stdout, stderr } = await execPromise(command, {
-            timeout: 30000, // 30 second timeout
-            maxBuffer: 1024 * 1024 * 5 // 5MB buffer
-        });
-        
+
+        args.push(imagePath);
+
+        console.log(`🔧 [EXIF] Running ExifTool: ${exiftoolPath} ${args.join(' ')}`);
+
+        const { stdout, stderr } = await safeSpawn(exiftoolPath, args, { timeout: 30000 });
+
         if (stderr && !stderr.includes('Warning')) {
             console.warn('[EXIF] ExifTool warnings:', stderr);
         }
-        
+
         // Parse JSON output
-        const exifArray = JSON.parse(stdout);
-        const exifData = exifArray[0] || {};
-        
+        const metadata = JSON.parse(stdout);
+        const exifData = metadata[0] || {};
+
         console.log(`📊 [EXIF] Extracted ${Object.keys(exifData).length} metadata fields`);
-        
+
         return exifData;
-        
+
     } catch (error) {
-        if (error.code === 'ENOENT') {
+        if (error.message.includes('Failed to start process')) {
             throw new Error('ExifTool not found. Please install ExifTool and ensure it\'s in your PATH.');
-        } else if (error.killed) {
+        } else if (error.message.includes('timed out')) {
             throw new Error('ExifTool process timed out');
         } else {
             throw new Error(`ExifTool error: ${error.message}`);

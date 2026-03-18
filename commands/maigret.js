@@ -5,8 +5,8 @@
  * 
  * A discord wrapper around https://github.com/soxoj/maigret
  */
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { exec } = require('child_process');
+const { SlashCommandBuilder } = require('discord.js');
+const { safeSpawnToFile } = require('../utils/process');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
@@ -53,59 +53,14 @@ module.exports = {
             // Ensure temp directory exists
             await fs.mkdir(outputDir, { recursive: true });
             
-            // Build the Maigret command using shell redirection to capture output
             const maigretPath = process.env.MAIGRET_PATH || 'maigret';
-            let command = `"${maigretPath}" ${username} -a --no-progressbar --txt`;
-            if (verbose) {
-                command += ' --verbose ';
-            }
-            command += ` > "${outputFile}"`;
-            
-            // Send initial status message
+            const args = [username, '-a', '--no-progressbar', '--txt'];
+            if (verbose) args.push('--verbose');
+
             await interaction.editReply(`🔍 Starting OSINT scan for username: \`${username}\`\nThis may take a few moments...`);
-            
-            // Execute the command with timeout handling
-            await new Promise((resolve, reject) => {
-                let timeoutId;
-                let progressInterval;
-                let elapsedTime = 0;
-                const maxTime = customTimeout * 1000; // Convert seconds to milliseconds
-                const progressTime = 30000; // 30 seconds for progress updates
-                
-                const childProcess = exec(command, (error, stdout, stderr) => {
-                    clearTimeout(timeoutId);
-                    clearInterval(progressInterval);
-                    
-                    if (error) {
-                        return reject(error);
-                    } else {
-                        return resolve(stdout);
-                    }
-                    
-                    if (stderr && verbose) {
-                        console.error(`Maigret stderr: ${stderr}`);
-                    }
-                });
-                
-                // Set progress update interval
-                progressInterval = setInterval(async () => {
-                    elapsedTime += progressTime;
-                    await interaction.editReply(`🔍 Scanning username: \`${username}\`\nElapsed time: ${Math.floor(elapsedTime / 1000)} seconds...`);
-                }, progressTime);
-                
-                // Set timeout to kill process if it runs too long
-                timeoutId = setTimeout(() => {
-                    clearInterval(progressInterval);
-                    childProcess.kill('SIGTERM');
-                    reject(new Error(`Scan timed out after ${customTimeout} seconds. Please try again later.`));
-                }, maxTime);
-                
-                // Handle potential errors
-                childProcess.on('error', (error) => {
-                    clearTimeout(timeoutId);
-                    clearInterval(progressInterval);
-                    reject(new Error(`Process error: ${error.message}`));
-                });
+
+            await safeSpawnToFile(maigretPath, args, outputFile, {
+                timeout: customTimeout * 1000
             });
             
             // Read output file content

@@ -75,8 +75,8 @@
  * @since 2025-06-24
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { exec } = require('child_process');
+const { SlashCommandBuilder } = require('discord.js');
+const { safeSpawn } = require('../utils/process');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
@@ -160,19 +160,16 @@ module.exports = {
                 tagsList = [...new Set([...tagsList, ...userTags])];
             }
             
-            // Construct Nuclei command with proper escaping and security measures
-            // Uses specific OSINT user enumeration templates with variable injection
+            // Construct Nuclei args array (no shell interpolation)
             const nucleiBinary = process.env.NUCLEI_PATH || 'nuclei';
             const templatesPath = process.env.NUCLEI_TEMPLATE_PATH || '/root/nuclei-templates/http/osint/user-enumeration';
-            const tagsParam = tagsList.join(',');
-            const verboseFlag = verbose ? '-v' : '-silent';
-            
-            // Escape username to prevent shell injection while preserving functionality
-            const escapedUsername = username.replace(/"/g, '\\"');
-            const escapedOutputFile = outputFile.replace(/"/g, '\\"');
-            
-            // Build complete command with all security measures
-            const command = `${nucleiBinary} -t "${templatesPath}" -tags "${tagsParam}" -var user="${escapedUsername}" -o "${escapedOutputFile}" ${verboseFlag}`;
+            const args = [
+                '-t', templatesPath,
+                '-tags', tagsList.join(','),
+                '-var', `user=${username}`,
+                '-o', outputFile,
+                verbose ? '-v' : '-silent'
+            ];
             
             // Send initial status message with scan parameters
             await interaction.editReply({
@@ -184,78 +181,8 @@ module.exports = {
                         `⏳ Scanning in progress... This may take several minutes.`
             });
             
-            // Execute Nuclei scan with comprehensive timeout and progress management
-            await new Promise((resolve, reject) => {
-                let timeoutId;
-                let progressInterval;
-                let elapsedTime = 0;
-                const maxTime = customTimeout * 1000; // Convert to milliseconds
-                const progressUpdateInterval = 30000; // Update every 30 seconds
-                
-                // Spawn Nuclei subprocess with proper error handling
-                const childProcess = exec(command, (error, stdout, stderr) => {
-                    // Clean up timers on process completion
-                    clearTimeout(timeoutId);
-                    clearInterval(progressInterval);
-                    
-                    if (error) {
-                        reject(new Error(`Nuclei execution failed: ${error.message}`));
-                        return;
-                    }
-                    
-                    // Log stderr output in verbose mode for debugging
-                    if (stderr && verbose) {
-                        console.error(`[Nuclei Debug] ${stderr}`);
-                    }
-                    
-                    resolve(stdout);
-                });
-                
-                // Set up progress update interval for user feedback
-                progressInterval = setInterval(async () => {
-                    elapsedTime += progressUpdateInterval;
-                    const minutes = Math.floor(elapsedTime / 60000);
-                    const seconds = Math.floor((elapsedTime % 60000) / 1000);
-                    const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-                    
-                    await interaction.editReply({
-                        content: `🔍 **OSINT Scan in Progress**\n\n` +
-                                `**Target:** \`${username}\`\n` +
-                                `**Elapsed Time:** ${timeStr}\n` +
-                                `**Categories:** ${tagsList.join(', ')}\n\n` +
-                                `⏳ Please wait... Scanning multiple platforms.`
-                    }).catch(console.error); // Ignore Discord API errors during updates
-                }, progressUpdateInterval);
-                
-                // Set timeout to terminate scan if it exceeds maximum duration
-                timeoutId = setTimeout(() => {
-                    clearInterval(progressInterval);
-                    childProcess.kill('SIGTERM'); // Graceful termination
-                    
-                    // Force kill after 5 seconds if graceful termination fails
-                    setTimeout(() => {
-                        if (!childProcess.killed) {
-                            childProcess.kill('SIGKILL');
-                        }
-                    }, 5000);
-                    
-                    reject(new Error(`Scan timeout: Operation exceeded ${customTimeout} seconds and was terminated. Consider using more specific tags or increasing timeout.`));
-                }, maxTime);
-                
-                // Handle subprocess errors and unexpected termination
-                childProcess.on('error', (error) => {
-                    clearTimeout(timeoutId);
-                    clearInterval(progressInterval);
-                    reject(new Error(`Process execution error: ${error.message}`));
-                });
-                
-                // Handle subprocess exit codes
-                childProcess.on('exit', (code) => {
-                    if (code !== 0 && code !== null) {
-                        console.warn(`[Nuclei] Process exited with code ${code}`);
-                    }
-                });
-            });
+            // Execute Nuclei scan using safe spawn (no shell interpolation)
+            await safeSpawn(nucleiBinary, args, { timeout: customTimeout * 1000 });
             
             // Process scan results and prepare output
             let fileContent = '';

@@ -24,13 +24,12 @@
  * Usage: /sherlock username:john_doe verbose:true timeout:300
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { AttachmentBuilder } = require('discord.js');
-const { exec } = require('child_process');
+const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { safeSpawnToFile } = require('../utils/process');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
-const { isValidUsername, sanitizeInput } = require('../utils/validation');
+const { isValidUsername, sanitizeInput, isValidUrl } = require('../utils/validation');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -98,22 +97,7 @@ module.exports = {
             
             // Build Sherlock command
             const sherlockPath = process.env.SHERLOCK_PATH || 'sherlock';
-            let command = `"${sherlockPath}" "${username}"`;
-            
-            // Add command options
-            if (verbose) {
-                command += ' --verbose';
-            }
-            
-            if (!includeNsfw) {
-                command += ' --nsfw'; // This flag excludes NSFW sites in Sherlock
-            }
-            
-            // Redirect output to file
-            command += ` > "${outputFile}" 2>&1`;
-            
-            console.log(`🔧 [SHERLOCK] Executing command: ${command}`);
-            
+
             // Send initial status message
             await interaction.editReply({
                 content: `🕵️ **Username Investigation Started**\n` +
@@ -123,12 +107,12 @@ module.exports = {
                         `📊 **Mode:** ${verbose ? 'Verbose' : 'Standard'}\n\n` +
                         `⏳ Scanning in progress... This may take several minutes.`
             });
-            
+
             // Execute Sherlock with comprehensive error handling
-            const results = await executeSherlockScan(command, customTimeout, interaction, username);
+            await executeSherlockScan(sherlockPath, username, outputFile, customTimeout, verbose, includeNsfw, interaction);
             
             // Process and format results
-            await processSherlockResults(interaction, outputFile, username, results);
+            await processSherlockResults(interaction, outputFile, username);
             
         } catch (error) {
             console.error(`❌ [SHERLOCK] Error during scan for ${username}:`, error.message);
@@ -141,80 +125,24 @@ module.exports = {
 };
 
 /**
- * Execute Sherlock scan with timeout and progress tracking
- * @param {string} command - Sherlock command to execute
+ * Execute Sherlock scan with timeout using safe spawn
+ * @param {string} sherlockPath - Path to Sherlock binary
+ * @param {string} username - Username to search for
+ * @param {string} outputFile - Path to write output
  * @param {number} timeout - Timeout in seconds
+ * @param {boolean} verbose - Whether to enable verbose mode
+ * @param {boolean} includeNsfw - Whether to include NSFW sites
  * @param {CommandInteraction} interaction - Discord interaction
- * @param {string} username - Username being searched
- * @returns {Promise<Object>} Scan results
+ * @returns {Promise<{ stderr: string, code: number }>}
  */
-async function executeSherlockScan(command, timeout, interaction, username) {
-    return new Promise((resolve, reject) => {
-        let timeoutId;
-        let progressInterval;
-        let elapsedTime = 0;
-        const maxTime = timeout * 1000;
-        const progressUpdateInterval = 30000; // Update every 30 seconds
-        
-        // Start the Sherlock process
-        const childProcess = exec(command, {
-            maxBuffer: 1024 * 1024 * 10, // 10MB buffer for large outputs
-            env: { ...process.env, PYTHONUNBUFFERED: '1' }
-        }, (error, stdout, stderr) => {
-            clearTimeout(timeoutId);
-            clearInterval(progressInterval);
-            
-            if (error && !error.killed) {
-                return reject(error);
-            }
-            
-            resolve({
-                stdout: stdout || '',
-                stderr: stderr || '',
-                killed: error?.killed || false
-            });
-        });
-        
-        // Set up progress updates
-        progressInterval = setInterval(async () => {
-            elapsedTime += progressUpdateInterval;
-            const minutes = Math.floor(elapsedTime / 60000);
-            const seconds = Math.floor((elapsedTime % 60000) / 1000);
-            
-            try {
-                await interaction.editReply({
-                    content: `🕵️ **Username Investigation in Progress**\n` +
-                            `🎯 **Target:** \`${username}\`\n` +
-                            `⏱️ **Elapsed:** ${minutes}m ${seconds}s\n` +
-                            `🔍 **Status:** Scanning platforms...\n\n` +
-                            `⏳ Please wait while checking 400+ social networks.`
-                });
-            } catch (updateError) {
-                console.warn('[SHERLOCK] Failed to update progress:', updateError.message);
-            }
-        }, progressUpdateInterval);
-        
-        // Set timeout to kill process if it runs too long
-        timeoutId = setTimeout(() => {
-            clearInterval(progressInterval);
-            childProcess.kill('SIGTERM');
-            
-            // Force kill if SIGTERM doesn't work
-            setTimeout(() => {
-                if (!childProcess.killed) {
-                    childProcess.kill('SIGKILL');
-                }
-            }, 5000);
-            
-            reject(new Error(`Scan timed out after ${timeout} seconds`));
-        }, maxTime);
-        
-        // Handle process errors
-        childProcess.on('error', (error) => {
-            clearTimeout(timeoutId);
-            clearInterval(progressInterval);
-            reject(new Error(`Process error: ${error.message}`));
-        });
+async function executeSherlockScan(sherlockPath, username, outputFile, timeout, verbose, includeNsfw, interaction) {
+    const args = [username];
+    if (verbose) args.push('--verbose');
+    if (!includeNsfw) args.push('--nsfw');
+
+    return safeSpawnToFile(sherlockPath, args, outputFile, {
+        timeout: timeout * 1000,
+        env: { ...process.env, PYTHONUNBUFFERED: '1' }
     });
 }
 
@@ -223,9 +151,8 @@ async function executeSherlockScan(command, timeout, interaction, username) {
  * @param {CommandInteraction} interaction - Discord interaction
  * @param {string} outputFile - Path to Sherlock output file
  * @param {string} username - Username that was searched
- * @param {Object} results - Sherlock execution results
  */
-async function processSherlockResults(interaction, outputFile, username, results) {
+async function processSherlockResults(interaction, outputFile, username) {
     try {
         // Read output file content
         let fileContent = '';
@@ -233,7 +160,7 @@ async function processSherlockResults(interaction, outputFile, username, results
             fileContent = await fs.readFile(outputFile, 'utf8');
         } catch (readError) {
             console.warn('[SHERLOCK] Could not read output file:', readError.message);
-            fileContent = results.stdout || '';
+            fileContent = '';
         }
         
         console.log(`📊 [SHERLOCK] Processing results for ${username} (${fileContent.length} characters)`);
@@ -256,7 +183,7 @@ async function processSherlockResults(interaction, outputFile, username, results
         // Create response message
         let responseMessage = `🕵️ **Username Investigation Results**\n`;
         responseMessage += `🎯 **Target:** \`${username}\`\n`;
-        responseMessage += `📊 **Scan Status:** ${results.killed ? 'Timed out' : 'Completed'}\n`;
+        responseMessage += `📊 **Scan Status:** Completed\n`;
         
         if (foundProfiles.length > 0) {
             responseMessage += `✅ **Profiles Found:** ${foundProfiles.length}\n\n`;
@@ -354,20 +281,6 @@ function parseSherlockOutput(content) {
     foundProfiles.sort((a, b) => a.platform.localeCompare(b.platform));
     
     return foundProfiles;
-}
-
-/**
- * Validate URL format
- * @param {string} url - URL to validate
- * @returns {boolean} Whether URL is valid
- */
-function isValidUrl(url) {
-    try {
-        const urlObj = new URL(url);
-        return ['http:', 'https:'].includes(urlObj.protocol);
-    } catch {
-        return false;
-    }
 }
 
 /**
