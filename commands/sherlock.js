@@ -230,7 +230,7 @@ async function processSherlockResults(interaction, outputFile, username) {
         await interaction.editReply({
             content: `❌ **Error Processing Results**\n` +
                     `The scan completed but there was an error processing the output.\n` +
-                    `Error: ${error.message}`,
+                    `An unexpected error occurred. Please try again later.`,
             ephemeral: false
         });
     }

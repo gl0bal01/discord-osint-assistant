@@ -575,7 +575,7 @@ async function handleExifError(interaction, error, imageUrl) {
     } else if (error.message.includes('Invalid image')) {
         errorMessage += 'The file is not a valid image or is corrupted.';
     } else {
-        errorMessage += `Unexpected error: ${error.message}`;
+        errorMessage += 'An unexpected error occurred. Please try again later.';
     }
     
     await interaction.editReply({

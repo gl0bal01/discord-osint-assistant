@@ -155,10 +155,10 @@ function containsMaliciousPatterns(input) {
     
     const maliciousPatterns = [
         /\b(eval|exec|system|shell_exec|passthru)\s*\(/i,
-        /<script[^>]*>.*?<\/script>/gi,
+        /<script[^>]*>.*?<\/script>/i,
         /javascript:/i,
         /data:text\/html/i,
-        /\$\{.*\}/g, // Template literal injection
+        /\$\{.*\}/, // Template literal injection
         /__proto__|constructor|prototype/i
     ];
     

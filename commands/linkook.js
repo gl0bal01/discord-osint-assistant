@@ -10,6 +10,7 @@
  */
 
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { safeSpawn } = require('../utils/process');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -94,9 +95,12 @@ async function runLinkook(args, interaction, outputDir, username, rawMode) {
         let stderrData = '';
         let foundSites = [];
         
-        // Spawn the Linkook process
-        const linkookProcess = spawn('linkook', args);
-        
+        // Spawn the Linkook process with shell: false to prevent command injection
+        const linkookProcess = spawn('linkook', args, {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            shell: false
+        });
+
         // Collect stdout data
         linkookProcess.stdout.on('data', (data) => {
             const output = data.toString();
@@ -128,7 +132,11 @@ async function runLinkook(args, interaction, outputDir, username, rawMode) {
         
         // Set a timeout to kill the process if it takes too long
         const timeout = setTimeout(() => {
-            linkookProcess.kill();
+            linkookProcess.kill('SIGTERM');
+            // Force kill if SIGTERM doesn't work after 5 seconds
+            setTimeout(() => {
+                try { if (!linkookProcess.killed) linkookProcess.kill('SIGKILL'); } catch {}
+            }, 5000);
             reject(new Error('Linkook process timed out after 3 minutes. Try again later.'));
         }, 180000); // 3 minute timeout
         

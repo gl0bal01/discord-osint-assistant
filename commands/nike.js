@@ -20,6 +20,10 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
+function escapeHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
 let cachedToken = null;
 let tokenExpiry = 0;
 
@@ -51,7 +55,7 @@ function generateHTMLReport(objects, searchString) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nike Lookup Results for: ${searchString}</title>
+  <title>Nike Lookup Results for: ${escapeHtml(searchString)}</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -98,7 +102,7 @@ function generateHTMLReport(objects, searchString) {
 </head>
 <body>
   <div class="report-header">
-    <h1>Nike Lookup Results for: ${searchString}</h1>
+    <h1>Nike Lookup Results for: ${escapeHtml(searchString)}</h1>
     <p>Date: ${new Date().toLocaleString()}</p>
     <p>Total results: ${objects.length}</p>
   </div>`;
@@ -124,7 +128,7 @@ function generateHTMLReport(objects, searchString) {
     if (imageUrl) {
       html += `
     <div class="profile-image-container">
-      <img src="${imageUrl}" alt="${displayName || 'Profile'}" class="profile-image">
+      <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(displayName || 'Profile')}" class="profile-image">
     </div>`;
     }
     
@@ -132,19 +136,19 @@ function generateHTMLReport(objects, searchString) {
     <div class="user-details">`;
     
     if (foundEmail)  html += `
-      <div class="field"><span class="field-name">Email:</span> ${foundEmail}</div>`;
+      <div class="field"><span class="field-name">Email:</span> ${escapeHtml(foundEmail)}</div>`;
     if (upmId)       html += `
-      <div class="field"><span class="field-name">ID:</span> ${upmId}</div>`;
+      <div class="field"><span class="field-name">ID:</span> ${escapeHtml(upmId)}</div>`;
     if (displayName) html += `
-      <div class="field"><span class="field-name">Username:</span> ${displayName}</div>`;
+      <div class="field"><span class="field-name">Username:</span> ${escapeHtml(displayName)}</div>`;
     if (firstName)   html += `
-      <div class="field"><span class="field-name">First Name:</span> ${firstName}</div>`;
+      <div class="field"><span class="field-name">First Name:</span> ${escapeHtml(firstName)}</div>`;
     if (lastName)    html += `
-      <div class="field"><span class="field-name">Last Name:</span> ${lastName}</div>`;
+      <div class="field"><span class="field-name">Last Name:</span> ${escapeHtml(lastName)}</div>`;
     if (hometown)    html += `
-      <div class="field"><span class="field-name">Location:</span> ${hometown}</div>`;
+      <div class="field"><span class="field-name">Location:</span> ${escapeHtml(hometown)}</div>`;
     if (visibility)  html += `
-      <div class="field"><span class="field-name">Visibility:</span> ${visibility}</div>`;
+      <div class="field"><span class="field-name">Visibility:</span> ${escapeHtml(visibility)}</div>`;
     
     html += `
     </div>

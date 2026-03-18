@@ -121,7 +121,7 @@ module.exports = {
             const errorEmbed = new EmbedBuilder()
                 .setTitle('Scan Error')
                 .setDescription(`An error occurred while scanning for \`${username}\`:`)
-                .addFields({ name: 'Error Details', value: `\`\`\`\n${error.message.slice(0, 1000)}\n\`\`\`` })
+                .addFields({ name: 'Error Details', value: 'An unexpected error occurred. Check server logs for details.' })
                 .setColor(0xFF0000)
                 .setTimestamp();
             

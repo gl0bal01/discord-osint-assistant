@@ -19,13 +19,10 @@
  */
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { exec } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
-const util = require('util');
-
-const execPromise = util.promisify(exec);
+const { safeSpawn } = require('../utils/process');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -285,47 +282,49 @@ async function checkToolAvailability() {
     const tools = [
         {
             name: 'ExifTool',
-            command: 'exiftool -ver',
+            defaultBin: 'exiftool',
+            args: ['-ver'],
             envVar: 'EXIFTOOL_PATH'
         },
         {
             name: 'Sherlock',
-            command: 'sherlock --version',
+            defaultBin: 'sherlock',
+            args: ['--version'],
             envVar: 'SHERLOCK_PATH'
         },
         {
             name: 'Nuclei',
-            command: 'nuclei -version',
+            defaultBin: 'nuclei',
+            args: ['-version'],
             envVar: 'NUCLEI_PATH'
         }
     ];
-    
+
     const results = {};
-    
+
     for (const tool of tools) {
         try {
-            const toolPath = process.env[tool.envVar] || tool.name.toLowerCase();
-            const testCommand = tool.command.replace(tool.name.toLowerCase(), `"${toolPath}"`);
-            
-            const { stdout, stderr } = await execPromise(testCommand, { timeout: 10000 });
-            
+            const toolPath = process.env[tool.envVar] || tool.defaultBin;
+
+            const { stdout, stderr } = await safeSpawn(toolPath, tool.args, { timeout: 10000 });
+
             results[tool.name] = {
                 available: true,
                 version: extractVersion(stdout || stderr),
                 path: toolPath,
                 status: 'healthy'
             };
-            
+
         } catch (error) {
             results[tool.name] = {
                 available: false,
-                error: error.code === 'ENOENT' ? 'Not found in PATH' : error.message,
+                error: error.message.includes('Failed to start process') ? 'Not found in PATH' : error.message,
                 path: process.env[tool.envVar] || 'default',
                 status: 'unhealthy'
             };
         }
     }
-    
+
     return results;
 }
 
