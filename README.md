@@ -3,7 +3,7 @@
 <div align="center">
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
-[![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D16.9.0-brightgreen.svg)](https://nodejs.org/)
+[![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![Discord.js](https://img.shields.io/badge/Discord.js-v14.17.3-blue.svg)](https://discord.js.org/)
 [![Version](https://img.shields.io/badge/Version-2.0.0-orange.svg)](https://github.com/gl0bal01/discord-osint-assistant/releases)
 [![DOI](https://zenodo.org/badge/1007802575.svg)](https://doi.org/10.5281/zenodo.15741849)
@@ -113,7 +113,7 @@ A comprehensive Discord bot designed for Open Source Intelligence (OSINT) gather
 ## 🚀 Quick Installation Guide
 
 ### Prerequisites
-- **Node.js** v16.9.0 or higher
+- **Node.js** v18.0.0 or higher
 - **Discord Bot Token**
 - **External Tools**: ExifTool, Sherlock, Maigret, Nuclei (optional)
 - **API Keys**: Various services for full functionality (see Configuration)
@@ -172,6 +172,9 @@ SHERLOCK_PATH=sherlock
 NUCLEI_PATH=nuclei
 NUCLEI_TEMPLATE_PATH=/username/nuclei-templates/http/osint/user-enumeration
 MAIGRET_PATH=maigret
+
+# Access Control (Optional)
+OSINT_ALLOWED_ROLES=comma_separated_discord_role_ids
 ```
 
 ### External Tool Integration
@@ -256,36 +259,53 @@ discord-osint-assistant/
 │   ├── monitor.js          # Target monitoring
 │   ├── health.js           # System monitoring
 │   │
-├── utils/                       # Utility functions
-│   └── validation.js           # Input validation and sanitization
+├── utils/                       # Shared utility modules
+│   ├── validation.js           # Input validation and sanitization
+│   ├── process.js              # Safe process execution (spawn, no shell)
+│   ├── ssrf.js                 # SSRF protection (private IP blocking)
+│   ├── permissions.js          # Role-based command access control
+│   ├── temp.js                 # Temp directory and file management
+│   ├── chunks.js               # Discord message chunking utilities
+│   └── config.js               # Centralized environment config
 │
 ├── addons/                     # Configuration files
 │   └── GPS2MapUrl.config      # ExifTool GPS mapping
 │
-└── docs/                       # Documentation
-    ├── INSTALLATION.md         # Detailed setup guide
-    └── [Additional guides]     # Usage and configuration guides
+├── tests/                      # Test suite (vitest)
+│   └── utils/                  # Utility function tests
+│       ├── validation.test.js
+│       ├── process.test.js
+│       └── ssrf.test.js
+│
+├── docs/                       # Documentation
+│   └── INSTALLATION.md         # Detailed setup guide
+│
+├── SECURITY.md                 # Security policy and vulnerability reporting
+└── CONTRIBUTING.md             # Contribution guidelines
 ```
 
 ## 🔒 Security & Privacy
 
+For full details, see [SECURITY.md](SECURITY.md).
+
 ### Built-in Security Features
-- **Input Validation**: Comprehensive sanitization prevents injection attacks
-- **Privacy Modes**: Sensitive data handling for investigations
-- **Rate Limiting**: API quota management and abuse prevention
-- **Audit Logging**: Complete activity tracking for accountability
-- **Error Handling**: Secure error responses prevent information disclosure
+- **Safe Command Execution**: All external tools run via `spawn()` with argument arrays — no shell string interpolation. See `utils/process.js`
+- **Input Validation**: Comprehensive sanitization strips shell metacharacters, newlines, null bytes, and Unicode bypass characters. See `utils/validation.js`
+- **SSRF Protection**: URL-accepting commands validate that targets do not resolve to private/internal IP ranges. See `utils/ssrf.js`
+- **Permission System**: Sensitive OSINT commands require elevated Discord permissions (ManageGuild/Administrator). Configurable via `OSINT_ALLOWED_ROLES` env var. See `utils/permissions.js`
+- **Audit Logging**: All command usage is logged with user, guild, and timestamp
+- **Secure Error Handling**: Error responses shown to users are generic; detailed errors are logged server-side only
 
 ### Privacy Considerations
 - Configurable privacy modes for sensitive operations
 - Automatic cleanup of temporary files
-- Secure API key management
-- GDPR-compliant data handling practices
+- API keys loaded from environment variables, never hardcoded
+- No investigation data persisted beyond Discord message lifetime
 
 ## 📈 Performance & Scalability
 
 ### System Requirements
-- **Minimum**: 2GB RAM, Node.js 16.9.0+, 1GB storage
+- **Minimum**: 2GB RAM, Node.js 18.0.0+, 1GB storage
 - **Recommended**: 4GB+ RAM, SSD storage, stable internet
 - **Production**: Load balancing, monitoring, log rotation
 
@@ -297,10 +317,15 @@ discord-osint-assistant/
 
 ## 🤝 Contributing
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
+
 ### Development Setup
 ```bash
 # Development mode with auto-restart
 npm run dev
+
+# Run tests
+npm test
 
 # Linting
 npm run lint
@@ -311,10 +336,10 @@ npm run clean
 
 ### Adding New Commands
 1. Create command file in `/commands/` directory
-2. Follow established patterns and documentation standards
-3. Include comprehensive error handling and validation
-4. Add JSDoc documentation
-5. Update README and related documentation
+2. Import validation from `utils/validation.js`
+3. Use `safeSpawn`/`safeSpawnToFile` from `utils/process.js` for external tools — **never use shell string interpolation**
+4. Use `utils/temp.js` for temporary files
+5. Deploy with `npm run deploy`
 
 ## 📄 Legal & Compliance
 
@@ -332,8 +357,9 @@ The authors are not responsible for misuse of this software. Users bear full res
 
 ### Documentation
 - **Complete Setup Guide**: [docs/INSTALLATION.md](docs/INSTALLATION.md)
+- **Security Policy**: [SECURITY.md](SECURITY.md)
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Command Reference**: Individual command help available via Discord
-- **Configuration Guide**: Environment setup and API integration
 
 ### Health Monitoring
 Use `/bob-health detailed:true check-apis:true check-tools:true` to verify:
@@ -352,7 +378,7 @@ Use `/bob-health detailed:true check-apis:true check-tools:true` to verify:
 **Current Version**: 2.0.0  
 **Author**: gl0bal01  
 **License**: MIT  
-**Node.js**: >=16.9.0 required  
+**Node.js**: >=18.0.0 required
 
 ### Key Features in v2.0
 - Comprehensive OSINT commands
