@@ -9,10 +9,10 @@
  * analysis, and digital forensics operations.
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const { validateUrlNotInternal } = require('../utils/ssrf');
+const { isValidUrl } = require('../utils/validation');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -414,18 +414,6 @@ function calculateRiskLevel(result, securityAnalysis) {
     if (riskScore >= 5) return 'high';
     if (riskScore >= 2) return 'medium';
     return 'low';
-}
-
-/**
- * Check if a string is a valid URL
- */
-function isValidUrl(url) {
-    try {
-        new URL(url);
-        return url.startsWith('http://') || url.startsWith('https://');
-    } catch (e) {
-        return false;
-    }
 }
 
 /**

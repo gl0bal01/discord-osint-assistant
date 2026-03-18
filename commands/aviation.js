@@ -7,11 +7,8 @@
  * airline code, or airport code using the AviationStack API.
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-require('dotenv').config();
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('bob-flight')

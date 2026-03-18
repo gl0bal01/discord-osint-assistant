@@ -25,8 +25,7 @@
  *        /bob-blockchain-detect address:0x742d35Cc6634C0532925a3b8D3Ac0C4ad5d0B78a
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { sanitizeInput } = require('../utils/validation');
 
 // Comprehensive blockchain address patterns

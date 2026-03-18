@@ -44,8 +44,7 @@
  * Version: 2.0
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 const { validateUrlNotInternal } = require('../utils/ssrf');
 const cheerio = require('cheerio');

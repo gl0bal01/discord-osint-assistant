@@ -350,8 +350,7 @@ module.exports = {
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                 if (!emailRegex.test(query)) {
                     return interaction.editReply({
-                        content: 'Please provide a valid email address',
-                        ephemeral: true
+                        content: 'Please provide a valid email address'
                     });
                 }
 
@@ -431,8 +430,7 @@ module.exports = {
                 const bssidRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
                 if (!bssidRegex.test(query)) {
                     return interaction.editReply({
-                        content: 'Please provide a valid BSSID in the format XX:XX:XX:XX:XX:XX',
-                        ephemeral: true
+                        content: 'Please provide a valid BSSID in the format XX:XX:XX:XX:XX:XX'
                     });
                 }
                 
@@ -473,8 +471,7 @@ module.exports = {
                 
             default:
                 return interaction.editReply({
-                    content: 'Invalid search type. Please try again.',
-                    ephemeral: true
+                    content: 'Invalid search type. Please try again.'
                 });
         }
         

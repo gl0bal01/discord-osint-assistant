@@ -7,13 +7,12 @@
  * information and related domains based on various criteria.
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-require('dotenv').config();
+const { isValidDomain } = require('../utils/validation');
 
 // Available field types for search by field subcommand
 const FIELD_TYPES = [
@@ -250,17 +249,6 @@ function handleApiError(error, interaction) {
     }
     
     return interaction.editReply(errorMessage);
-}
-
-/**
- * Validate domain format
- * @param {string} domain - Domain to validate
- * @returns {boolean} Whether domain is valid
- */
-function isValidDomain(domain) {
-    // Basic domain validation (alphanumeric with hyphens, at least one dot)
-    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
-    return domainRegex.test(domain);
 }
 
 /**

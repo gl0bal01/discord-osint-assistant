@@ -8,10 +8,10 @@
  * between two images.
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const { validateUrlNotInternal } = require('../utils/ssrf');
+const { isValidUrl } = require('../utils/validation');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -21,8 +21,6 @@ const { URL } = require('url');
 const { RekognitionClient, DetectLabelsCommand, DetectTextCommand, 
   DetectFacesCommand, DetectModerationLabelsCommand, 
   RecognizeCelebritiesCommand, CompareFacesCommand } = require('@aws-sdk/client-rekognition');
-require('dotenv').config();
-
 // Initialize the AWS Rekognition client (v3)
 const rekognitionClient = new RekognitionClient({
     region: process.env.AWS_REGION || 'us-east-1',
@@ -680,20 +678,6 @@ async function downloadImage(url, tempDir, prefix = '') {
         } else {
             throw error;
         }
-    }
-}
-
-/**
- * Check if a string is a valid URL
- * @param {string} url - URL to validate
- * @returns {boolean} - Whether the URL is valid
- */
-function isValidUrl(url) {
-    try {
-        const parsedUrl = new URL(url);
-        return ['http:', 'https:'].includes(parsedUrl.protocol);
-    } catch (error) {
-        return false;
     }
 }
 

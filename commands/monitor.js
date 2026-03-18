@@ -16,7 +16,7 @@
  * - `axios` for fetching page content
  * - `crypto` for hashing page data
  * - `playwright` for browser automation during login monitoring
- * - `@discordjs/builders` for constructing slash commands
+ * - `discord.js` for constructing slash commands
  * - `dotenv` for environment variable configuration
  * 
  * Environment Variables:
@@ -25,7 +25,7 @@
  * Author: gl0bal01
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
+const { SlashCommandBuilder } = require('discord.js');
 const axios = require('axios');
 const crypto = require('crypto');
 const { validateUrlNotInternal } = require('../utils/ssrf');

@@ -17,8 +17,7 @@
  * Usage: /generate-usernames firstname:John lastname:Doe separators:.,_,- suffix:123
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { sanitizeInput } = require('../utils/validation');
 
 module.exports = {

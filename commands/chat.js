@@ -27,8 +27,7 @@
  *        /bob-chat message:"Generate Python script for data parsing" type:code
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 const { sanitizeInput } = require('../utils/validation');
 

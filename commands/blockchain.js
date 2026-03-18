@@ -7,14 +7,11 @@
  * wallet addresses, transactions, and blocks across different cryptocurrencies.
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-require('dotenv').config();
-
 // Define supported blockchains
 const BLOCKCHAINS = [
     { name: 'Bitcoin', value: 'btc', symbol: 'BTC', explorer: 'https://www.blockchain.com/explorer/addresses/btc/' },

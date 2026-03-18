@@ -21,8 +21,7 @@
  *        /bob-whoxy type:reverse identifier:email value:admin@example.com
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs').promises;
 const path = require('path');

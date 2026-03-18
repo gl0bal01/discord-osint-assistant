@@ -19,10 +19,10 @@
  * Usage: /bob-web-recon domain:example.com service:[all|certspotter|virustotal|crtsh|wayback|shodan]
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const { validateUrlNotInternal } = require('../utils/ssrf');
+const { isValidDomain } = require('../utils/validation');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
@@ -464,13 +464,6 @@ module.exports = {
         }
     },
 };
-
-// Helper function to validate domain
-function isValidDomain(domain) {
-    // Basic domain validation
-    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
-    return domainRegex.test(domain);
-}
 
 /**
  * Sanitize filename component to prevent path traversal attacks

@@ -16,10 +16,9 @@
  * Usage: /bob-dns domain:example.com
  */
 
-const { SlashCommandBuilder } = require('@discordjs/builders');
+const { SlashCommandBuilder } = require('discord.js');
 const axios = require('axios');
 const { isValidDomain, sanitizeInput } = require('../utils/validation');
-require('dotenv').config();
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -50,8 +49,7 @@ module.exports = {
                         'Please provide a valid domain name (e.g., `example.com`).\n' +
                         '• Domain must contain only letters, numbers, dots, and hyphens\n' +
                         '• Must have a valid TLD extension\n' +
-                        '• Maximum length: 253 characters',
-                ephemeral: true
+                        '• Maximum length: 253 characters'
             });
         }
         
@@ -60,8 +58,7 @@ module.exports = {
         if (!apiToken) {
             return interaction.editReply({
                 content: '❌ **Configuration Error**\n' +
-                        'DNSDumpster API token is not configured. Please contact the administrator.',
-                ephemeral: true
+                        'DNSDumpster API token is not configured. Please contact the administrator.'
             });
         }
         
