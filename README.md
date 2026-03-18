@@ -138,6 +138,18 @@ npm run deploy
 npm start
 ```
 
+### Docker Deployment
+```bash
+# Build and run with Docker Compose (recommended)
+cp .env.example .env
+# Edit .env with your tokens and API keys
+docker compose up -d
+
+# Or build manually
+docker build -t discord-osint-assistant .
+docker run -d --env-file .env discord-osint-assistant
+```
+
 ## ⚙️ Configuration
 
 ### Required Environment Variables
@@ -170,7 +182,7 @@ AI_API_KEY=your_ai_api_key
 EXIFTOOL_PATH=exiftool
 SHERLOCK_PATH=sherlock
 NUCLEI_PATH=nuclei
-NUCLEI_TEMPLATE_PATH=/username/nuclei-templates/http/osint/user-enumeration
+NUCLEI_TEMPLATE_PATH=/opt/nuclei-templates/http/osint/user-enumeration
 MAIGRET_PATH=maigret
 
 # Access Control (Optional)
@@ -262,8 +274,9 @@ discord-osint-assistant/
 ├── utils/                       # Shared utility modules
 │   ├── validation.js           # Input validation and sanitization
 │   ├── process.js              # Safe process execution (spawn, no shell)
-│   ├── ssrf.js                 # SSRF protection (private IP blocking)
+│   ├── ssrf.js                 # SSRF protection (private IP + DNS rebinding)
 │   ├── permissions.js          # Role-based command access control
+│   ├── ratelimit.js            # Per-user rate limiting with cooldowns
 │   ├── temp.js                 # Temp directory and file management
 │   ├── chunks.js               # Discord message chunking utilities
 │   └── config.js               # Centralized environment config
@@ -275,7 +288,12 @@ discord-osint-assistant/
 │   └── utils/                  # Utility function tests
 │       ├── validation.test.js
 │       ├── process.test.js
-│       └── ssrf.test.js
+│       ├── ssrf.test.js
+│       └── ratelimit.test.js
+│
+├── Dockerfile                  # Multi-stage production build
+├── docker-compose.yml          # Hardened runtime config
+├── .github/workflows/ci.yml   # CI pipeline (test, lint, audit, scan)
 │
 ├── docs/                       # Documentation
 │   └── INSTALLATION.md         # Detailed setup guide
@@ -289,16 +307,23 @@ discord-osint-assistant/
 For full details, see [SECURITY.md](SECURITY.md).
 
 ### Built-in Security Features
-- **Safe Command Execution**: All external tools run via `spawn()` with argument arrays — no shell string interpolation. See `utils/process.js`
+- **Safe Command Execution**: All external tools run via `spawn()` with argument arrays and a minimal environment (no secrets leaked to child processes). See `utils/process.js`
 - **Input Validation**: Comprehensive sanitization strips shell metacharacters, newlines, null bytes, and Unicode bypass characters. See `utils/validation.js`
-- **SSRF Protection**: URL-accepting commands validate that targets do not resolve to private/internal IP ranges. See `utils/ssrf.js`
+- **SSRF Protection**: URL-accepting commands validate resolved IPs against private ranges with connect-time DNS rebinding prevention via custom HTTP agents. See `utils/ssrf.js`
 - **Permission System**: Sensitive OSINT commands require elevated Discord permissions (ManageGuild/Administrator). Configurable via `OSINT_ALLOWED_ROLES` env var. See `utils/permissions.js`
+- **Rate Limiting**: Per-user cooldowns (3s/10s/30s by command category) and configurable daily limits. See `utils/ratelimit.js`
 - **Audit Logging**: All command usage is logged with user, guild, and timestamp
 - **Secure Error Handling**: Error responses shown to users are generic; detailed errors are logged server-side only
 
+### Container Security
+- Multi-stage Dockerfile with pinned base image and non-root user
+- `docker-compose.yml` with `no-new-privileges`, `cap_drop: ALL`, read-only filesystem, tmpfs mounts, memory/PID limits
+- CI pipeline includes Trivy image scanning, npm audit, and SHA-pinned GitHub Actions
+- Child processes receive only PATH/HOME/LANG — no API keys or tokens
+
 ### Privacy Considerations
 - Configurable privacy modes for sensitive operations
-- Automatic cleanup of temporary files
+- Automatic cleanup of temporary files (startup purge + per-command cleanup)
 - API keys loaded from environment variables, never hardcoded
 - No investigation data persisted beyond Discord message lifetime
 
