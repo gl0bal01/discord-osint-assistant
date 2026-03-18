@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -20,14 +20,18 @@ jobs:
         run: sleep 300
 
       - name: Update CITATION.cff
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
         run: |
-          sed -i "s/^version:.*/version: ${{ github.event.release.tag_name }}/" CITATION.cff
+          sed -i "s/^version:.*/version: $TAG_NAME/" CITATION.cff
           sed -i "s/^date-released:.*/date-released: $(date +%Y-%m-%d)/" CITATION.cff
 
       - name: Commit changes
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
         run: |
           git config --local user.name "GitHub Action"
           git config --local user.email "action@github.com"
           git add CITATION.cff
-          git commit -m "Update citation info for ${{ github.event.release.tag_name }}" || exit 0
+          git commit -m "Update citation info for $TAG_NAME" || exit 0
           git push
