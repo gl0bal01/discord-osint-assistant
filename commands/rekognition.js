@@ -11,6 +11,7 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
+const { validateUrlNotInternal } = require('../utils/ssrf');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -644,6 +645,8 @@ async function handleCompare(interaction, tempDir) {
  */
 async function downloadImage(url, tempDir, prefix = '') {
     try {
+        await validateUrlNotInternal(url);
+
         // Generate a unique filename
         const urlObj = new URL(url);
         const fileExtension = path.extname(urlObj.pathname) || '.jpg';

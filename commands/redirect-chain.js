@@ -12,6 +12,7 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
+const { validateUrlNotInternal } = require('../utils/ssrf');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -70,6 +71,12 @@ module.exports = {
             // Validate URL format
             if (!isValidUrl(url)) {
                 return interaction.editReply('Please provide a valid URL starting with http:// or https://');
+            }
+
+            try {
+                await validateUrlNotInternal(url);
+            } catch (err) {
+                return interaction.editReply(`Invalid URL: ${err.message}`);
             }
 
             await interaction.editReply(`🔍 Analyzing redirect chain for: ${url}\nThis may take a moment...`);

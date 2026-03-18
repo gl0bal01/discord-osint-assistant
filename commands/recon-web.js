@@ -22,6 +22,7 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
+const { validateUrlNotInternal } = require('../utils/ssrf');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
@@ -61,7 +62,13 @@ module.exports = {
             if (!isValidDomain(domain)) {
                 return interaction.editReply('Please provide a valid domain name (e.g., example.com)');
             }
-            
+
+            try {
+                await validateUrlNotInternal(`https://${domain}`);
+            } catch (err) {
+                return interaction.editReply(`Invalid domain: ${err.message}`);
+            }
+
             // Create an embed for the response
             const embed = new EmbedBuilder()
                 .setTitle(`Reconnaissance for ${domain}`)

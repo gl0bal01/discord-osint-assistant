@@ -25,11 +25,10 @@
  * Author: gl0bal01
  */
 
-require('dotenv').config();
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const axios = require('axios');
 const crypto = require('crypto');
-const { chromium } = require('playwright');
+const { validateUrlNotInternal } = require('../utils/ssrf');
 
 const MONITOR_CHANNEL_ID = process.env.MONITOR_CHANNEL_ID;
 
@@ -43,6 +42,7 @@ function hashContent(content) {
 
 async function checkWebsite(url, client) {
     try {
+        await validateUrlNotInternal(url);
         const response = await axios.get(url);
         const newHash = hashContent(response.data);
         
@@ -59,43 +59,6 @@ async function checkWebsite(url, client) {
         }
     } catch (error) {
         console.error(`Error checking ${url}: ${error.message}`);
-    }
-}
-
-async function monitorLogin(url, username, password, client) {
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
-
-    try {
-        await page.goto(url);
-        
-        // This is a generic login process. You may need to adjust selectors based on the specific website.
-        await page.fill('input[name="username"]', username);
-        await page.fill('input[name="password"]', password);
-        await page.click('button[type="submit"]');
-
-        // Wait for navigation or a specific element that indicates successful login
-        await page.waitForNavigation();
-
-        const loginSuccessful = await page.evaluate(() => {
-            // Check for elements or text that indicate successful login
-            return !document.querySelector('.login-error') && document.querySelector('.user-profile');
-        });
-
-        const channel = await client.channels.fetch(MONITOR_CHANNEL_ID);
-        if (channel && channel.permissionsFor(client.user).has('SendMessages')) {
-            await channel.send(loginSuccessful ? 'Login successful' : 'Login failed');
-        } else {
-            console.error(`Missing permissions to send messages in channel ${MONITOR_CHANNEL_ID}`);
-        }
-    } catch (error) {
-        console.error(`Error monitoring login: ${error.message}`);
-        const channel = await client.channels.fetch(MONITOR_CHANNEL_ID);
-        if (channel && channel.permissionsFor(client.user).has('SendMessages')) {
-            await channel.send(`Error monitoring login: ${error.message}`);
-        }
-    } finally {
-        await browser.close();
     }
 }
 
@@ -130,23 +93,7 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('list')
-                .setDescription('List all monitored websites'))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('login')
-                .setDescription('Monitor login functionality')
-                .addStringOption(option =>
-                    option.setName('url')
-                        .setDescription('The login URL')
-                        .setRequired(true))
-                .addStringOption(option =>
-                    option.setName('username')
-                        .setDescription('Username for login')
-                        .setRequired(true))
-                .addStringOption(option =>
-                    option.setName('password')
-                        .setDescription('Password for login')
-                        .setRequired(true))),
+                .setDescription('List all monitored websites')),
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
 
@@ -154,7 +101,13 @@ module.exports = {
             case 'start':
                 const url = interaction.options.getString('url');
                 const interval = interaction.options.getInteger('interval');
-                
+
+                try {
+                    await validateUrlNotInternal(url);
+                } catch (err) {
+                    return interaction.reply({ content: `Invalid URL: ${err.message}`, ephemeral: true });
+                }
+
                 if (intervals.has(url)) {
                     await interaction.reply(`Already monitoring ${url}`);
                     return;
@@ -201,14 +154,7 @@ module.exports = {
                 break;
 
             case 'login':
-                const loginUrl = interaction.options.getString('url');
-                const username = interaction.options.getString('username');
-                const password = interaction.options.getString('password');
-                
-                await interaction.deferReply({ ephemeral: true });
-                await monitorLogin(loginUrl, username, password, interaction.client);
-                await interaction.editReply('Login monitoring complete. Check the monitor channel for results.');
-                break;
+                return interaction.reply({ content: 'The login monitoring feature has been removed for security reasons.', ephemeral: true });
         }
     },
 };

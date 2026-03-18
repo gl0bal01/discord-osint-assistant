@@ -47,6 +47,7 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
+const { validateUrlNotInternal } = require('../utils/ssrf');
 const cheerio = require('cheerio');
 const fs = require('fs').promises;
 const fsSync = require('fs');
@@ -372,7 +373,13 @@ module.exports = {
             // Validate URL
             const parsedUrl = validateUrl(url);
             const domain = parsedUrl.hostname;
-            
+
+            try {
+                await validateUrlNotInternal(url);
+            } catch (err) {
+                return interaction.editReply(`Invalid URL: ${err.message}`);
+            }
+
             // Create temporary directory
             tempDir = await createTempDirectory();
             

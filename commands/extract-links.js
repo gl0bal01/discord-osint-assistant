@@ -23,6 +23,7 @@ const os = require('os');
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const { validateUrlNotInternal } = require('../utils/ssrf');
 
 /**
  * Escapes special HTML characters in a string to prevent Cross-Site Scripting (XSS).
@@ -110,6 +111,12 @@ module.exports = {
                 }
             } catch (error) {
                 return interaction.editReply('Please provide a valid URL starting with `http://` or `https://`.');
+            }
+
+            try {
+                await validateUrlNotInternal(targetUrl.href);
+            } catch (err) {
+                return interaction.editReply(`Invalid URL: ${err.message}`);
             }
 
             // 2. Fetch webpage content

@@ -15,6 +15,7 @@ require('dotenv').config();
 const { Client, Collection, GatewayIntentBits, Events, MessageFlags } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');
+const { checkPermission } = require('./utils/permissions');
 
 // Validate required environment variables
 const requiredEnvVars = ['DISCORD_TOKEN'];
@@ -107,6 +108,12 @@ client.on(Events.InteractionCreate, async interaction => {
         return;
     }
     
+    // Check permissions for restricted commands
+    const { allowed, reason } = checkPermission(interaction);
+    if (!allowed) {
+        return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+    }
+
     // Log command usage for audit purposes
     const timestamp = new Date().toISOString();
     const userInfo = `${interaction.user.tag} (${interaction.user.id})`;
