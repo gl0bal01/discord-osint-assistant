@@ -65,7 +65,8 @@ module.exports = {
             
             // Generate unique filename
             const randomId = crypto.randomBytes(4).toString('hex');
-            const outputFile = path.join(tempDir, `dorks_${firstname}_${lastname}_${randomId}.txt`);
+            const safeFn = (s) => s.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
+            const outputFile = path.join(tempDir, `dorks_${safeFn(firstname)}_${safeFn(lastname)}_${randomId}.txt`);
             
             // Write URLs to file
             let fileContent = `# OSINT Search URLs for ${firstname} ${lastname}\n`;
