@@ -426,10 +426,11 @@ async function analyzeRedirectChain(url, includeHeaders = false, timeout = 10000
     let finalDestination;
     let totalTime = 0;
     let httpsUpgrade = false;
+    let requestStartTime;
 
     while (true) {
         try {
-            const requestStartTime = Date.now();
+            requestStartTime = Date.now();
             
             const response = await robustRequest(currentUrl, {
                 maxRedirects: 0,

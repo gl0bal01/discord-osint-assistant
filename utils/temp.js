@@ -20,7 +20,7 @@ function tempFilePath(prefix, extension = 'txt') {
 
 async function cleanupFile(filePath, delay = 0) {
     const doCleanup = async () => {
-        try { await fsp.unlink(filePath); } catch {}
+        try { await fsp.unlink(filePath); } catch { /* file already removed */ }
     };
     if (delay > 0) {
         setTimeout(doCleanup, delay);
@@ -31,7 +31,7 @@ async function cleanupFile(filePath, delay = 0) {
 
 async function cleanupDir(dirPath, delay = 0) {
     const doCleanup = async () => {
-        try { await fsp.rm(dirPath, { recursive: true, force: true }); } catch {}
+        try { await fsp.rm(dirPath, { recursive: true, force: true }); } catch { /* directory already removed */ }
     };
     if (delay > 0) {
         setTimeout(doCleanup, delay);

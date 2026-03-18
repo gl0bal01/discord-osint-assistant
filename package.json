@@ -47,23 +47,24 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@aws-sdk/client-rekognition": "^3.787.0",
-    "@discordjs/rest": "^2.4.2",
-    "axios": "^1.7.9",
-    "cheerio": "^1.0.0",
-    "discord-api-types": "^0.38.26",
-    "discord.js": "^14.17.3",
-    "dotenv": "^16.4.7",
-    "jsdom": "^26.0.0",
+    "@aws-sdk/client-rekognition": "^3.1011.0",
+    "@discordjs/rest": "^2.6.0",
+    "axios": "^1.13.6",
+    "cheerio": "^1.2.0",
+    "discord-api-types": "^0.38.42",
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.3.1",
+    "jsdom": "^29.0.0",
     "murmurhash": "^2.0.1"
   },
   "devDependencies": {
-    "eslint": "^8.0.0",
-    "nodemon": "^3.0.0",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.3",
+    "nodemon": "^3.1.14",
     "vitest": "^4.1.0"
   },
   "optionalDependencies": {
-    "bufferutil": "^4.0.8",
-    "utf-8-validate": "^6.0.4"
+    "bufferutil": "^4.1.0",
+    "utf-8-validate": "^6.0.6"
   }
 }

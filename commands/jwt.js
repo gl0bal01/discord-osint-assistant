@@ -88,16 +88,16 @@ const findJwtTool = async () => {
     try {
         await safeSpawn('test', ['-x', CONFIG.JWT_TOOL_PATH], { timeout: 5000 });
         return CONFIG.JWT_TOOL_PATH;
-    } catch {}
+    } catch { /* binary not found, try next */ }
     try {
         const { stdout } = await safeSpawn('which', ['jwt_tool'], { timeout: 5000 });
         if (stdout.trim()) return 'jwt_tool';
-    } catch {}
+    } catch { /* binary not found, try next */ }
     const pyScript = `${CONFIG.JWT_TOOL_PATH}/jwt_tool.py`;
     try {
         await safeSpawn('test', ['-f', pyScript], { timeout: 5000 });
         return `${CONFIG.JWT_TOOL_PATH}/venv/bin/python3`;
-    } catch {}
+    } catch { /* binary not found, try next */ }
     throw new Error('jwt_tool not found.');
 };
 

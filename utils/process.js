@@ -53,7 +53,7 @@ function safeSpawn(command, args = [], options = {}) {
             killed = true;
             proc.kill('SIGTERM');
             setTimeout(() => {
-                try { if (!proc.killed) proc.kill('SIGKILL'); } catch {}
+                try { if (!proc.killed) proc.kill('SIGKILL'); } catch { /* process already exited */ }
             }, 5000);
             reject(new Error(`Process timed out after ${timeout / 1000} seconds`));
         }, timeout);
@@ -107,7 +107,7 @@ function safeSpawnToFile(command, args = [], outputFilePath, options = {}) {
             killed = true;
             proc.kill('SIGTERM');
             setTimeout(() => {
-                try { if (!proc.killed) proc.kill('SIGKILL'); } catch {}
+                try { if (!proc.killed) proc.kill('SIGKILL'); } catch { /* process already exited */ }
             }, 5000);
             reject(new Error(`Process timed out after ${timeout / 1000} seconds`));
         }, timeout);

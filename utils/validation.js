@@ -14,7 +14,7 @@
  */
 function isValidDomain(domain) {
     // Basic domain validation regex
-    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
     
     if (!domain || typeof domain !== 'string') {
         return false;
@@ -126,7 +126,7 @@ function sanitizeInput(input) {
     }
     return input
         .replace(/[\r\n\0]/g, '')
-        .replace(/[<>\"';&|`$(){}[\]\\]/g, '')
+        .replace(/[<>"';&|`$(){}[\]\\]/g, '')
         .replace(/[\u{FF00}-\u{FFEF}]/gu, '')
         .trim()
         .slice(0, 1000);

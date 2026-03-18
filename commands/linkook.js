@@ -135,7 +135,7 @@ async function runLinkook(args, interaction, outputDir, username, rawMode) {
             linkookProcess.kill('SIGTERM');
             // Force kill if SIGTERM doesn't work after 5 seconds
             setTimeout(() => {
-                try { if (!linkookProcess.killed) linkookProcess.kill('SIGKILL'); } catch {}
+                try { if (!linkookProcess.killed) linkookProcess.kill('SIGKILL'); } catch { /* process already exited */ }
             }, 5000);
             reject(new Error('Linkook process timed out after 3 minutes. Try again later.'));
         }, 180000); // 3 minute timeout

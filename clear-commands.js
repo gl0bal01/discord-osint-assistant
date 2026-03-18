@@ -130,14 +130,15 @@ class CommandCleaner {
     async listCommands() {
         try {
             console.log('📋 Listing all existing commands...\n');
-            
+
             // List guild commands
+            let guildCommands = [];
             if (this.guildId) {
                 console.log('🏠 Guild Commands:');
-                const guildCommands = await this.rest.get(
+                guildCommands = await this.rest.get(
                     Routes.applicationGuildCommands(this.clientId, this.guildId)
                 );
-                
+
                 if (guildCommands.length === 0) {
                     console.log('   No guild commands found');
                 } else {
@@ -147,13 +148,13 @@ class CommandCleaner {
                 }
                 console.log('');
             }
-            
+
             // List global commands
             console.log('🌍 Global Commands:');
             const globalCommands = await this.rest.get(
                 Routes.applicationCommands(this.clientId)
             );
-            
+
             if (globalCommands.length === 0) {
                 console.log('   No global commands found');
             } else {
@@ -161,9 +162,9 @@ class CommandCleaner {
                     console.log(`   ${index + 1}. /${cmd.name}: ${cmd.description}`);
                 });
             }
-            
+
             console.log(`\n📊 Total Commands: Guild(${this.guildId ? guildCommands.length : 0}) + Global(${globalCommands.length})`);
-            
+
         } catch (error) {
             console.error('❌ Failed to list commands:', error);
             throw error;

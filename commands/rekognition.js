@@ -85,17 +85,17 @@ module.exports = {
     
     async execute(interaction) {
         await interaction.deferReply();
-        
+
+        // Declared outside try so it's accessible in finally block
+        const tempDir = path.join(__dirname, '..', 'temp');
+
         try {
             // Check if AWS credentials are configured
             if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
                 return interaction.editReply('AWS credentials are not properly configured. Please add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to your environment variables.');
             }
-            
+
             const subcommand = interaction.options.getSubcommand();
-            
-            // Use the temp directory in the project
-            const tempDir = path.join(__dirname, '..', 'temp');
             
             // Ensure the temp directory exists
             if (!fs.existsSync(tempDir)) {

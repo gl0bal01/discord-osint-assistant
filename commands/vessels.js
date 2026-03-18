@@ -220,26 +220,18 @@ function createVesselEmbed(imo, links, vesselInfo) {
  * @param {string} imo - The IMO number
  * @returns {Promise<object>} - Promise resolving to vessel information
  */
-async function fetchVesselInfo(imo) {
-    try {
-        // Note: This is a placeholder function. In a real-world scenario,
-        // you would implement an actual API call to a maritime database.
-        // For demonstration purposes, this function simulates an API call
-        // but would need to be replaced with a real implementation.
-        
-        // Example using a free API (if one were available):
-        // const response = await axios.get(`https://api.maritime-database.com/vessel/imo/${imo}`, {
-        //     headers: { 'Authorization': `Bearer ${process.env.MARITIME_API_KEY}` }
-        // });
-        // return response.data;
-        
-        // For now, return null to indicate no vessel info is available
-        return null;
-        
-        // If you have a specific API you'd like to use, you would implement
-        // the API call and data transformation here.
-    } catch (error) {
-        console.error('Error fetching vessel info:', error);
-        return null;
-    }
+async function fetchVesselInfo(_imo) {
+    // Note: This is a placeholder function. In a real-world scenario,
+    // you would implement an actual API call to a maritime database.
+    // For demonstration purposes, this function simulates an API call
+    // but would need to be replaced with a real implementation.
+
+    // Example using a free API (if one were available):
+    // const response = await axios.get(`https://api.maritime-database.com/vessel/imo/${_imo}`, {
+    //     headers: { 'Authorization': `Bearer ${process.env.MARITIME_API_KEY}` }
+    // });
+    // return response.data;
+
+    // For now, return null to indicate no vessel info is available
+    return null;
 }

@@ -478,7 +478,7 @@ function sanitizeFilenameComponent(input) {
     // Remove any path separators and parent directory references
     let sanitized = input
         .replace(/\.\./g, '')      // Remove parent directory references
-        .replace(/[\/\\]/g, '')     // Remove path separators
+        .replace(/[/\\]/g, '')      // Remove path separators
         .replace(/\0/g, '')         // Remove null bytes
         .replace(/:/g, '')          // Remove colons (Windows drive letters)
         .replace(/\*/g, '')         // Remove wildcards
