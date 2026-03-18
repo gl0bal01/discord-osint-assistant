@@ -5,7 +5,7 @@
 ```
 discord-osint-assistant/
 ├── README.md                    # Comprehensive project documentation
-├── LICENSE                      # ISC License with OSINT disclaimers  
+├── LICENSE                      # MIT License with OSINT disclaimers
 ├── package.json                 # Node.js dependencies and scripts
 ├── .gitignore                   # Comprehensive ignore patterns
 ├── .env.example                 # Complete environment template
