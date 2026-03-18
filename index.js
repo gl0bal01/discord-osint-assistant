@@ -16,17 +16,11 @@ const { Client, Collection, GatewayIntentBits, Events, MessageFlags } = require(
 const fs = require('node:fs');
 const path = require('node:path');
 const { checkPermission } = require('./utils/permissions');
+const { checkRateLimit, recordUsage } = require('./utils/ratelimit');
 
-// Validate required environment variables
-const requiredEnvVars = ['DISCORD_TOKEN'];
-const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-
-if (missingVars.length > 0) {
-    console.error('❌ Missing required environment variables:');
-    missingVars.forEach(varName => console.error(`   - ${varName}`));
-    console.error('Please check your .env file and ensure all required variables are set.');
-    process.exit(1);
-}
+// Validate environment variables via centralized config
+const { loadConfig } = require('./utils/config');
+const config = loadConfig();
 
 // Initialize Discord client with required intents
 const client = new Client({ 
@@ -114,6 +108,12 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
     }
 
+    // Check rate limiting
+    const { limited, reason: rateLimitReason } = checkRateLimit(interaction.user.id, interaction.commandName);
+    if (limited) {
+        return interaction.reply({ content: rateLimitReason, flags: MessageFlags.Ephemeral });
+    }
+
     // Log command usage for audit purposes
     const timestamp = new Date().toISOString();
     const userInfo = `${interaction.user.tag} (${interaction.user.id})`;
@@ -126,6 +126,9 @@ client.on(Events.InteractionCreate, async interaction => {
         // Execute the command with error handling
         await command.execute(interaction);
         
+        // Record usage for rate limiting
+        recordUsage(interaction.user.id, interaction.commandName);
+
         // Log successful execution
         console.log(`   ✅ Command ${commandInfo} completed successfully`);
         
