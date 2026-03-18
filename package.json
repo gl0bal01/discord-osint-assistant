@@ -15,7 +15,8 @@
     "clear:list": "node clear-commands.js --list",
     "redeploy": "npm run clear && npm run deploy",
     "redeploy:global": "npm run clear:global && npm run deploy:global",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint .",
     "clean": "rm -rf temp/* || rmdir /s /q temp 2>nul || true"
   },
@@ -59,7 +60,8 @@
   },
   "devDependencies": {
     "eslint": "^8.0.0",
-    "nodemon": "^3.0.0"
+    "nodemon": "^3.0.0",
+    "vitest": "^4.1.0"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8",
