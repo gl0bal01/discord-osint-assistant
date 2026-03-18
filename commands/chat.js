@@ -34,6 +34,25 @@ const { sanitizeInput } = require('../utils/validation');
 
 // Store conversation contexts for users
 const userConversations = new Map();
+const MAX_CONVERSATIONS = 100;
+const CONVERSATION_TTL = 30 * 60 * 1000; // 30 minutes
+
+function pruneConversations() {
+    const now = Date.now();
+    for (const [key, conv] of userConversations) {
+        if (conv.lastActivity && now - conv.lastActivity > CONVERSATION_TTL) {
+            userConversations.delete(key);
+        }
+    }
+    if (userConversations.size > MAX_CONVERSATIONS) {
+        const oldest = [...userConversations.entries()]
+            .sort((a, b) => (a[1].lastActivity || 0) - (b[1].lastActivity || 0));
+        const toRemove = oldest.slice(0, userConversations.size - MAX_CONVERSATIONS);
+        toRemove.forEach(([key]) => userConversations.delete(key));
+    }
+}
+
+setInterval(pruneConversations, 5 * 60 * 1000);
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -148,7 +167,11 @@ module.exports = {
         
         // Initialize user conversations if not exists
         if (!userConversations.has(userId)) {
-            userConversations.set(userId, new Map());
+            const convMap = new Map();
+            convMap.lastActivity = Date.now();
+            userConversations.set(userId, convMap);
+        } else {
+            userConversations.get(userId).lastActivity = Date.now();
         }
         
         console.log(`🤖 [CHAT] Processing ${subcommand} request for user: ${userId}`);

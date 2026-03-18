@@ -63,9 +63,9 @@ module.exports = {
         try {
             const url = interaction.options.getString('url');
             const jsonOutput = interaction.options.getBoolean('json') || false;
-            const includeHeaders = interaction.options.getBoolean('headers') || true;
+            const includeHeaders = interaction.options.getBoolean('headers') ?? true;
             const timeout = (interaction.options.getInteger('timeout') || 10) * 1000;
-            const deepAnalysis = interaction.options.getBoolean('deep') || true;
+            const deepAnalysis = interaction.options.getBoolean('deep') ?? true;
             const exportFormat = interaction.options.getString('export');
             
             // Validate URL format

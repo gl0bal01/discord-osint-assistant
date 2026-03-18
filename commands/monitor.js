@@ -35,6 +35,7 @@ const MONITOR_CHANNEL_ID = process.env.MONITOR_CHANNEL_ID;
 // Store monitored URLs and their hashes
 const monitoredUrls = new Map();
 const intervals = new Map();
+const MAX_MONITORS = 20;
 
 function hashContent(content) {
     return crypto.createHash('md5').update(content).digest('hex');
@@ -111,6 +112,10 @@ module.exports = {
                 if (intervals.has(url)) {
                     await interaction.reply(`Already monitoring ${url}`);
                     return;
+                }
+
+                if (intervals.size >= MAX_MONITORS) {
+                    return interaction.reply({ content: `Maximum monitoring limit (${MAX_MONITORS}) reached. Stop some monitors first.`, ephemeral: true });
                 }
                 
                 const monitorChannel = await interaction.client.channels.fetch(MONITOR_CHANNEL_ID);

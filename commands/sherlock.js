@@ -319,8 +319,7 @@ async function handleSherlockError(interaction, error, username) {
         
     } else {
         errorMessage += `**🚨 Unexpected Error**\n`;
-        errorMessage += `\`${error.message.slice(0, 500)}\`\n\n`;
-        errorMessage += `Please try again or contact the administrator if the problem persists.`;
+        errorMessage += `An unexpected error occurred. Please try again or contact the administrator.`;
     }
     
     await interaction.editReply({

@@ -74,8 +74,8 @@ module.exports = {
             await runLinkook(args, interaction, outputDir, sanitizedUsername, rawMode);
             
         } catch (error) {
-            console.error('Error in linkook command:', error);
-            await interaction.editReply(`An error occurred: ${error.message}`);
+            console.error('Linkook error:', error);
+            await interaction.editReply('An error occurred while processing your request. Please try again later.');
         }
     },
 };

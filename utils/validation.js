@@ -124,12 +124,12 @@ function sanitizeInput(input) {
     if (!input || typeof input !== 'string') {
         return '';
     }
-    
-    // Remove potentially dangerous characters
     return input
+        .replace(/[\r\n\0]/g, '')
         .replace(/[<>\"';&|`$(){}[\]\\]/g, '')
+        .replace(/[\u{FF00}-\u{FFEF}]/gu, '')
         .trim()
-        .slice(0, 1000); // Limit length
+        .slice(0, 1000);
 }
 
 /**

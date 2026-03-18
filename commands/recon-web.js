@@ -460,18 +460,7 @@ module.exports = {
         } catch (error) {
             console.error('Error in recon command:', error);
             
-            // Provide a helpful error message
-            let errorMessage = 'An unexpected error occurred while processing your request';
-            
-            if (error.response) {
-                errorMessage += `: HTTP status ${error.response.status}`;
-            } else if (error.code) {
-                errorMessage += `: ${error.code}`;
-            } else if (error.message) {
-                errorMessage += `: ${error.message}`;
-            }
-            
-            await interaction.editReply(errorMessage);
+            await interaction.editReply('An unexpected error occurred while processing your request. Please try again later.');
         }
     },
 };

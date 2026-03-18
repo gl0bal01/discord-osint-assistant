@@ -319,7 +319,7 @@ module.exports = {
             await interaction.editReply({
                 content: `<@${interaction.user.id}> ❌ **${errorCategory}**\n\n` +
                         `🎯 **Target:** \`${username}\`\n` +
-                        `⚠️ **Issue:** ${error.message.slice(0, 200)}${error.message.length > 200 ? '...' : ''}\n\n` +
+                        `⚠️ **Issue:** An error occurred while processing your request.\n\n` +
                         `💡 **Recommendation:** ${errorAdvice}`
             });
         } finally {
