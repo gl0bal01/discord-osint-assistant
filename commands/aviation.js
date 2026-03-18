@@ -87,7 +87,7 @@ module.exports = {
                 
                 if (response.data.error) {
                     console.error('Aviation Stack API error:', response.data.error);
-                    return interaction.editReply(`API Error: ${response.data.error.message || 'Unknown error'}`);
+                    return interaction.editReply('The aviation API returned an error. Please try again later.');
                 }
 
                 const flights = response.data.data;
