@@ -65,8 +65,8 @@ module.exports = {
 
             try {
                 await validateUrlNotInternal(`https://${domain}`);
-            } catch (err) {
-                return interaction.editReply(`Invalid domain: ${err.message}`);
+            } catch (_err) {
+                return interaction.editReply('The provided URL is not allowed.');
             }
 
             // Create an embed for the response

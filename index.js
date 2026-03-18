@@ -114,6 +114,9 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.reply({ content: rateLimitReason, flags: MessageFlags.Ephemeral });
     }
 
+    // Record usage immediately to prevent concurrent bypass
+    recordUsage(interaction.user.id, interaction.commandName);
+
     // Log command usage for audit purposes
     const timestamp = new Date().toISOString();
     const userInfo = `${interaction.user.tag} (${interaction.user.id})`;
@@ -125,9 +128,6 @@ client.on(Events.InteractionCreate, async interaction => {
     try {
         // Execute the command with error handling
         await command.execute(interaction);
-        
-        // Record usage for rate limiting
-        recordUsage(interaction.user.id, interaction.commandName);
 
         // Log successful execution
         console.log(`   ✅ Command ${commandInfo} completed successfully`);

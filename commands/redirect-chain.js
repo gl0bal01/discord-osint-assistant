@@ -62,7 +62,7 @@ module.exports = {
         
         try {
             const url = interaction.options.getString('url');
-            const jsonOutput = interaction.options.getBoolean('json') || false;
+            const jsonOutput = interaction.options.getBoolean('json') ?? false;
             const includeHeaders = interaction.options.getBoolean('headers') ?? true;
             const timeout = (interaction.options.getInteger('timeout') || 10) * 1000;
             const deepAnalysis = interaction.options.getBoolean('deep') ?? true;
@@ -75,8 +75,8 @@ module.exports = {
 
             try {
                 await validateUrlNotInternal(url);
-            } catch (err) {
-                return interaction.editReply(`Invalid URL: ${err.message}`);
+            } catch (_err) {
+                return interaction.editReply('The provided URL is not allowed.');
             }
 
             await interaction.editReply(`🔍 Analyzing redirect chain for: ${url}\nThis may take a moment...`);

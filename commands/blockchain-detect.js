@@ -305,8 +305,8 @@ module.exports = {
         
         // Get and validate options
         const rawAddress = interaction.options.getString('address');
-        const detailed = interaction.options.getBoolean('detailed') || false;
-        const showAllMatches = interaction.options.getBoolean('all-matches') || false;
+        const detailed = interaction.options.getBoolean('detailed') ?? false;
+        const showAllMatches = interaction.options.getBoolean('all-matches') ?? false;
         
         // Sanitize address input
         const address = sanitizeInput(rawAddress);

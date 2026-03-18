@@ -115,8 +115,8 @@ module.exports = {
 
             try {
                 await validateUrlNotInternal(targetUrl.href);
-            } catch (err) {
-                return interaction.editReply(`Invalid URL: ${err.message}`);
+            } catch (_err) {
+                return interaction.editReply('The provided URL is not allowed.');
             }
 
             // 2. Fetch webpage content

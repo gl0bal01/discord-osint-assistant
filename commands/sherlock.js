@@ -66,9 +66,9 @@ module.exports = {
         // Get and validate command options
         const rawUsername = interaction.options.getString('username');
         const username = sanitizeInput(rawUsername);
-        const verbose = interaction.options.getBoolean('verbose') || false;
+        const verbose = interaction.options.getBoolean('verbose') ?? false;
         const customTimeout = interaction.options.getInteger('timeout') || 300;
-        const includeNsfw = interaction.options.getBoolean('include-nsfw') || false;
+        const includeNsfw = interaction.options.getBoolean('include-nsfw') ?? false;
         
         // Validate username format
         if (!isValidUsername(username)) {

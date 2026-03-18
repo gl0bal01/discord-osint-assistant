@@ -279,7 +279,7 @@ function generateLinkCard(title, url) {
     return `
             <div class="link-card">
                 <div class="link-title">${escapeHtml(title)}</div>
-                <div class="link-url"><a href="${url}" target="_blank">${url}</a></div>
+                <div class="link-url"><a href="${escapeHtml(url)}" target="_blank">${escapeHtml(url)}</a></div>
             </div>`;
 }
 

@@ -34,7 +34,7 @@ module.exports = {
         
         try {
             const username = interaction.options.getString('username');
-            const rawMode = interaction.options.getBoolean('raw') || false;
+            const rawMode = interaction.options.getBoolean('raw') ?? false;
             
             // Validate username
             if (!username || username.trim() === '') {

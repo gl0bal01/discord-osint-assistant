@@ -18,8 +18,8 @@ RUN groupadd -r botuser && useradd -r -g botuser botuser
 RUN chown -R botuser:botuser /app
 USER botuser
 
-# Health check using node
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD node -e "console.log('ok')" || exit 1
+# Health check: verify the main node process is running
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD pgrep -f "node index.js" > /dev/null || exit 1
 
 CMD ["node", "index.js"]

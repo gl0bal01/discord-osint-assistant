@@ -365,8 +365,8 @@ module.exports = {
             
             // Get and validate options
             const url = interaction.options.getString('url').trim();
-            const returnRaw = interaction.options.getBoolean('raw') || false;
-            const verbose = interaction.options.getBoolean('verbose') || false;
+            const returnRaw = interaction.options.getBoolean('raw') ?? false;
+            const verbose = interaction.options.getBoolean('verbose') ?? false;
             const hashFormat = interaction.options.getString('format') || 'decimal';
             
             // Validate URL
@@ -375,8 +375,8 @@ module.exports = {
 
             try {
                 await validateUrlNotInternal(url);
-            } catch (err) {
-                return interaction.editReply(`Invalid URL: ${err.message}`);
+            } catch (_err) {
+                return interaction.editReply('The provided URL is not allowed.');
             }
 
             // Create temporary directory
@@ -582,7 +582,7 @@ module.exports = {
                 .setDescription('An unexpected error occurred during favicon analysis')
                 .addFields({
                     name: 'Error Details',
-                    value: `\`\`\`\n${error.message}\n\`\`\``,
+                    value: `\`\`\`\nAn unexpected error occurred. Check server logs for details.\n\`\`\``,
                     inline: false
                 })
                 .setColor(0xFF0000)

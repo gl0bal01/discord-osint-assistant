@@ -71,7 +71,7 @@ module.exports = {
         const customSeparators = interaction.options.getString('separators');
         const suffix = interaction.options.getString('suffix') || '';
         const prefix = interaction.options.getString('prefix') || '';
-        const includeNumbers = interaction.options.getBoolean('include-numbers') || false;
+        const includeNumbers = interaction.options.getBoolean('include-numbers') ?? false;
         const caseVariations = interaction.options.getBoolean('case-variations') !== false; // Default true
         
         // Sanitize inputs

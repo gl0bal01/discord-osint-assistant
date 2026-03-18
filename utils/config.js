@@ -45,7 +45,7 @@ function loadConfig() {
     }
 
     for (const [key, { default: def }] of Object.entries(OPTIONAL)) {
-        config[key] = process.env[key] || def;
+        config[key] = process.env[key] !== undefined ? process.env[key] : def;
     }
 
     return config;

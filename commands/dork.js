@@ -47,7 +47,7 @@ module.exports = {
             const firstname = interaction.options.getString('firstname');
             const lastname = interaction.options.getString('lastname');
             const engine = interaction.options.getString('engine') || 'google';
-            const advanced = interaction.options.getBoolean('advanced') || false;
+            const advanced = interaction.options.getBoolean('advanced') ?? false;
             
             // Validate inputs
             if (!firstname || !lastname) {
@@ -91,7 +91,7 @@ module.exports = {
             fs.writeFileSync(outputFile, fileContent);
             
             // Create attachment
-            const attachment = new AttachmentBuilder(outputFile, { name: `${firstname}_${lastname}_dorks.txt` });
+            const attachment = new AttachmentBuilder(outputFile, { name: `${safeFn(firstname)}_${safeFn(lastname)}_dorks.txt` });
             
             // Send response
             await interaction.editReply({

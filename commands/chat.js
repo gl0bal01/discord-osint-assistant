@@ -262,7 +262,7 @@ async function handleChatRequest(interaction, userId, apiKey) {
 async function handleCodeRequest(interaction, userId, apiKey) {
     const request = interaction.options.getString('request');
     const language = interaction.options.getString('language') || 'python';
-    const newContext = interaction.options.getBoolean('new-context') || false;
+    const newContext = interaction.options.getBoolean('new-context') ?? false;
     
     const model = 'gpt-4o'; // Use more capable model for code generation
     

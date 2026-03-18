@@ -240,7 +240,7 @@ module.exports = {
             // Build args array based on subcommand (no shell interpolation)
             switch (subcommand) {
                 case 'analyze':
-                    const verbose = interaction.options.getBoolean('verbose') || false;
+                    const verbose = interaction.options.getBoolean('verbose') ?? false;
                     jwtArgs = verbose ? ['-v', token] : [token];
                     embedTitle = '🔍 JWT Analysis Results';
                     embedColor = 0x0099FF;

@@ -24,6 +24,16 @@ function isPrivateIp(ip) {
     return PRIVATE_RANGES.some(range => long >= ipToLong(range.start) && long <= ipToLong(range.end));
 }
 
+/**
+ * Validates that a URL does not resolve to a private/internal IP address.
+ *
+ * NOTE: This check is vulnerable to DNS rebinding attacks (TOCTOU).
+ * The hostname is resolved here, but axios/https performs its own resolution.
+ * For higher security, use a custom http.Agent that pins resolved IPs.
+ *
+ * @param {string} url - The URL to validate.
+ * @throws {Error} If the URL uses a disallowed protocol or resolves to a private IP.
+ */
 async function validateUrlNotInternal(url) {
     const parsed = new URL(url);
     if (!['http:', 'https:'].includes(parsed.protocol)) {

@@ -82,8 +82,8 @@ module.exports = {
         const rawDomain = interaction.options.getString('domain');
         const identifier = interaction.options.getString('identifier');
         const rawValue = interaction.options.getString('value');
-        const detailed = interaction.options.getBoolean('detailed') || false;
-        const privacyMode = interaction.options.getBoolean('privacy-mode') || false;
+        const detailed = interaction.options.getBoolean('detailed') ?? false;
+        const privacyMode = interaction.options.getBoolean('privacy-mode') ?? false;
         
         // Sanitize inputs
         const domain = rawDomain ? sanitizeInput(rawDomain) : null;

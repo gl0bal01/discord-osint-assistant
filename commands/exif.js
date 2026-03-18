@@ -30,6 +30,7 @@ const path = require('path');
 const { URL } = require('url');
 const crypto = require('crypto');
 const { isValidUrl, sanitizeInput } = require('../utils/validation');
+const { validateUrlNotInternal } = require('../utils/ssrf');
 const fsPromises = require('fs').promises;
 
 // Ensure the temp directory exists
@@ -66,7 +67,7 @@ module.exports = {
             const rawUrl = interaction.options.getString('url');
             const imageUrl = sanitizeInput(rawUrl);
             const includeDetailed = interaction.options.getBoolean('detailed') ?? true;
-            const privacyMode = interaction.options.getBoolean('privacy-mode') || false;
+            const privacyMode = interaction.options.getBoolean('privacy-mode') ?? false;
             
             // Validate URL format
             if (!isValidUrl(imageUrl)) {
@@ -98,9 +99,19 @@ module.exports = {
             }
             
             await interaction.deferReply();
-            
+
+            // SSRF protection: ensure URL does not resolve to internal/private IP
+            try {
+                await validateUrlNotInternal(imageUrl);
+            } catch (_err) {
+                return interaction.editReply({
+                    content: '❌ **URL Not Allowed**\nThe provided URL is not allowed.',
+                    ephemeral: false
+                });
+            }
+
             console.log(`📸 [EXIF] Starting metadata extraction for: ${imageUrl}`);
-            
+
             try {
                 // Generate unique filename to prevent collisions
                 const randomId = crypto.randomBytes(8).toString('hex');

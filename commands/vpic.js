@@ -68,7 +68,7 @@ module.exports = {
 
         try {
             const subcommand = interaction.options.getSubcommand();
-            const returnRaw = interaction.options.getBoolean('raw') || false;
+            const returnRaw = interaction.options.getBoolean('raw') ?? false;
             
             // Handle different subcommands
             if (subcommand === 'decode') {

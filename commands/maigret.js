@@ -36,7 +36,7 @@ module.exports = {
         
         // Get command options
         const username = interaction.options.getString('username');
-        const verbose = interaction.options.getBoolean('verbose') || false;
+        const verbose = interaction.options.getBoolean('verbose') ?? false;
         const customTimeout = interaction.options.getInteger('timeout') || 300; // Default 5 minutes
         
         // Validate username to prevent command injection

@@ -86,7 +86,7 @@ module.exports = {
         
         try {
             const blockchain = interaction.options.getString('blockchain');
-            const fullData = interaction.options.getBoolean('full') || false;
+            const fullData = interaction.options.getBoolean('full') ?? false;
             const subcommand = interaction.options.getSubcommand();
             
             // Create a temp directory if it doesn't exist

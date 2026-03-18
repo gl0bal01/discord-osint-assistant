@@ -48,9 +48,9 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply();
         
-        const detailed = interaction.options.getBoolean('detailed') || false;
-        const checkApis = interaction.options.getBoolean('check-apis') || false;
-        const checkTools = interaction.options.getBoolean('check-tools') || false;
+        const detailed = interaction.options.getBoolean('detailed') ?? false;
+        const checkApis = interaction.options.getBoolean('check-apis') ?? false;
+        const checkTools = interaction.options.getBoolean('check-tools') ?? false;
         
         console.log(`🏥 [HEALTH] Starting health check - detailed: ${detailed}, APIs: ${checkApis}, tools: ${checkTools}`);
         

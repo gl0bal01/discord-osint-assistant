@@ -77,6 +77,7 @@
 
 const { SlashCommandBuilder } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
+const { splitIntoChunks, chunkArray } = require('../utils/chunks');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
@@ -121,7 +122,7 @@ module.exports = {
         
         // Extract and validate command parameters
         const username = interaction.options.getString('username');
-        const verbose = interaction.options.getBoolean('verbose') || false;
+        const verbose = interaction.options.getBoolean('verbose') ?? false;
         const additionalTags = interaction.options.getString('tags');
         const customTimeout = interaction.options.getInteger('timeout') || 300; // Default 5 minutes
         
@@ -248,7 +249,7 @@ module.exports = {
                     }
                 } else {
                     // Compact result set - display inline with URLs
-                    const chunks = chunkString(processedContent, 1200); // Conservative chunk size
+                    const chunks = splitIntoChunks(processedContent, 1200); // Conservative chunk size
                     
                     await interaction.editReply({
                         content: `<@${interaction.user.id}> ✅ **OSINT Enumeration Complete**\n\n` +
@@ -369,49 +370,3 @@ function extractUrls(text) {
     return [...new Set(cleanedUrls)]; // Remove duplicates using Set
 }
 
-/**
- * Splits large text content into smaller chunks suitable for Discord messages
- * Attempts to break at natural boundaries (newlines) when possible
- * 
- * @param {string} str - Text content to chunk
- * @param {number} size - Maximum size per chunk
- * @returns {string[]} - Array of text chunks
- */
-function chunkString(str, size) {
-    const chunks = [];
-    let i = 0;
-    
-    while (i < str.length) {
-        // Calculate break point, preferring newlines for clean breaks
-        let breakPoint = Math.min(i + size, str.length);
-        
-        if (breakPoint < str.length) {
-            // Look for a good break point (newline) within reasonable distance
-            const newlineIndex = str.lastIndexOf('\n', breakPoint);
-            if (newlineIndex > i && newlineIndex > breakPoint - 300) {
-                breakPoint = newlineIndex + 1; // Include the newline character
-            }
-        }
-        
-        chunks.push(str.substring(i, breakPoint));
-        i = breakPoint;
-    }
-    
-    return chunks;
-}
-
-/**
- * Splits arrays into smaller chunks for manageable processing
- * Useful for URL lists and result sets that exceed Discord limits
- * 
- * @param {Array} array - Array to split into chunks
- * @param {number} chunkSize - Maximum items per chunk
- * @returns {Array[]} - Array of array chunks
- */
-function chunkArray(array, chunkSize) {
-    const chunks = [];
-    for (let i = 0; i < array.length; i += chunkSize) {
-        chunks.push(array.slice(i, i + chunkSize));
-    }
-    return chunks;
-}

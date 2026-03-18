@@ -15,9 +15,7 @@
  * Dependencies:
  * - `axios` for fetching page content
  * - `crypto` for hashing page data
- * - `playwright` for browser automation during login monitoring
  * - `discord.js` for constructing slash commands
- * - `dotenv` for environment variable configuration
  * 
  * Environment Variables:
  * - `MONITOR_CHANNEL_ID`: The Discord channel ID where updates and alerts will be posted
@@ -105,8 +103,8 @@ module.exports = {
 
                 try {
                     await validateUrlNotInternal(url);
-                } catch (err) {
-                    return interaction.reply({ content: `Invalid URL: ${err.message}`, ephemeral: true });
+                } catch (_err) {
+                    return interaction.reply({ content: 'The provided URL is not allowed.', ephemeral: true });
                 }
 
                 if (intervals.has(url)) {
