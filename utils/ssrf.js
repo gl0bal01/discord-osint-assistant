@@ -1,6 +1,9 @@
 const { URL } = require('url');
 const dns = require('dns').promises;
 const net = require('net');
+const http = require('http');
+const https = require('https');
+const dnsCallback = require('dns');
 
 const PRIVATE_RANGES = [
     { start: '10.0.0.0', end: '10.255.255.255' },
@@ -16,44 +19,81 @@ function ipToLong(ip) {
 }
 
 function isPrivateIp(ip) {
+    // Handle IPv4-mapped IPv6 addresses (e.g., ::ffff:127.0.0.1)
+    if (ip.startsWith('::ffff:')) {
+        const mappedIpv4 = ip.slice(7);
+        if (net.isIPv4(mappedIpv4)) {
+            return isPrivateIp(mappedIpv4);  // Recursively check the embedded IPv4
+        }
+    }
+
     if (net.isIPv6(ip)) {
         return ip === '::1' || ip.startsWith('fe80:') || ip.startsWith('fd') || ip.startsWith('fc');
     }
-    if (!net.isIPv4(ip)) return true;
+    if (!net.isIPv4(ip)) return true; // Block unknown formats
     const long = ipToLong(ip);
     return PRIVATE_RANGES.some(range => long >= ipToLong(range.start) && long <= ipToLong(range.end));
 }
 
 /**
  * Validates that a URL does not resolve to a private/internal IP address.
- *
- * NOTE: This check is vulnerable to DNS rebinding attacks (TOCTOU).
- * The hostname is resolved here, but axios/https performs its own resolution.
- * For higher security, use a custom http.Agent that pins resolved IPs.
+ * Checks both A (IPv4) and AAAA (IPv6) records to prevent bypasses.
  *
  * @param {string} url - The URL to validate.
  * @throws {Error} If the URL uses a disallowed protocol or resolves to a private IP.
  */
 async function validateUrlNotInternal(url) {
     const parsed = new URL(url);
+    const hostname = parsed.hostname;
+
     if (!['http:', 'https:'].includes(parsed.protocol)) {
         throw new Error('Only HTTP and HTTPS URLs are allowed');
     }
-    let addresses;
-    try {
-        addresses = await dns.resolve4(parsed.hostname);
-    } catch {
-        try {
-            addresses = await dns.resolve6(parsed.hostname);
-        } catch {
-            throw new Error(`Could not resolve hostname: ${parsed.hostname}`);
-        }
+
+    // Check both IPv4 and IPv6 records
+    let allAddresses = [];
+    try { allAddresses.push(...await dns.resolve4(hostname)); } catch { /* no A records */ }
+    try { allAddresses.push(...await dns.resolve6(hostname)); } catch { /* no AAAA records */ }
+
+    if (allAddresses.length === 0) {
+        throw new Error(`Could not resolve hostname: ${hostname}`);
     }
-    for (const ip of addresses) {
+
+    for (const ip of allAddresses) {
         if (isPrivateIp(ip)) {
             throw new Error('URL resolves to a private/internal IP address');
         }
     }
 }
 
-module.exports = { validateUrlNotInternal, isPrivateIp };
+/**
+ * Create HTTP/HTTPS agents that validate resolved IPs at connect time,
+ * preventing DNS rebinding attacks.
+ */
+function createSafeAgent(protocol) {
+    const AgentClass = protocol === 'https:' ? https.Agent : http.Agent;
+    return new AgentClass({
+        lookup(hostname, options, callback) {
+            dnsCallback.lookup(hostname, options, (err, address, family) => {
+                if (err) return callback(err);
+                if (isPrivateIp(address)) {
+                    return callback(new Error('Connection to private/internal IP address blocked'));
+                }
+                callback(null, address, family);
+            });
+        }
+    });
+}
+
+/**
+ * Returns axios config objects with safe HTTP/HTTPS agents that block
+ * connections to private/internal IP addresses at connect time.
+ */
+function getSafeAxiosConfig() {
+    return {
+        httpAgent: createSafeAgent('http:'),
+        httpsAgent: createSafeAgent('https:')
+    };
+}
+
+module.exports = { validateUrlNotInternal, isPrivateIp, getSafeAxiosConfig };

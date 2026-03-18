@@ -30,7 +30,7 @@ const path = require('path');
 const { URL } = require('url');
 const crypto = require('crypto');
 const { isValidUrl, sanitizeInput } = require('../utils/validation');
-const { validateUrlNotInternal } = require('../utils/ssrf');
+const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const fsPromises = require('fs').promises;
 
 // Ensure the temp directory exists
@@ -195,7 +195,9 @@ async function downloadImageFromUrl(url, filePath) {
             reject(new Error('Download timeout after 30 seconds'));
         }, 30000);
 
+        const agent = getSafeAxiosConfig().httpsAgent;
         https.get(url, {
+            agent,
             headers: {
                 'User-Agent': 'Discord-OSINT-Assistant/2.0 (Image-Analyzer)'
             }

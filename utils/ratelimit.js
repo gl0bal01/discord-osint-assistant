@@ -50,7 +50,9 @@ const dailyCounts = new Map();
 const MAX_TRACKED_USERS = 10000;
 
 /**
- * Check if a user is rate limited for a command.
+ * Atomically check rate limit AND record usage if not limited.
+ * Returns { limited, retryAfter?, reason? } — if not limited, usage is already recorded.
+ * This prevents TOCTOU races where concurrent requests all pass the check.
  * @param {string} userId
  * @param {string} commandName
  * @returns {{ limited: boolean, retryAfter?: number, reason?: string }}
@@ -76,6 +78,28 @@ function checkRateLimit(userId, commandName) {
             const retryAfter = Math.ceil((cooldown - (now - lastUsed)) / 1000);
             return { limited: true, retryAfter, reason: `Please wait ${retryAfter}s before using this command again.` };
         }
+    }
+
+    // Record usage atomically with the check to prevent concurrent bypass
+    if (!cooldowns.has(userId)) {
+        cooldowns.set(userId, new Map());
+    }
+    cooldowns.get(userId).set(commandName, now);
+
+    if (daily && daily.date === today) {
+        daily.count++;
+    } else {
+        dailyCounts.set(userId, { date: today, count: 1 });
+    }
+
+    // Prune if too many users tracked
+    if (cooldowns.size > MAX_TRACKED_USERS) {
+        const firstKey = cooldowns.keys().next().value;
+        cooldowns.delete(firstKey);
+    }
+    if (dailyCounts.size > MAX_TRACKED_USERS) {
+        const firstKey = dailyCounts.keys().next().value;
+        dailyCounts.delete(firstKey);
     }
 
     return { limited: false };

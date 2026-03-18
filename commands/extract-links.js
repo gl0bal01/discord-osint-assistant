@@ -23,7 +23,7 @@ const os = require('os');
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { validateUrlNotInternal } = require('../utils/ssrf');
+const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 
 /**
  * Escapes special HTML characters in a string to prevent Cross-Site Scripting (XSS).
@@ -125,7 +125,8 @@ module.exports = {
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                }
+                },
+                ...getSafeAxiosConfig()
             });
             const html = response.data;
 

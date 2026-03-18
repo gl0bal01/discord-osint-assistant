@@ -172,13 +172,15 @@ module.exports = {
                         return interaction.editReply('Rate limit exceeded. Please try again later.');
                     }
                     
-                    return interaction.editReply(`API Error (${apiError.response.status}): ${apiError.response.data.error?.info || 'Failed to fetch flight data'}`);
+                    console.error('Aviation API error:', apiError.response?.data);
+                    return interaction.editReply('The aviation API returned an error. Please try again later.');
                 } else if (apiError.request) {
                     // No response received
                     return interaction.editReply('Could not connect to flight data service. Please try again later.');
                 } else {
                     // Other error
-                    return interaction.editReply(`Error fetching flight data: ${apiError.message}`);
+                    console.error('Aviation fetch error:', apiError);
+                    return interaction.editReply('An error occurred while fetching flight data. Please try again later.');
                 }
             }
         } catch (commandError) {

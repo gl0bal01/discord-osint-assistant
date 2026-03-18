@@ -26,7 +26,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const axios = require('axios');
 const crypto = require('crypto');
-const { validateUrlNotInternal } = require('../utils/ssrf');
+const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 
 const MONITOR_CHANNEL_ID = process.env.MONITOR_CHANNEL_ID;
 
@@ -42,7 +42,7 @@ function hashContent(content) {
 async function checkWebsite(url, client) {
     try {
         await validateUrlNotInternal(url);
-        const response = await axios.get(url);
+        const response = await axios.get(url, getSafeAxiosConfig());
         const newHash = hashContent(response.data);
         
         if (monitoredUrls.has(url) && monitoredUrls.get(url) !== newHash) {

@@ -21,7 +21,7 @@
 
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
-const { validateUrlNotInternal } = require('../utils/ssrf');
+const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { isValidDomain } = require('../utils/validation');
 const cheerio = require('cheerio');
 const fs = require('fs');
@@ -153,7 +153,7 @@ module.exports = {
                             );
                             await interaction.editReply({ embeds: [embed] });
                             
-                            const crtshResponse = await axios.get(`https://crt.sh/json?q=${domain}`);
+                            const crtshResponse = await axios.get(`https://crt.sh/json?q=${domain}`, getSafeAxiosConfig());
                             const certs = crtshResponse.data;
                             
                             if (certs && certs.length > 0) {
@@ -214,7 +214,7 @@ module.exports = {
                             
                             const waybackResponse = await axios.get(
                                 `https://web.archive.org/cdx/search/cdx?fl=original&collapse=urlkey&url=*.${domain}`,
-                                { responseType: 'text' }
+                                { responseType: 'text', ...getSafeAxiosConfig() }
                             );
                             
                             const urls = waybackResponse.data.trim().split('\n');
@@ -285,7 +285,7 @@ module.exports = {
                             const domainName = sanitizeFilenameComponent(rawDomainName);
 
                             // Fetch the webpage content
-                            const response = await axios.get(targetUrl);
+                            const response = await axios.get(targetUrl, getSafeAxiosConfig());
                             const html = response.data;
 
                             // Use cheerio to parse HTML
@@ -337,7 +337,7 @@ module.exports = {
                             }
                             
                             // Download the favicon
-                            const faviconResponse = await axios.get(faviconData.url, { responseType: 'arraybuffer' });
+                            const faviconResponse = await axios.get(faviconData.url, { responseType: 'arraybuffer', ...getSafeAxiosConfig() });
                             const contentType = faviconResponse.headers['content-type'] || '';
                             
                             // If it's an image, save it

@@ -16,7 +16,7 @@ const { Client, Collection, GatewayIntentBits, Events, MessageFlags } = require(
 const fs = require('node:fs');
 const path = require('node:path');
 const { checkPermission } = require('./utils/permissions');
-const { checkRateLimit, recordUsage } = require('./utils/ratelimit');
+const { checkRateLimit } = require('./utils/ratelimit');
 
 // Validate environment variables via centralized config
 const { loadConfig } = require('./utils/config');
@@ -113,9 +113,6 @@ client.on(Events.InteractionCreate, async interaction => {
     if (limited) {
         return interaction.reply({ content: rateLimitReason, flags: MessageFlags.Ephemeral });
     }
-
-    // Record usage immediately to prevent concurrent bypass
-    recordUsage(interaction.user.id, interaction.commandName);
 
     // Log command usage for audit purposes
     const timestamp = new Date().toISOString();

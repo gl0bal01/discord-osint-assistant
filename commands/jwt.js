@@ -386,11 +386,7 @@ module.exports = {
             const errorEmbed = createResultEmbed('❌ Error', errorMessage, errorColor);
             
             if (error.stderr) {
-                errorEmbed.addFields({
-                    name: 'Technical Details',
-                    value: `\`\`\`\n${error.stderr.substring(0, 500)}\n\`\`\``,
-                    inline: false
-                });
+                console.error('JWT tool stderr:', error.stderr);
             }
 
             await interaction.editReply({ embeds: [errorEmbed] });

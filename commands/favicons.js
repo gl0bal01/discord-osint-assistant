@@ -46,7 +46,7 @@
 
 const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const { validateUrlNotInternal } = require('../utils/ssrf');
+const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const cheerio = require('cheerio');
 const fs = require('fs').promises;
 const fsSync = require('fs');
@@ -239,7 +239,8 @@ const downloadFavicon = async (faviconUrl) => {
             'User-Agent': CONFIG.USER_AGENT,
             'Accept': 'image/*,*/*;q=0.8'
         },
-        validateStatus: (status) => status >= 200 && status < 400
+        validateStatus: (status) => status >= 200 && status < 400,
+        ...getSafeAxiosConfig()
     });
     
     const contentType = response.headers['content-type'] || '';
@@ -396,7 +397,8 @@ module.exports = {
                     timeout: CONFIG.REQUEST_TIMEOUT,
                     headers: { 'User-Agent': CONFIG.USER_AGENT },
                     maxRedirects: 5,
-                    validateStatus: (status) => status >= 200 && status < 400
+                    validateStatus: (status) => status >= 200 && status < 400,
+                    ...getSafeAxiosConfig()
                 });
                 
                 html = response.data;

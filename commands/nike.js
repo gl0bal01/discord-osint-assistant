@@ -337,7 +337,8 @@ module.exports = {
         console.error('Error creating report file:', err);
         
         // Build a fallback text response
-        let replyMessage = `Found ${objects.length} results for "${searchString}", but couldn't create HTML report: ${err.message}\n\n`;
+        console.error('Nike HTML report error:', err);
+        let replyMessage = `Found ${objects.length} results for "${searchString}", but couldn't create HTML report.\n\n`;
         
         objects.forEach((account, i) => {
           const {

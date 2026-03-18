@@ -11,7 +11,7 @@
 
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
-const { validateUrlNotInternal } = require('../utils/ssrf');
+const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { isValidUrl } = require('../utils/validation');
 const fs = require('fs');
 const path = require('path');
@@ -468,8 +468,12 @@ async function analyzeRedirectChain(url, includeHeaders = false, timeout = 10000
                 // It's a redirect
                 const location = response.headers.location;
                 const redirectUrl = new URL(location, currentUrl).href;
+
+                // Re-validate redirect target against SSRF
+                await validateUrlNotInternal(redirectUrl);
+
                 redirectInfo.url = redirectUrl;
-                
+
                 redirectChain.push(redirectInfo);
                 currentUrl = redirectUrl;
                 
@@ -532,7 +536,7 @@ async function robustRequest(url, options, maxRetries = 3) {
     
     for (let i = 0; i < maxRetries; i++) {
         try {
-            return await axios.get(url, options);
+            return await axios.get(url, { ...options, ...getSafeAxiosConfig() });
         } catch (error) {
             lastError = error;
             
@@ -785,7 +789,8 @@ async function analyzeContent(url, headers) {
             maxContentLength: 1024 * 1024, // 1MB limit
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
+            },
+            ...getSafeAxiosConfig()
         });
         
         const html = response.data;
@@ -1060,7 +1065,7 @@ async function notifyWebhook(url, result, suspiciousIndicators) {
             }]
         };
         
-        await axios.post(process.env.SECURITY_WEBHOOK_URL, payload);
+        await axios.post(process.env.SECURITY_WEBHOOK_URL, payload, getSafeAxiosConfig());
     } catch (error) {
         console.error('Failed to send webhook notification:', error);
     }

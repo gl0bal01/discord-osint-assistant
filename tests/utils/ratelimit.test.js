@@ -10,27 +10,35 @@ beforeEach(async () => {
 });
 
 describe('checkRateLimit', () => {
+    // Use unique user IDs per test to avoid state leaking between tests
+    // (ES module caching means internal Maps persist across beforeEach)
+
     it('allows first command use', () => {
-        const result = checkRateLimit('user1', 'bob-dns');
+        const result = checkRateLimit('user-first', 'bob-dns');
         expect(result.limited).toBe(false);
     });
 
-    it('blocks rapid repeat of same command', () => {
-        recordUsage('user1', 'bob-nuclei');
-        const result = checkRateLimit('user1', 'bob-nuclei');
+    it('blocks rapid repeat of same command (atomic check-and-record)', () => {
+        // First call passes and atomically records usage
+        const first = checkRateLimit('user-repeat', 'bob-nuclei');
+        expect(first.limited).toBe(false);
+        // Second call should be blocked because usage was already recorded
+        const result = checkRateLimit('user-repeat', 'bob-nuclei');
         expect(result.limited).toBe(true);
         expect(result.retryAfter).toBeGreaterThan(0);
     });
 
     it('allows different commands from same user', () => {
-        recordUsage('user1', 'bob-nuclei');
-        const result = checkRateLimit('user1', 'bob-dns');
+        // Records usage for bob-nuclei atomically
+        checkRateLimit('user-diffcmd', 'bob-nuclei');
+        const result = checkRateLimit('user-diffcmd', 'bob-dns');
         expect(result.limited).toBe(false);
     });
 
     it('allows same command from different users', () => {
-        recordUsage('user1', 'bob-nuclei');
-        const result = checkRateLimit('user2', 'bob-nuclei');
+        // Records usage for user-a atomically
+        checkRateLimit('user-a', 'bob-nuclei');
+        const result = checkRateLimit('user-b', 'bob-nuclei');
         expect(result.limited).toBe(false);
     });
 });
