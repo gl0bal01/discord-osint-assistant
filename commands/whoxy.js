@@ -636,7 +636,7 @@ async function handleWhoxyError(interaction, error, requestType) {
         errorMessage += 'Cannot connect to Whoxy API. Please check your internet connection.';
     } else {
         errorMessage += '**🚨 Unexpected Error**\n';
-        errorMessage += `${error.message}`;
+        errorMessage += 'An unexpected error occurred while processing your request.';
     }
     
     await interaction.editReply({

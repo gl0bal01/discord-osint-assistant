@@ -69,7 +69,7 @@ module.exports = {
             console.error('[HEALTH] Error during health check:', error);
             await interaction.editReply({
                 content: '❌ **Health Check Failed**\n' +
-                        `Error occurred while gathering system information: ${error.message}`,
+                        'An error occurred while gathering system information. Check server logs for details.',
                 ephemeral: false
             });
         }

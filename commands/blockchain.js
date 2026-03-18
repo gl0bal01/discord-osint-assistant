@@ -114,8 +114,8 @@ module.exports = {
             }
             
         } catch (error) {
-            console.error('Error in blockchain command:', error);
-            await interaction.editReply(`An error occurred while processing your request: ${error.message}`);
+            console.error('Blockchain command error:', error);
+            await interaction.editReply('An error occurred while processing your request. Please try again later.');
         }
     },
 };
@@ -201,7 +201,7 @@ async function handleAddressLookup(interaction, blockchain, blockchainInfo, full
         
     } catch (error) {
         console.error(`Error fetching ${blockchainInfo.name} address:`, error);
-        await interaction.editReply(`Error fetching data for ${blockchainInfo.name} address: ${error.message}`);
+        await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
 }
 
@@ -297,7 +297,7 @@ async function handleTransactionLookup(interaction, blockchain, blockchainInfo, 
         
     } catch (error) {
         console.error(`Error fetching ${blockchainInfo.name} transaction:`, error);
-        await interaction.editReply(`Error fetching data for ${blockchainInfo.name} transaction: ${error.message}`);
+        await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
 }
 
@@ -388,7 +388,7 @@ async function handleBlockLookup(interaction, blockchain, blockchainInfo, fullDa
         
     } catch (error) {
         console.error(`Error fetching ${blockchainInfo.name} block:`, error);
-        await interaction.editReply(`Error fetching data for ${blockchainInfo.name} block: ${error.message}`);
+        await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
 }
 

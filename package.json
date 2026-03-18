@@ -55,8 +55,7 @@
     "discord.js": "^14.17.3",
     "dotenv": "^16.4.7",
     "jsdom": "^26.0.0",
-    "murmurhash": "^2.0.1",
-    "playwright": "^1.49.1"
+    "murmurhash": "^2.0.1"
   },
   "devDependencies": {
     "eslint": "^8.0.0",

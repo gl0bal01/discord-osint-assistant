@@ -567,7 +567,7 @@ async function handleExifError(interaction, error, imageUrl) {
     if (error.message.includes('timeout')) {
         errorMessage += 'The operation timed out. The image may be too large or the server is slow.';
     } else if (error.message.includes('HTTP')) {
-        errorMessage += `Failed to download image: ${error.message}`;
+        errorMessage += 'Failed to download image. The URL may be invalid or the server is unreachable.';
     } else if (error.message.includes('ExifTool not found')) {
         errorMessage += 'ExifTool is not installed or not found in PATH.\nPlease contact the administrator.';
     } else if (error.message.includes('too large')) {

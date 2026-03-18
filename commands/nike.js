@@ -404,7 +404,7 @@ module.exports = {
       }
       
       return interaction.editReply({
-        content: `[!] Error: ${err.message}`,
+        content: 'An error occurred while processing your request. Please try again later.',
         ephemeral: false,
       });
     }

@@ -212,8 +212,8 @@ module.exports = {
             }, 5000);
             
         } catch (error) {
-            console.error('Error in hostio command:', error);
-            await interaction.editReply(`An unexpected error occurred: ${error.message}`);
+            console.error('Hostio command error:', error);
+            await interaction.editReply('An error occurred while processing your request. Please try again later.');
         }
     },
 };
@@ -245,7 +245,7 @@ function handleApiError(error, interaction) {
     } else if (error.code === 'ENOTFOUND') {
         errorMessage = 'Could not reach the host.io API server. Please check your network connection.';
     } else {
-        errorMessage = `Error: ${error.message}`;
+        errorMessage = 'An unexpected error occurred. Please try again later.';
     }
     
     return interaction.editReply(errorMessage);

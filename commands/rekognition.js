@@ -115,13 +115,11 @@ module.exports = {
             if (error.code === 'InvalidImageFormatException') {
                 errorMessage = 'The provided image is in an invalid format. Please use JPEG or PNG format.';
             } else if (error.code === 'InvalidParameterException') {
-                errorMessage = 'Invalid parameter: ' + error.message;
+                errorMessage = 'Invalid parameter provided. Please check your input and try again.';
             } else if (error.code === 'ImageTooLargeException') {
                 errorMessage = 'The image is too large. Maximum size is 5MB for JPEG and 8MB for PNG.';
             } else if (error.code === 'AccessDeniedException') {
                 errorMessage = 'AWS access denied. Please check your credentials and permissions.';
-            } else if (error.message) {
-                errorMessage = `Error: ${error.message}`;
             }
             
             await interaction.editReply(errorMessage);

@@ -337,9 +337,6 @@ module.exports = {
             console.error('Unexpected error in pappers command:', error);
             
             let errorMessage = 'An unexpected error occurred while processing your request.';
-            if (error.message) {
-                errorMessage += ` Error details: ${error.message}`;
-            }
             
             await interaction.editReply(errorMessage);
         }
@@ -379,7 +376,7 @@ function handleApiError(error, interaction, interval) {
     } else if (error.code === 'ENOTFOUND') {
         errorMessage = 'Could not reach the Pappers API server. Please check your network connection.';
     } else {
-        errorMessage = `Error: ${error.message}`;
+        errorMessage = 'An unexpected error occurred while processing your request.';
     }
     
     interaction.editReply(errorMessage);

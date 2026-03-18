@@ -496,6 +496,6 @@ function generateErrorMessage(error) {
         return 'No response from the vehicle information service. Please try again later.';
     } else {
         // Something else happened while setting up the request
-        return `Error: ${error.message}`;
+        return 'An unexpected error occurred while processing your request.';
     }
 }

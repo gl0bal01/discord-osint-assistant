@@ -197,8 +197,8 @@ module.exports = {
             }
             
         } catch (error) {
-            console.error('Error in redirect-chain command:', error);
-            await interaction.editReply(`❌ Error: ${error.message}`);
+            console.error('Redirect-chain command error:', error);
+            await interaction.editReply('An error occurred while processing your request. Please try again later.');
         }
     },
 };

@@ -159,7 +159,7 @@ module.exports = {
             } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
                 errorMessage += 'Cannot connect to DNS service. Please check your internet connection.';
             } else {
-                errorMessage += `Unexpected error: ${error.message}`;
+                errorMessage += 'An unexpected error occurred while processing your request.';
             }
             
             return interaction.editReply({
