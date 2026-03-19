@@ -105,6 +105,35 @@ client.once(Events.ClientReady, (readyClient) => {
     
     // Set bot activity status
     client.user.setActivity('OSINT operations', { type: 'WATCHING' });
+
+    // Guild whitelist: auto-leave unauthorized servers
+    const allowedGuilds = process.env.ALLOWED_GUILD_IDS
+        ? process.env.ALLOWED_GUILD_IDS.split(',').map(id => id.trim())
+        : [];
+
+    if (allowedGuilds.length > 0) {
+        for (const guild of readyClient.guilds.cache.values()) {
+            if (!allowedGuilds.includes(guild.id)) {
+                console.log(`🚫 Leaving unauthorized guild: ${guild.name} (${guild.id})`);
+                guild.leave().catch(err => console.error(`Failed to leave guild ${guild.id}:`, err));
+            }
+        }
+    }
+});
+
+/**
+ * Event: Guild Create
+ * Auto-leave unauthorized servers when bot is added
+ */
+client.on(Events.GuildCreate, (guild) => {
+    const allowedGuilds = process.env.ALLOWED_GUILD_IDS
+        ? process.env.ALLOWED_GUILD_IDS.split(',').map(id => id.trim())
+        : [];
+
+    if (allowedGuilds.length > 0 && !allowedGuilds.includes(guild.id)) {
+        console.log(`🚫 Leaving unauthorized guild: ${guild.name} (${guild.id})`);
+        guild.leave().catch(err => console.error(`Failed to leave guild ${guild.id}:`, err));
+    }
 });
 
 /**

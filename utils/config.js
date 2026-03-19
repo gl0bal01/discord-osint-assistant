@@ -20,6 +20,7 @@ const OPTIONAL = {
     VIRUSTOTAL_API_KEY: { desc: 'VirusTotal API key', default: null },
     WHOXY_API_KEY: { desc: 'Whoxy API key', default: null },
     HOSTIO_API_KEY: { desc: 'Host.io API key', default: null },
+    ALLOWED_GUILD_IDS: { desc: 'Comma-separated guild IDs the bot is allowed to operate in (empty = all)', default: '' },
     OSINT_ALLOWED_ROLES: { desc: 'Comma-separated Discord role IDs for OSINT access', default: '' },
     SECURITY_WEBHOOK_URL: { desc: 'Webhook URL for security alerts', default: null },
     AWS_ACCESS_KEY_ID: { desc: 'AWS access key for Rekognition', default: null },

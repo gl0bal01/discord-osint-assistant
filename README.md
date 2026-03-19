@@ -187,6 +187,9 @@ MAIGRET_PATH=maigret
 
 # Access Control (Optional)
 OSINT_ALLOWED_ROLES=comma_separated_discord_role_ids
+
+# Guild Whitelist (leave empty to allow all servers)
+ALLOWED_GUILD_IDS=guild_id_1,guild_id_2
 ```
 
 ### External Tool Integration
@@ -314,6 +317,13 @@ For full details, see [SECURITY.md](SECURITY.md).
 - **Rate Limiting**: Per-user cooldowns (3s/10s/30s by command category) and configurable daily limits. See `utils/ratelimit.js`
 - **Audit Logging**: All command usage is logged with user, guild, and timestamp
 - **Secure Error Handling**: Error responses shown to users are generic; detailed errors are logged server-side only
+
+### Bot Access Control
+To prevent unauthorized users from adding your bot to their servers:
+
+1. **Discord Developer Portal**: Go to your application settings > **Bot** > disable **"Public Bot"**. This ensures only you can generate invite links.
+2. **Guild Whitelist**: Set `ALLOWED_GUILD_IDS` in your `.env` with a comma-separated list of authorized server IDs. The bot will automatically leave any server not on the list.
+3. **Command Permissions**: Sensitive commands (nuclei, sherlock, ghunt, etc.) require `ManageGuild` permission by default. Configure `OSINT_ALLOWED_ROLES` for role-based access.
 
 ### Container Security
 - Multi-stage Dockerfile with pinned base image and non-root user
