@@ -1,12 +1,11 @@
-# Pin to specific version for reproducible builds
-# Update periodically: docker pull node:20-slim
-FROM node:20-slim AS builder
+# Stage 1: Install production dependencies
+FROM oven/bun:1-slim AS builder
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+COPY package.json bun.lock ./
+RUN bun install --production --frozen-lockfile
 
 # Stage 2: Production runtime
-FROM node:20-slim
+FROM oven/bun:1-slim
 RUN apt-get update && apt-get install -y --no-install-recommends procps && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
@@ -26,6 +25,6 @@ RUN chown -R botuser:botuser /app
 USER botuser
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD pgrep -f "node index.js" > /dev/null || exit 1
+    CMD pgrep -f "bun run start" > /dev/null || pgrep -f "node index.js" > /dev/null || exit 1
 
-CMD ["node", "index.js"]
+CMD ["bun", "run", "start"]

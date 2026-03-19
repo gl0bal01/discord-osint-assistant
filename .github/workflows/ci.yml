@@ -14,13 +14,15 @@ jobs:
         node-version: [20, 22]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm ci
-      - run: npm test
-      - run: npm run lint
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bun run lint
 
   audit:
     runs-on: ubuntu-latest
@@ -29,7 +31,7 @@ jobs:
       - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: 20
-      - run: npm ci
+      - run: npm install --package-lock-only
       - run: npm audit --audit-level=moderate
 
   docker:
@@ -48,4 +50,6 @@ jobs:
           vuln-type: library
           ignore-unfixed: true
       - name: Scan project dependencies (blocking)
-        run: npm audit --omit=dev --audit-level=high
+        run: |
+          npm install --package-lock-only
+          npm audit --omit=dev --audit-level=high

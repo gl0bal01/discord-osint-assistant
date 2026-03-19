@@ -125,17 +125,17 @@ git clone https://github.com/gl0bal01/discord-osint-assistant.git
 cd discord-osint-assistant
 
 # Install dependencies
-npm install
+bun install
 
 # Configure environment
 cp .env.example .env
 # Edit .env with your tokens and API keys
 
 # Deploy commands
-npm run deploy
+bun run deploy
 
 # Start bot
-npm start
+bun run start
 ```
 
 ### Docker Deployment
@@ -347,16 +347,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 ### Development Setup
 ```bash
 # Development mode with auto-restart
-npm run dev
+bun run dev
 
 # Run tests
-npm test
+bun run test
 
 # Linting
-npm run lint
+bun run lint
 
 # Cleanup temporary files
-npm run clean
+bun run clean
 ```
 
 ### Adding New Commands
@@ -364,7 +364,7 @@ npm run clean
 2. Import validation from `utils/validation.js`
 3. Use `safeSpawn`/`safeSpawnToFile` from `utils/process.js` for external tools — **never use shell string interpolation**
 4. Use `utils/temp.js` for temporary files
-5. Deploy with `npm run deploy`
+5. Deploy with `bun run deploy`
 
 ## 📄 Legal & Compliance
 
