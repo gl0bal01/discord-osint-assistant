@@ -44,7 +44,7 @@
   },
   "homepage": "https://github.com/gl0bal01/discord-osint-assistant#readme",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.1011.0",

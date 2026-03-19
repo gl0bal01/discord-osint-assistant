@@ -1,12 +1,12 @@
 # Pin to specific version for reproducible builds
-# Update periodically: docker pull node:18.20-slim
-FROM node:18.20-slim AS builder
+# Update periodically: docker pull node:20-slim
+FROM node:20-slim AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # Stage 2: Production runtime
-FROM node:18.20-slim
+FROM node:20-slim
 RUN apt-get update && apt-get install -y --no-install-recommends procps && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 

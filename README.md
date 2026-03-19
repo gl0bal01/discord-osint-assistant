@@ -3,7 +3,7 @@
 <div align="center">
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
-[![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org/)
 [![Discord.js](https://img.shields.io/badge/Discord.js-v14.17.3-blue.svg)](https://discord.js.org/)
 [![Version](https://img.shields.io/badge/Version-2.0.0-orange.svg)](https://github.com/gl0bal01/discord-osint-assistant/releases)
 [![DOI](https://zenodo.org/badge/1007802575.svg)](https://doi.org/10.5281/zenodo.15741849)
@@ -330,7 +330,7 @@ For full details, see [SECURITY.md](SECURITY.md).
 ## 📈 Performance & Scalability
 
 ### System Requirements
-- **Minimum**: 2GB RAM, Node.js 18.0.0+, 1GB storage
+- **Minimum**: 2GB RAM, Node.js 20.0.0+, 1GB storage
 - **Recommended**: 4GB+ RAM, SSD storage, stable internet
 - **Production**: Load balancing, monitoring, log rotation
 
@@ -403,7 +403,7 @@ Use `/bob-health detailed:true check-apis:true check-tools:true` to verify:
 **Current Version**: 2.0.0  
 **Author**: gl0bal01  
 **License**: MIT  
-**Node.js**: >=18.0.0 required
+**Node.js**: >=20.0.0 required
 
 ### Key Features in v2.0
 - Comprehensive OSINT commands
