@@ -126,10 +126,19 @@ api-keys.txt
 secrets.txt
 credentials.json
 
+# Certificates and keys
+*.pem
+*.key
+*.p12
+*.pfx
+
 # Database files
 *.db
 *.sqlite
 *.sqlite3
+
+# OSINT output directories
+ghunt_results/
 
 # Backup files
 *.bak
