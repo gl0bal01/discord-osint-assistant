@@ -40,7 +40,7 @@ jobs:
       - name: Build Docker image
         run: docker build -t discord-osint-assistant .
       - name: Scan Docker image
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947e7f9de1e6e321aee # v0.29.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: discord-osint-assistant
           severity: CRITICAL,HIGH
