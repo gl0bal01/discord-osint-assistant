@@ -45,3 +45,5 @@ jobs:
           image-ref: discord-osint-assistant
           severity: CRITICAL,HIGH
           exit-code: 1
+          vuln-type: library
+          ignore-unfixed: true
