@@ -20,7 +20,7 @@ const { checkRateLimit } = require('./utils/ratelimit');
 
 // Validate environment variables via centralized config
 const { loadConfig } = require('./utils/config');
-const config = loadConfig();
+loadConfig();
 
 // Clean up orphaned temp files from previous runs
 const tempDir = path.join(__dirname, 'temp');

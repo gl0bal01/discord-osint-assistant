@@ -671,8 +671,8 @@ async function createDetectionReport(results, address) {
     if (results.analysis) {
         report += `Encoding: ${results.analysis.encoding}\n`;
         report += `Character Set: ${Object.entries(results.analysis.characterSet)
-            .filter(([key, value]) => value)
-            .map(([key]) => key)
+            .filter(([_key, value]) => value)
+            .map(([_key]) => _key)
             .join(', ')}\n`;
         report += `Unique Characters: ${results.analysis.uniqueChars}\n`;
     }

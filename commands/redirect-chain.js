@@ -420,7 +420,6 @@ function calculateRiskLevel(result, securityAnalysis) {
  * Analyze a URL's redirect chain with enhanced features
  */
 async function analyzeRedirectChain(url, includeHeaders = false, timeout = 10000, deepAnalysis = false) {
-    const startTime = Date.now();
     const redirectChain = [];
     let currentUrl = url;
     let finalDestination;
@@ -513,7 +512,7 @@ async function analyzeRedirectChain(url, includeHeaders = false, timeout = 10000
     try {
         const finalUrl = new URL(finalDestination.url);
         dnsInfo = await resolveDNS(finalUrl.hostname);
-    } catch (error) {
+    } catch (_error) {
         // DNS resolution failed, continue without it
     }
 
@@ -578,7 +577,7 @@ async function performSecurityAnalysis(result) {
     if (result.final_destination.url.startsWith('https://')) {
         try {
             analysis.certificateInfo = await analyzeCertificate(result.final_destination.url);
-        } catch (error) {
+        } catch (_error) {
             // Certificate analysis failed
         }
     }
@@ -702,10 +701,10 @@ function detectAdvancedTracking(url) {
                 });
             }
         }
-    } catch (error) {
+    } catch (_error) {
         // Invalid URL
     }
-    
+
     return trackingInfo;
 }
 
@@ -829,10 +828,10 @@ async function analyzeContent(url, headers) {
             contentAnalysis.suspiciousPatterns.push('Hidden elements');
         }
         
-    } catch (error) {
+    } catch (_error) {
         // Content analysis failed
     }
-    
+
     return contentAnalysis;
 }
 
@@ -850,7 +849,7 @@ async function resolveDNS(hostname) {
             addresses,
             reverses: reverses.filter(Boolean).flat()
         };
-    } catch (error) {
+    } catch (_error) {
         return null;
     }
 }
@@ -958,7 +957,6 @@ function generateCSVReport(result) {
  */
 function generateMermaidDiagram(result) {
     let mermaid = 'graph TD\n';
-    let nodeId = 0;
     
     // Styling
     mermaid += '    classDef redirect fill:#FFA500,stroke:#FF6347,stroke-width:2px,color:#fff\n';
@@ -1021,7 +1019,7 @@ function truncateUrl(url, maxLength = 30) {
         
         const remainingLength = maxLength - domain.length - 3;
         return domain + path.substring(0, remainingLength) + '...';
-    } catch (error) {
+    } catch (_error) {
         if (url.length <= maxLength) return url;
         return url.substring(0, maxLength - 3) + '...';
     }

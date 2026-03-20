@@ -136,7 +136,7 @@ module.exports = {
                 if (elapsedTime % 4 === 0) {
                     await interaction.editReply(`Processing request ID ${requestId}... (${elapsedTime}s elapsed)`);
                 }
-            } catch (e) {
+            } catch (_e) {
                 // If we can't update anymore, clear the interval
                 clearInterval(progressInterval);
             }
@@ -354,8 +354,8 @@ function handleApiError(error, interaction, interval) {
     
     console.error('Error with Pappers API:', error);
     
-    let errorMessage = 'An error occurred while fetching company information.';
-    
+    let errorMessage;
+
     if (error.response) {
         const statusCode = error.response.status;
         const responseData = error.response.data;

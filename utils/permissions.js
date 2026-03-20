@@ -7,7 +7,9 @@ const RESTRICTED_COMMANDS = {
     'bob-jwt': PermissionFlagsBits.ManageGuild,
     'bob-ghunt': PermissionFlagsBits.ManageGuild,
     'bob-sherlock': PermissionFlagsBits.ManageGuild,
-    'bob-maigret': PermissionFlagsBits.ManageGuild
+    'bob-maigret': PermissionFlagsBits.ManageGuild,
+    'bob-linkook': PermissionFlagsBits.ManageGuild,
+    'bob-xeuledoc': PermissionFlagsBits.ManageGuild
 };
 
 function getAllowedRoles() {

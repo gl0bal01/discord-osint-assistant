@@ -10,6 +10,7 @@
 
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
+const { isValidEmail, isValidUrl } = require('../utils/validation');
 const fs = require('fs');
 const path = require('path');
 
@@ -321,7 +322,6 @@ module.exports = {
         const useSight = interaction.options.getBoolean('sight') ?? false;
         
         // Get user information
-        const userId = interaction.user.id;
         const username = interaction.user.username;
         const userTag = interaction.user.tag || username;
         
@@ -335,7 +335,7 @@ module.exports = {
         const timestamp = Date.now();
         
         // Build command and setup based on search type
-        let ghuntArgs = [];
+        let ghuntArgs;
         let outputFilePath = '';
         let sanitizedQuery = '';
         let embed = new EmbedBuilder()
@@ -345,10 +345,8 @@ module.exports = {
         
         // Process different search types
         switch (searchType) {
-            case 'email':
-                // Basic email validation
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(query)) {
+            case 'email': {
+                if (!isValidEmail(query)) {
                     return interaction.editReply({
                         content: 'Please provide a valid email address'
                     });
@@ -357,27 +355,27 @@ module.exports = {
                 // Sanitize input to prevent command injection
                 sanitizedQuery = query.replace(/[^a-zA-Z0-9@.]/g, '_');
                 outputFilePath = path.join(resultsDir, `email_${sanitizedQuery}_${timestamp}.json`);
-                
+
                 // Build the GHunt args
                 ghuntArgs = ['email', sanitizedQuery, '--json', outputFilePath];
                 if (useDriver) ghuntArgs.push('--driver');
                 if (useSight) ghuntArgs.push('--sight');
-                
+
                 // Extract username and domain from email
                 const [username, domain] = query.split('@');
 
                 // Create embed
                 embed.setTitle('Email Lookup Results')
                     .setDescription(`Here are the OSINT results for ${query}:`);
-                
+
                 // Add links to other OSINT tools
                 if (domain.toLowerCase() === 'gmail.com') {
-                    embed.addFields({ 
-                        name: 'Gmail OSINT Tool', 
+                    embed.addFields({
+                        name: 'Gmail OSINT Tool',
                         value: `[View Results](https://gmail-osint.activetk.jp/${username})`
                     });
                 }
-                
+
                 embed.addFields(
                     { name: 'Epieos OSINT', value: `[View Results](https://epieos.com/?q=${query})` },
                     { name: 'EmailRep Lookup', value: `[View Results](https://emailrep.io/${query})` },
@@ -386,6 +384,7 @@ module.exports = {
                     // Maps review link will be added separately after JSON parsing
                 );
                 break;
+            }
                 
             case 'gaia':
                 // Sanitize input
@@ -406,26 +405,31 @@ module.exports = {
                 );
                 break;
                 
-            case 'drive':
-                // Sanitize URL (basic sanitization, as URLs are complex)
+            case 'drive': {
+                if (!isValidUrl(query)) {
+                    return interaction.editReply({
+                        content: 'Please provide a valid Google Drive URL'
+                    });
+                }
                 sanitizedQuery = query.replace(/['"]/g, '');
                 const driveFileId = extractDriveId(sanitizedQuery);
                 outputFilePath = path.join(resultsDir, `drive_${driveFileId}_${timestamp}.json`);
-                
+
                 // Build the GHunt args
                 ghuntArgs = ['drive', sanitizedQuery, '--json', outputFilePath];
-                
+
                 embed.setTitle('Google Drive Analysis')
                     .setDescription(`Results for Drive URL: ${query}`);
-                
+
                 // Add Google Maps reviews and Calendar ICS links
                 embed.addFields(
                     { name: 'Google Maps Reviews', value: 'Use with Gaia ID when available' },
                     { name: 'Google Calendar ICS', value: 'Use with email when available' }
                 );
                 break;
+            }
                 
-            case 'geolocate':
+            case 'geolocate': {
                 // Validate BSSID format
                 const bssidRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
                 if (!bssidRegex.test(query)) {
@@ -433,23 +437,24 @@ module.exports = {
                         content: 'Please provide a valid BSSID in the format XX:XX:XX:XX:XX:XX'
                     });
                 }
-                
+
                 // Sanitize input
                 sanitizedQuery = query.replace(/[^0-9A-Fa-f:]/g, '');
                 outputFilePath = path.join(resultsDir, `geolocate_${sanitizedQuery.replace(/:/g, '')}_${timestamp}.json`);
-                
+
                 // Build the GHunt args
                 ghuntArgs = ['geolocate', sanitizedQuery, '--json', outputFilePath];
-                
+
                 embed.setTitle('BSSID Geolocation Results')
                     .setDescription(`Geolocation results for BSSID: ${query}`);
-                
+
                 // Add Google Maps reviews and Calendar ICS links
                 embed.addFields(
                     { name: 'Google Maps Reviews', value: 'Use with Gaia ID when available' },
                     { name: 'Google Calendar ICS', value: 'Use with email when available' }
                 );
                 break;
+            }
                 
             case 'spiderdal':
                 // Sanitize domain
@@ -554,13 +559,15 @@ module.exports = {
                 await interaction.editReply({ embeds: [embed] });
             }
         } catch (error) {
-            // Handle GHunt errors
             console.error(`Error running GHunt: ${error}`);
-            embed.addFields({ 
-                name: 'GHunt Error', 
-                value: 'Error running GHunt command. Check server logs for details.' 
+            const errorMsg = error.message.includes('ENOENT') || error.message.includes('Failed to start process')
+                ? 'GHunt is not installed or not found in PATH. Please contact the administrator.'
+                : 'Error running GHunt command. Check server logs for details.';
+            embed.addFields({
+                name: 'GHunt Error',
+                value: errorMsg
             });
-            
+
             await interaction.editReply({ embeds: [embed] });
         } finally {
             setTimeout(() => {
@@ -581,7 +588,7 @@ function extractDriveId(url) {
     try {
         const idMatch = url.match(/[-\w]{25,}/);
         return idMatch ? idMatch[0] : 'unknown';
-    } catch (error) {
+    } catch (_error) {
         return 'unknown';
     }
 }

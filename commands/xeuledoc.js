@@ -67,9 +67,12 @@ module.exports = {
             await interaction.editReply({ embeds: [embed] });
         } catch (error) {
             console.error('Error executing xeuledoc:', error);
+            const errorMsg = error.message.includes('ENOENT') || error.message.includes('Failed to start process')
+                ? 'xeuledoc is not installed or not found in PATH. Please contact the administrator.'
+                : 'An unexpected error occurred while running xeuledoc. Please try again later.';
             const embed = new EmbedBuilder()
                 .setTitle('Execution Error')
-                .setDescription('An unexpected error occurred while running xeuledoc. Please try again later.')
+                .setDescription(errorMsg)
                 .setColor(0xff0000);
             await interaction.editReply({ embeds: [embed] });
         }

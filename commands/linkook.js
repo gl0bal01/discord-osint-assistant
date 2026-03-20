@@ -11,7 +11,6 @@
 
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
-const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -75,7 +74,10 @@ module.exports = {
             
         } catch (error) {
             console.error('Linkook error:', error);
-            await interaction.editReply('An error occurred while processing your request. Please try again later.');
+            const errorMsg = error.message.includes('ENOENT') || error.message.includes('Failed to start process')
+                ? 'Linkook is not installed or not found in PATH. Please contact the administrator.'
+                : 'An error occurred while processing your request. Please try again later.';
+            await interaction.editReply(errorMsg);
         }
     },
 };
@@ -89,168 +91,107 @@ module.exports = {
  * @param {boolean} rawMode - Whether to return raw result files
  */
 async function runLinkook(args, interaction, outputDir, username, rawMode) {
-    return new Promise((resolve, reject) => {
-        // Variables to capture process output
-        let stdoutData = '';
-        let stderrData = '';
-        let foundSites = [];
-        
-        // Spawn the Linkook process with shell: false to prevent command injection
-        const linkookProcess = spawn('linkook', args, {
-            stdio: ['ignore', 'pipe', 'pipe'],
-            shell: false
+    try {
+        // Use safeSpawn for safe env and buffer limits
+        const { stdout, stderr, code } = await safeSpawn('linkook', args, {
+            timeout: 180000 // 3 minute timeout
         });
 
-        // Collect stdout data
-        linkookProcess.stdout.on('data', (data) => {
-            const output = data.toString();
-            stdoutData += output;
-            
-            // Try to extract found sites from the output
-            const lines = output.split('\n');
-            for (const line of lines) {
-                // Extract site names based on common output patterns
-                // This may need adjustment based on Linkook's actual output format
-                if (line.includes('[+]') || line.includes('FOUND:')) {
-                    const siteName = line.match(/\[([^\]]+)\]/) || line.match(/FOUND: ([^\s]+)/);
-                    if (siteName && siteName[1]) {
-                        foundSites.push(siteName[1]);
-                    }
+        // Extract found sites from stdout
+        const foundSites = [];
+        const lines = stdout.split('\n');
+        for (const line of lines) {
+            if (line.includes('[+]') || line.includes('FOUND:')) {
+                const siteName = line.match(/\[([^\]]+)\]/) || line.match(/FOUND: ([^\s]+)/);
+                if (siteName && siteName[1]) {
+                    foundSites.push(siteName[1]);
                 }
             }
-            
-            // Provide periodic updates
-            if (foundSites.length > 0 && foundSites.length % 5 === 0) {
-                interaction.editReply(`Found ${foundSites.length} sites for username "${username}" so far...`).catch(() => {});
+        }
+
+        if (code !== 0 && stdout.trim() === '' && foundSites.length === 0) {
+            throw new Error(`Linkook process exited with code ${code}: ${stderr}`);
+        }
+
+        // Check if there are any result files
+        const resultFiles = fs.readdirSync(outputDir);
+        if (resultFiles.length === 0) {
+            if (foundSites.length > 0) {
+                await interaction.editReply(`Found ${foundSites.length} sites for username "${username}", but no result files were created.\n\nSites: ${foundSites.join(', ')}`);
+            } else {
+                await interaction.editReply(`No results found for username "${username}". The username might not exist on any of the scanned platforms.`);
             }
-        });
-        
-        // Collect stderr data
-        linkookProcess.stderr.on('data', (data) => {
-            stderrData += data.toString();
-        });
-        
-        // Set a timeout to kill the process if it takes too long
-        const timeout = setTimeout(() => {
-            linkookProcess.kill('SIGTERM');
-            // Force kill if SIGTERM doesn't work after 5 seconds
-            setTimeout(() => {
-                try { if (!linkookProcess.killed) linkookProcess.kill('SIGKILL'); } catch { /* process already exited */ }
-            }, 5000);
-            reject(new Error('Linkook process timed out after 3 minutes. Try again later.'));
-        }, 180000); // 3 minute timeout
-        
-        // Handle process completion
-        linkookProcess.on('close', async (code) => {
-            clearTimeout(timeout);
-            
-            if (code !== 0 && stdoutData.trim() === '' && foundSites.length === 0) {
-                reject(new Error(`Linkook process exited with code ${code}: ${stderrData}`));
-                return;
+            return;
+        }
+
+        // Raw mode - return all result files
+        if (rawMode) {
+            const attachments = [];
+            const filesToSend = resultFiles.slice(0, 10);
+
+            for (const file of filesToSend) {
+                const filePath = path.join(outputDir, file);
+                const attachment = new AttachmentBuilder(filePath, { name: file });
+                attachments.push(attachment);
             }
-            
+
+            let message = `Found results for username "${username}" on ${foundSites.length} platforms.`;
+            if (resultFiles.length > 10) {
+                message += `\nShowing 10/${resultFiles.length} result files due to Discord limits.`;
+            }
+
+            await interaction.editReply({
+                content: message,
+                files: attachments
+            });
+        }
+        // Standard mode - consolidate results
+        else {
+            const summaryPath = path.join(outputDir, `${username}_summary.txt`);
+            let summaryContent = `LINKOOK RESULTS FOR USERNAME: ${username}\n`;
+            summaryContent += `SCAN COMPLETED: ${new Date().toISOString()}\n\n`;
+
+            if (foundSites.length > 0) {
+                summaryContent += `FOUND ON ${foundSites.length} SITES:\n`;
+                summaryContent += foundSites.join('\n');
+                summaryContent += '\n\n';
+            }
+
+            for (const file of resultFiles) {
+                const filePath = path.join(outputDir, file);
+                try {
+                    const content = fs.readFileSync(filePath, 'utf8');
+                    summaryContent += `=== ${file} ===\n`;
+                    summaryContent += content;
+                    summaryContent += '\n\n';
+                } catch (error) {
+                    console.error(`Error reading result file ${file}:`, error);
+                }
+            }
+
+            fs.writeFileSync(summaryPath, summaryContent);
+
+            const attachment = new AttachmentBuilder(summaryPath, {
+                name: `linkook_${username}_results.txt`
+            });
+
+            await interaction.editReply({
+                content: `Username "${username}" found on ${foundSites.length} platforms. Complete results attached.`,
+                files: [attachment]
+            });
+        }
+    } finally {
+        // Clean up temporary directory after a delay
+        setTimeout(() => {
             try {
-                // Check if there are any result files
-                const resultFiles = fs.readdirSync(outputDir);
-                if (resultFiles.length === 0) {
-                    // No files but we might have console output
-                    if (foundSites.length > 0) {
-                        await interaction.editReply(`Found ${foundSites.length} sites for username "${username}", but no result files were created.\n\nSites: ${foundSites.join(', ')}`);
-                    } else {
-                        await interaction.editReply(`No results found for username "${username}". The username might not exist on any of the scanned platforms.`);
-                    }
-                    resolve();
-                    return;
+                const files = fs.readdirSync(outputDir);
+                for (const file of files) {
+                    fs.unlinkSync(path.join(outputDir, file));
                 }
-                
-                // Raw mode - return all result files
-                if (rawMode) {
-                    const attachments = [];
-                    
-                    // Limit to 10 files to avoid Discord limits
-                    const filesToSend = resultFiles.slice(0, 10);
-                    
-                    for (const file of filesToSend) {
-                        const filePath = path.join(outputDir, file);
-                        const attachment = new AttachmentBuilder(filePath, { name: file });
-                        attachments.push(attachment);
-                    }
-                    
-                    let message = `Found results for username "${username}" on ${foundSites.length} platforms.`;
-                    if (resultFiles.length > 10) {
-                        message += `\nShowing 10/${resultFiles.length} result files due to Discord limits.`;
-                    }
-                    
-                    await interaction.editReply({
-                        content: message,
-                        files: attachments
-                    });
-                }
-                // Standard mode - consolidate results
-                else {
-                    // Create a summary file
-                    const summaryPath = path.join(outputDir, `${username}_summary.txt`);
-                    let summaryContent = `LINKOOK RESULTS FOR USERNAME: ${username}\n`;
-                    summaryContent += `SCAN COMPLETED: ${new Date().toISOString()}\n\n`;
-                    
-                    if (foundSites.length > 0) {
-                        summaryContent += `FOUND ON ${foundSites.length} SITES:\n`;
-                        summaryContent += foundSites.join('\n');
-                        summaryContent += '\n\n';
-                    }
-                    
-                    // Add content from result files
-                    for (const file of resultFiles) {
-                        const filePath = path.join(outputDir, file);
-                        try {
-                            const content = fs.readFileSync(filePath, 'utf8');
-                            summaryContent += `=== ${file} ===\n`;
-                            summaryContent += content;
-                            summaryContent += '\n\n';
-                        } catch (error) {
-                            console.error(`Error reading result file ${file}:`, error);
-                        }
-                    }
-                    
-                    // Write the summary file
-                    fs.writeFileSync(summaryPath, summaryContent);
-                    
-                    // Create attachment with the summary file
-                    const attachment = new AttachmentBuilder(summaryPath, { 
-                        name: `linkook_${username}_results.txt` 
-                    });
-                    
-                    await interaction.editReply({
-                        content: `Username "${username}" found on ${foundSites.length} platforms. Complete results attached.`,
-                        files: [attachment]
-                    });
-                }
-                
-                resolve();
+                fs.rmdirSync(outputDir);
             } catch (error) {
-                reject(error);
-            } finally {
-                // Clean up temporary directory after a delay
-                setTimeout(() => {
-                    try {
-                        // Delete all files in the directory
-                        const files = fs.readdirSync(outputDir);
-                        for (const file of files) {
-                            fs.unlinkSync(path.join(outputDir, file));
-                        }
-                        // Delete the directory
-                        fs.rmdirSync(outputDir);
-                    } catch (error) {
-                        console.error('Error cleaning up output directory:', error);
-                    }
-                }, 5000);
+                console.error('Error cleaning up output directory:', error);
             }
-        });
-        
-        // Handle process errors
-        linkookProcess.on('error', (error) => {
-            clearTimeout(timeout);
-            reject(new Error(`Failed to start Linkook process: ${error.message}`));
-        });
-    });
+        }, 5000);
+    }
 }

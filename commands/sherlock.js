@@ -135,7 +135,7 @@ module.exports = {
  * @param {CommandInteraction} interaction - Discord interaction
  * @returns {Promise<{ stderr: string, code: number }>}
  */
-async function executeSherlockScan(sherlockPath, username, outputFile, timeout, verbose, includeNsfw, interaction) {
+async function executeSherlockScan(sherlockPath, username, outputFile, timeout, verbose, includeNsfw, _interaction) {
     const args = [username];
     if (verbose) args.push('--verbose');
     if (!includeNsfw) args.push('--nsfw');

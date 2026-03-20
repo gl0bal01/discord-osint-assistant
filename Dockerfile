@@ -6,7 +6,6 @@ RUN bun install --production --frozen-lockfile
 
 # Stage 2: Production runtime
 FROM oven/bun:1-slim
-RUN apt-get update && apt-get install -y --no-install-recommends procps && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Copy only what's needed
@@ -25,6 +24,6 @@ RUN chown -R botuser:botuser /app
 USER botuser
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD pgrep -f "bun run start" > /dev/null || pgrep -f "node index.js" > /dev/null || exit 1
+    CMD kill -0 1 || exit 1
 
 CMD ["bun", "run", "start"]

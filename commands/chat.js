@@ -27,7 +27,7 @@
  *        /bob-chat message:"Generate Python script for data parsing" type:code
  */
 
-const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const { sanitizeInput } = require('../utils/validation');
 
@@ -497,8 +497,8 @@ Format your response for an OSINT investigation context.`;
  */
 function formatAIResponse(aiResponse, model, responseType, isCode = false) {
     // Extract response content
-    let content = '';
-    
+    let content;
+
     if (aiResponse.aiRecord?.aiRecordDetail?.resultObject) {
         const resultObject = aiResponse.aiRecord.aiRecordDetail.resultObject;
         

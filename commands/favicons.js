@@ -196,7 +196,7 @@ const extractFaviconCandidates = (html, baseUrl) => {
                             priority: FAVICON_SELECTORS.indexOf(selector)
                         });
                     }
-                } catch (urlError) {
+                } catch (_urlError) {
                     console.warn(`Invalid favicon URL: ${faviconUrl}`);
                 }
             }
@@ -216,7 +216,7 @@ const extractFaviconCandidates = (html, baseUrl) => {
                 priority: 999 // Lowest priority
             });
         }
-    } catch (error) {
+    } catch (_error) {
         console.warn('Could not create default favicon URL');
     }
     
@@ -368,8 +368,6 @@ module.exports = {
             const url = interaction.options.getString('url').trim();
             const returnRaw = interaction.options.getBoolean('raw') ?? false;
             const verbose = interaction.options.getBoolean('verbose') ?? false;
-            const hashFormat = interaction.options.getString('format') || 'decimal';
-            
             // Validate URL
             const parsedUrl = validateUrl(url);
             const domain = parsedUrl.hostname;
@@ -439,7 +437,6 @@ module.exports = {
             
             // Try to download favicon from candidates
             let faviconData = null;
-            let faviconInfo = null;
             let successfulCandidate = null;
             
             for (const candidate of faviconCandidates) {

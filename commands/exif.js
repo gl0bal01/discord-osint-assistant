@@ -88,7 +88,7 @@ module.exports = {
                 if (parsedUrl.protocol !== 'https:') {
                     throw new Error('Invalid protocol');
                 }
-            } catch (error) {
+            } catch (_error) {
                 return interaction.reply({
                     content: '❌ **URL Validation Failed**\n' +
                             'The provided URL is not accessible or uses an unsupported protocol.\n' +
@@ -574,7 +574,7 @@ async function sendExifResults(interaction, formattedData, imageUrl, fileStats, 
  * @param {Error} error - The error that occurred
  * @param {string} imageUrl - Original image URL
  */
-async function handleExifError(interaction, error, imageUrl) {
+async function handleExifError(interaction, error, _imageUrl) {
     let errorMessage = '❌ **EXIF Extraction Failed**\n';
     
     if (error.message.includes('timeout')) {
@@ -610,7 +610,7 @@ function getExtensionFromUrl(url) {
         const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'webp'];
         
         return validExtensions.includes(extension) ? extension : 'jpg';
-    } catch (error) {
+    } catch (_error) {
         return 'jpg';
     }
 }

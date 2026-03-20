@@ -78,6 +78,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
 const { splitIntoChunks, chunkArray } = require('../utils/chunks');
+const { isValidUsername } = require('../utils/validation');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
@@ -127,10 +128,9 @@ module.exports = {
         const customTimeout = interaction.options.getInteger('timeout') || 300; // Default 5 minutes
         
         // Validate username format to prevent command injection attacks
-        // Allows only alphanumeric characters, underscores, dots, and hyphens
-        if (!/^[a-zA-Z0-9_.-]+$/.test(username)) {
+        if (!isValidUsername(username)) {
             return await interaction.editReply({
-                content: '❌ **Invalid Username Format**\n\nPlease use only:\n• Letters (a-z, A-Z)\n• Numbers (0-9)\n• Underscores (_)\n• Dots (.)\n• Hyphens (-)'
+                content: '❌ **Invalid Username Format**\n\nPlease use only:\n• Letters (a-z, A-Z)\n• Numbers (0-9)\n• Underscores (_)\n• Dots (.)\n• Hyphens (-)\n• Length: 3-50 characters'
             });
         }
         
@@ -192,7 +192,7 @@ module.exports = {
             try {
                 fileContent = await fs.readFile(outputFile, 'utf8');
                 fileExists = true;
-            } catch (readError) {
+            } catch (_readError) {
                 // File doesn't exist or can't be read - no results found
                 console.info(`[Nuclei] No output file generated for ${username}`);
             }

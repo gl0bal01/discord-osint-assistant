@@ -18,6 +18,7 @@
 
 const { SlashCommandBuilder } = require('discord.js');
 const axios = require('axios');
+const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { isValidDomain, sanitizeInput } = require('../utils/validation');
 
 module.exports = {
@@ -67,6 +68,7 @@ module.exports = {
             
             // Make API request to DNSDumpster with timeout
             const response = await axios.get(`https://api.dnsdumpster.com/domain/${domain}`, {
+                ...getSafeAxiosConfig(),
                 headers: {
                     'X-API-Key': apiToken,
                     'User-Agent': 'Discord-OSINT-Assistant/2.0'

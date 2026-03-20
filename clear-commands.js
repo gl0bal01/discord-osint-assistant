@@ -250,7 +250,7 @@ class CommandCleaner {
             console.log('   2. Or run: npm run deploy:global (for global commands)');
             console.log('   3. Restart your bot if it\'s currently running');
             
-        } catch (error) {
+        } catch (_error) {
             console.error('\n💥 Command clearing failed!');
             console.error('   Please check your bot permissions and try again');
             process.exit(1);

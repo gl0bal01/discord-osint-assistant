@@ -51,7 +51,7 @@ function getDomainCount(links) {
         try {
             const domain = new URL(link.href).hostname;
             domains.add(domain);
-        } catch (e) {
+        } catch (_e) {
             // Ignore invalid URLs that might have slipped through
         }
     });
@@ -69,7 +69,7 @@ function getTopDomains(links, limit = 10) {
         try {
             const domain = new URL(link.href).hostname;
             acc[domain] = (acc[domain] || 0) + 1;
-        } catch (e) {
+        } catch (_e) {
             // Ignore invalid URLs
         }
         return acc;
@@ -109,7 +109,7 @@ module.exports = {
                 if (!['http:', 'https:'].includes(targetUrl.protocol)) {
                     throw new Error('Invalid protocol.');
                 }
-            } catch (error) {
+            } catch (_error) {
                 return interaction.editReply('Please provide a valid URL starting with `http://` or `https://`.');
             }
 
@@ -144,7 +144,7 @@ module.exports = {
                             text: $(element).text().trim() || '[No Text]',
                             href: absoluteUrl
                         });
-                    } catch (e) {
+                    } catch (_e) {
                         console.error(`Skipping invalid href: ${href}`);
                     }
                 }

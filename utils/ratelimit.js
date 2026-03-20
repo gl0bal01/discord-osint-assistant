@@ -105,38 +105,4 @@ function checkRateLimit(userId, commandName) {
     return { limited: false };
 }
 
-/**
- * Record a command usage for rate limiting.
- * @param {string} userId
- * @param {string} commandName
- */
-function recordUsage(userId, commandName) {
-    const now = Date.now();
-    const today = new Date().toISOString().split('T')[0];
-
-    // Record cooldown
-    if (!cooldowns.has(userId)) {
-        cooldowns.set(userId, new Map());
-    }
-    cooldowns.get(userId).set(commandName, now);
-
-    // Record daily count
-    const daily = dailyCounts.get(userId);
-    if (daily && daily.date === today) {
-        daily.count++;
-    } else {
-        dailyCounts.set(userId, { date: today, count: 1 });
-    }
-
-    // Prune if too many users tracked
-    if (cooldowns.size > MAX_TRACKED_USERS) {
-        const firstKey = cooldowns.keys().next().value;
-        cooldowns.delete(firstKey);
-    }
-    if (dailyCounts.size > MAX_TRACKED_USERS) {
-        const firstKey = dailyCounts.keys().next().value;
-        dailyCounts.delete(firstKey);
-    }
-}
-
-module.exports = { checkRateLimit, recordUsage, COOLDOWNS, COMMAND_CATEGORIES };
+module.exports = { checkRateLimit, COOLDOWNS, COMMAND_CATEGORIES };

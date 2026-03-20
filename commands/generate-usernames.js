@@ -316,7 +316,7 @@ function createUsernameAttachment(usernames, firstName, lastName) {
     content += `# - Account discovery\n`;
     content += `#\n\n`;
     
-    usernames.forEach((username, index) => {
+    usernames.forEach((username, _index) => {
         content += `${username}\n`;
     });
     

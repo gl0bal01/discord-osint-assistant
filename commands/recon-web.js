@@ -115,11 +115,11 @@ module.exports = {
             // Process each service
             for (const svc of services) {
                 switch(svc) {
-                    case 'certspotter':
+                    case 'certspotter': {
                         const certspotterUrl = `https://api.certspotter.com/v1/issuances?domain=${domain}&include_subdomains=true&expand=dns_names&expand=issuer&expand=cert`;
-                        embed.addFields({ 
-                            name: 'CertSpotter', 
-                            value: `[View certificates issued for ${domain}](${certspotterUrl})` 
+                        embed.addFields({
+                            name: 'CertSpotter',
+                            value: `[View certificates issued for ${domain}](${certspotterUrl})`
                         });
                         row.addComponents(
                             new ButtonBuilder()
@@ -129,12 +129,13 @@ module.exports = {
                         );
                         completedServices++;
                         break;
+                    }
                         
-                    case 'virustotal':
+                    case 'virustotal': {
                         const virustotalUrl = `https://www.virustotal.com/gui/domain/${domain}`;
-                        embed.addFields({ 
-                            name: 'VirusTotal', 
-                            value: `[View security analysis for ${domain}](${virustotalUrl})` 
+                        embed.addFields({
+                            name: 'VirusTotal',
+                            value: `[View security analysis for ${domain}](${virustotalUrl})`
                         });
                         row.addComponents(
                             new ButtonBuilder()
@@ -144,6 +145,7 @@ module.exports = {
                         );
                         completedServices++;
                         break;
+                    }
                         
                     case 'crtsh':
                         try {
@@ -318,7 +320,7 @@ module.exports = {
                                                 sizes: element.attr('sizes') || 'unknown'
                                             };
                                             break;
-                                        } catch (e) {
+                                        } catch (_e) {
                                             console.error(`Invalid URL: ${href}`);
                                         }
                                     }

@@ -23,9 +23,6 @@
 
 const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const fs = require('fs').promises;
-const path = require('path');
-const crypto = require('crypto');
 const { isValidDomain, isValidEmail, sanitizeInput } = require('../utils/validation');
 
 module.exports = {
@@ -334,7 +331,7 @@ function analyzeWHOISHistory(records) {
     // Track changes
     let previousRecord = null;
     
-    sortedRecords.forEach((record, index) => {
+    sortedRecords.forEach((record, _index) => {
         if (previousRecord) {
             // Check for registrant changes
             if (record.registrant_contact_email !== previousRecord.registrant_contact_email) {
@@ -385,7 +382,7 @@ function analyzeWHOISHistory(records) {
  * @param {string} searchValue - Search value
  * @returns {Object} Analysis results
  */
-function analyzeReverseResults(results, identifier, searchValue) {
+function analyzeReverseResults(results, _identifier, _searchValue) {
     const analysis = {
         totalDomains: results.length,
         domainTypes: {},

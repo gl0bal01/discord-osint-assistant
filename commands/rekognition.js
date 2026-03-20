@@ -14,7 +14,6 @@ const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { isValidUrl } = require('../utils/validation');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const crypto = require('crypto');
 const { URL } = require('url');
 // Import AWS SDK v3 modules
@@ -140,8 +139,7 @@ module.exports = {
                     // Just clean up the files we created in this command execution
                     // Get all files that match our timestamp or command-specific naming
                     const currentTime = Date.now();
-                    const cleanupTime = 60000; // 1 minute
-                    
+
                     const files = fs.readdirSync(tempDir).filter(file => {
                         // Only delete files created by this command that are older than a few seconds
                         if (file.includes('rekognition_') || file.includes('face_comparison') || 

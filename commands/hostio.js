@@ -226,8 +226,8 @@ module.exports = {
 function handleApiError(error, interaction) {
     console.error('Error with host.io API:', error);
     
-    let errorMessage = 'An error occurred while fetching domain information.';
-    
+    let errorMessage;
+
     if (error.response) {
         const status = error.response.status;
         

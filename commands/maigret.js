@@ -5,12 +5,12 @@
  * 
  * A discord wrapper around https://github.com/soxoj/maigret
  */
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { safeSpawnToFile } = require('../utils/process');
+const { isValidUsername } = require('../utils/validation');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
-const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -40,8 +40,8 @@ module.exports = {
         const customTimeout = interaction.options.getInteger('timeout') || 300; // Default 5 minutes
         
         // Validate username to prevent command injection
-        if (!/^[a-zA-Z0-9_.-]+$/.test(username)) {
-            return await interaction.editReply('Invalid username format. Please use only alphanumeric characters, underscores, dots, and hyphens.');
+        if (!isValidUsername(username)) {
+            return await interaction.editReply('Invalid username format. Please use only alphanumeric characters, underscores, dots, and hyphens (3-50 characters).');
         }
         
         // Generate random filename to prevent conflicts and increase security
@@ -67,7 +67,7 @@ module.exports = {
             let fileContent;
             try {
                 fileContent = await fs.readFile(outputFile, 'utf8');
-            } catch (readError) {
+            } catch (_readError) {
                 fileContent = '';
             }
             
@@ -117,11 +117,14 @@ module.exports = {
             }
         } catch (error) {
             console.error(`Maigret scan error: ${error.message}`);
-            
+
+            const errorDetail = error.message.includes('ENOENT') || error.message.includes('Failed to start process')
+                ? 'Maigret is not installed or not found in PATH. Please contact the administrator.'
+                : 'An unexpected error occurred. Check server logs for details.';
             const errorEmbed = new EmbedBuilder()
                 .setTitle('Scan Error')
                 .setDescription(`An error occurred while scanning for \`${username}\`:`)
-                .addFields({ name: 'Error Details', value: 'An unexpected error occurred. Check server logs for details.' })
+                .addFields({ name: 'Error Details', value: errorDetail })
                 .setColor(0xFF0000)
                 .setTimestamp();
             

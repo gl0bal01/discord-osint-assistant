@@ -36,7 +36,6 @@ const { safeSpawn, safeSpawnToFile } = require('../utils/process');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
-const os = require('os');
 const crypto = require('crypto');
 
 // Configuration - adjust these paths according to your environment
@@ -191,10 +190,6 @@ module.exports = {
                         .setDescription('The JWT token to crack')
                         .setRequired(true))
                 .addStringOption(option =>
-                    option.setName('wordlist')
-                        .setDescription('Path to custom wordlist file (optional)')
-                        .setRequired(false))
-                .addStringOption(option =>
                     option.setName('mode')
                         .setDescription('Cracking mode to use')
                         .setRequired(false)
@@ -239,14 +234,15 @@ module.exports = {
 
             // Build args array based on subcommand (no shell interpolation)
             switch (subcommand) {
-                case 'analyze':
+                case 'analyze': {
                     const verbose = interaction.options.getBoolean('verbose') ?? false;
                     jwtArgs = verbose ? ['-v', token] : [token];
                     embedTitle = '🔍 JWT Analysis Results';
                     embedColor = 0x0099FF;
                     break;
+                }
 
-                case 'tamper':
+                case 'tamper': {
                     const action = interaction.options.getString('action');
                     const claim = interaction.options.getString('claim');
                     const value = interaction.options.getString('value');
@@ -289,15 +285,10 @@ module.exports = {
                     embedTitle = '🛠️ JWT Tampering Results';
                     embedColor = 0xFF9900;
                     break;
+                }
 
-                case 'crack':
-                    const wordlistInput = interaction.options.getString('wordlist');
+                case 'crack': {
                     let wordlist = CONFIG.DEFAULT_WORDLIST;
-                    if (wordlistInput) {
-                        const wordlistDir = path.dirname(CONFIG.DEFAULT_WORDLIST);
-                        const safeName = path.basename(wordlistInput);
-                        wordlist = path.join(wordlistDir, safeName);
-                    }
                     const mode = interaction.options.getString('mode') || 'dict';
 
                     // Validate wordlist exists
@@ -319,6 +310,7 @@ module.exports = {
                     embedTitle = '🔓 JWT Cracking Results';
                     embedColor = 0xFF0000;
                     break;
+                }
             }
 
             // Update user with progress

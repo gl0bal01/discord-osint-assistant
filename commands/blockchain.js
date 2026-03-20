@@ -449,9 +449,9 @@ function validateTransactionId(blockchain, txid) {
  */
 async function fetchAddressData(blockchain, address) {
     // Various APIs for different blockchains
-    let apiUrl = '';
-    let apiKey = '';
-    
+    let apiUrl;
+    let apiKey;
+
     switch (blockchain) {
         case 'btc':
             // Blockchain.com Bitcoin API
@@ -503,9 +503,9 @@ async function fetchAddressData(blockchain, address) {
  */
 async function fetchTransactionData(blockchain, txid) {
     // Various APIs for different blockchains
-    let apiUrl = '';
-    let apiKey = '';
-    
+    let apiUrl;
+    let apiKey;
+
     switch (blockchain) {
         case 'btc':
             // Blockchain.com Bitcoin API
@@ -558,31 +558,32 @@ async function fetchTransactionData(blockchain, txid) {
  */
 async function fetchBlockData(blockchain, block, isHeight) {
     // Various APIs for different blockchains
-    let apiUrl = '';
-    let apiKey = '';
-    
+    let apiUrl;
+    let apiKey;
+
     switch (blockchain) {
         case 'btc':
             // Blockchain.com Bitcoin API
-            apiUrl = isHeight 
-                ? `https://blockchain.info/block-height/${block}?format=json` 
+            apiUrl = isHeight
+                ? `https://blockchain.info/block-height/${block}?format=json`
                 : `https://blockchain.info/rawblock/${block}`;
             break;
         case 'eth':
             // Etherscan API
             apiKey = process.env.ETHERSCAN_API_KEY || '';
-            apiUrl = isHeight 
-                ? `https://api.etherscan.io/api?module=proxy&action=eth_getBlockByNumber&tag=0x${parseInt(block).toString(16)}&boolean=true&apikey=${apiKey}` 
+            apiUrl = isHeight
+                ? `https://api.etherscan.io/api?module=proxy&action=eth_getBlockByNumber&tag=0x${parseInt(block).toString(16)}&boolean=true&apikey=${apiKey}`
                 : `https://api.etherscan.io/api?module=proxy&action=eth_getBlockByHash&hash=${block}&boolean=true&apikey=${apiKey}`;
             break;
         case 'ltc':
         case 'bch':
         case 'dash':
-        case 'doge':
+        case 'doge': {
             // Blockchair API for these blockchains
             const blockParam = isHeight ? `height/${block}` : `hash/${block}`;
             apiUrl = `https://api.blockchair.com/${getBlockchairChain(blockchain)}/dashboards/block/${blockParam}`;
             break;
+        }
         case 'bsc':
             // BscScan API
             apiKey = process.env.BSCSCAN_API_KEY || '';
@@ -736,12 +737,12 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
     
     // Extract data based on blockchain
     switch (blockchain) {
-        case 'btc':
+        case 'btc': {
             // Blockchain.com Bitcoin API
             summary.status = data.block_height ? 'Confirmed' : 'Pending';
             summary.block = data.block_height ? data.block_height.toString() : 'Pending';
             summary.timestamp = data.time ? new Date(data.time * 1000).toUTCString() : 'Pending';
-            
+
             // Calculate total amount (sum of outputs)
             let totalAmount = 0;
             if (data.out && data.out.length > 0) {
@@ -770,7 +771,8 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
             summary.dataSource = 'Blockchain.info';
             summary.explorerUrl = `https://www.blockchain.com/explorer/transactions/btc/${data.hash}`;
             break;
-            
+        }
+
         case 'eth':
             // Etherscan API
             if (data.result) {
@@ -890,7 +892,7 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
  * @param {Object} blockchainInfo - Blockchain details
  * @returns {Object} - Extracted summary data
  */
-function extractBlockSummary(blockchain, data, blockchainInfo) {
+function extractBlockSummary(blockchain, data, _blockchainInfo) {
     // Default summary structure
     const summary = {
         height: 'Unknown',
@@ -937,7 +939,7 @@ function extractBlockSummary(blockchain, data, blockchainInfo) {
                         if (text.length > 0) {
                             summary.miner = text;
                         }
-                    } catch (e) {
+                    } catch (_e) {
                         // If parsing fails, just skip it
                     }
                 }

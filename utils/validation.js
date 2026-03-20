@@ -38,7 +38,7 @@ function isValidUrl(url) {
     try {
         const urlObj = new URL(url);
         return ['http:', 'https:'].includes(urlObj.protocol);
-    } catch (error) {
+    } catch (_error) {
         return false;
     }
 }
@@ -80,17 +80,17 @@ function isValidUsername(username) {
  * @returns {boolean} Whether the IP address is valid
  */
 function isValidIpAddress(ip) {
-    // IPv4 regex
-    const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-    
-    // IPv6 regex (simplified)
-    const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
-    
     if (!ip || typeof ip !== 'string') {
         return false;
     }
-    
-    return ipv4Regex.test(ip) || ipv6Regex.test(ip);
+
+    // IPv4 regex
+    const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    if (ipv4Regex.test(ip)) return true;
+
+    // IPv6: use Node's net module for reliable validation of all forms (compressed, mapped, etc.)
+    const net = require('net');
+    return net.isIPv6(ip);
 }
 
 /**

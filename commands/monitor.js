@@ -97,7 +97,7 @@ module.exports = {
         const subcommand = interaction.options.getSubcommand();
 
         switch (subcommand) {
-            case 'start':
+            case 'start': {
                 const url = interaction.options.getString('url');
                 const interval = interaction.options.getInteger('interval');
 
@@ -115,20 +115,21 @@ module.exports = {
                 if (intervals.size >= MAX_MONITORS) {
                     return interaction.reply({ content: `Maximum monitoring limit (${MAX_MONITORS}) reached. Stop some monitors first.`, ephemeral: true });
                 }
-                
+
                 const monitorChannel = await interaction.client.channels.fetch(MONITOR_CHANNEL_ID);
                 if (!monitorChannel || !monitorChannel.permissionsFor(interaction.client.user).has('SendMessages')) {
                     await interaction.reply({ content: "I don't have permission to send messages in the monitoring channel.", ephemeral: true });
                     return;
                 }
-                
+
                 const checkInterval = setInterval(() => checkWebsite(url, interaction.client), interval * 60000);
                 intervals.set(url, checkInterval);
                 await checkWebsite(url, interaction.client);
                 await interaction.reply(`Started monitoring ${url} every ${interval} minutes. Results will be posted in <#${MONITOR_CHANNEL_ID}>`);
                 break;
+            }
 
-            case 'stop':
+            case 'stop': {
                 const stopUrl = interaction.options.getString('url');
                 if (intervals.has(stopUrl)) {
                     clearInterval(intervals.get(stopUrl));
@@ -139,6 +140,7 @@ module.exports = {
                     await interaction.reply(`Not monitoring ${stopUrl}`);
                 }
                 break;
+            }
 
             case 'stopall':
                 intervals.forEach((interval) => clearInterval(interval));
@@ -147,7 +149,7 @@ module.exports = {
                 await interaction.reply('Stopped monitoring all websites');
                 break;
 
-            case 'list':
+            case 'list': {
                 if (monitoredUrls.size === 0) {
                     await interaction.reply('No websites are currently being monitored');
                 } else {
@@ -155,6 +157,7 @@ module.exports = {
                     await interaction.reply(`Monitored websites:\n${urlList}`);
                 }
                 break;
+            }
 
             case 'login':
                 return interaction.reply({ content: 'The login monitoring feature has been removed for security reasons.', ephemeral: true });
