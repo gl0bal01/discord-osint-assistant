@@ -2,16 +2,22 @@
  * File: blockchain.js
  * Description: Command to retrieve blockchain information (addresses, transactions, blocks)
  * Author: gl0bal01
- * 
+ *
  * This command interfaces with various blockchain APIs to retrieve information about
  * wallet addresses, transactions, and blocks across different cryptocurrencies.
  */
 
-const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { getSafeAxiosConfig, SIZE_10MB } = require('../utils/ssrf');
+const { cleanupFile } = require('../utils/temp');
+const { capField, safeAscii } = require('../utils/embed');
+
+const MAX_CONTENT = SIZE_10MB;
+
 // Define supported blockchains
 const BLOCKCHAINS = [
     { name: 'Bitcoin', value: 'btc', symbol: 'BTC', explorer: 'https://www.blockchain.com/explorer/addresses/btc/' },
@@ -80,30 +86,30 @@ module.exports = {
                     option.setName('full')
                         .setDescription('Return full raw data as JSON')
                         .setRequired(false))),
-    
+
     async execute(interaction) {
-        await interaction.deferReply();
-        
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
         try {
             const blockchain = interaction.options.getString('blockchain');
             const fullData = interaction.options.getBoolean('full') ?? false;
             const subcommand = interaction.options.getSubcommand();
-            
+
             // Create a temp directory if it doesn't exist
             const tempDir = path.join(__dirname, '..', 'temp');
             if (!fs.existsSync(tempDir)) {
                 fs.mkdirSync(tempDir, { recursive: true });
             }
-            
+
             // Generate unique ID for this request
             const requestId = crypto.randomBytes(4).toString('hex');
-            
+
             // Get blockchain details
             const blockchainInfo = BLOCKCHAINS.find(b => b.value === blockchain);
             if (!blockchainInfo) {
                 return interaction.editReply(`Error: Unsupported blockchain '${blockchain}'.`);
             }
-            
+
             // Handle different subcommands
             if (subcommand === 'address') {
                 await handleAddressLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId);
@@ -112,9 +118,9 @@ module.exports = {
             } else if (subcommand === 'block') {
                 await handleBlockLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId);
             }
-            
+
         } catch (error) {
-            console.error('Blockchain command error:', error);
+            console.error('Blockchain command error:', error.message);
             await interaction.editReply('An error occurred while processing your request. Please try again later.');
         }
     },
@@ -131,76 +137,68 @@ module.exports = {
  */
 async function handleAddressLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId) {
     const address = interaction.options.getString('address');
-    
+
     // Basic address validation
     if (!validateBlockchainAddress(blockchain, address)) {
         return interaction.editReply(`Invalid ${blockchainInfo.name} address format. Please check your input.`);
     }
-    
+
     try {
         // Fetch address data using appropriate API for the blockchain
         const data = await fetchAddressData(blockchain, address);
-        
+
         if (!data) {
             return interaction.editReply(`No data found for ${blockchainInfo.name} address: ${address}`);
         }
-        
+
         // If full data is requested, return JSON file
         if (fullData) {
             const filePath = path.join(tempDir, `${blockchain}_address_${requestId}.json`);
             fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-            
-            const attachment = new AttachmentBuilder(filePath, { 
-                name: `${blockchain}_address_${address.substring(0, 8)}.json` 
+
+            const attachment = new AttachmentBuilder(filePath, {
+                name: `${blockchain}_address_${address.substring(0, 8)}.json`
             });
-            
+
             await interaction.editReply({
                 content: `Full data for ${blockchainInfo.name} address: ${address}`,
                 files: [attachment]
             });
-            
-            // Clean up the file after sending
-            setTimeout(() => {
-                try {
-                    fs.unlinkSync(filePath);
-                } catch (error) {
-                    console.error('Error cleaning up temporary file:', error);
-                }
-            }, 5000);
-            
+
+            cleanupFile(filePath, 5000);
             return;
         }
-        
+
         // Extract useful data based on blockchain
         const summary = extractAddressSummary(blockchain, data, blockchainInfo);
-        
+
         // Create embed for address information
         const embed = new EmbedBuilder()
             .setTitle(`${blockchainInfo.name} Address Information`)
-            .setDescription(`Address: \`${address}\``)
+            .setDescription(capField(`Address: \`${address}\``))
             .setColor(0x4CAF50)
             .setURL(`${blockchainInfo.explorer}${address}`)
             .addFields(
-                { name: 'Balance', value: summary.balance, inline: true },
-                { name: 'Total Received', value: summary.totalReceived, inline: true },
-                { name: 'Total Sent', value: summary.totalSent, inline: true },
-                { name: 'Transaction Count', value: summary.txCount, inline: true }
+                { name: 'Balance', value: capField(summary.balance), inline: true },
+                { name: 'Total Received', value: capField(summary.totalReceived), inline: true },
+                { name: 'Total Sent', value: capField(summary.totalSent), inline: true },
+                { name: 'Transaction Count', value: capField(summary.txCount), inline: true }
             )
-            .setFooter({ text: `Data from ${summary.dataSource} • Block Explorer: ${blockchainInfo.explorer}${address}` })
+            .setFooter({ text: capField(`Data from ${summary.dataSource} • Block Explorer: ${blockchainInfo.explorer}${address}`) })
             .setTimestamp();
-        
+
         // Add additional fields based on blockchain-specific data
         if (summary.additionalFields) {
             for (const field of summary.additionalFields) {
-                embed.addFields({ name: field.name, value: field.value, inline: field.inline || false });
+                embed.addFields({ name: field.name, value: capField(field.value), inline: field.inline || false });
             }
         }
-        
+
         // Send the response
         await interaction.editReply({ embeds: [embed] });
-        
+
     } catch (error) {
-        console.error(`Error fetching ${blockchainInfo.name} address:`, error);
+        console.error(`Error fetching ${blockchainInfo.name} address:`, error.message);
         await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
 }
@@ -216,87 +214,79 @@ async function handleAddressLookup(interaction, blockchain, blockchainInfo, full
  */
 async function handleTransactionLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId) {
     const txid = interaction.options.getString('txid');
-    
+
     // Basic transaction ID validation
     if (!validateTransactionId(blockchain, txid)) {
         return interaction.editReply(`Invalid ${blockchainInfo.name} transaction ID format. Please check your input.`);
     }
-    
+
     try {
         // Fetch transaction data using appropriate API for the blockchain
         const data = await fetchTransactionData(blockchain, txid);
-        
+
         if (!data) {
             return interaction.editReply(`No data found for ${blockchainInfo.name} transaction: ${txid}`);
         }
-        
+
         // If full data is requested, return JSON file
         if (fullData) {
             const filePath = path.join(tempDir, `${blockchain}_tx_${requestId}.json`);
             fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-            
-            const attachment = new AttachmentBuilder(filePath, { 
-                name: `${blockchain}_tx_${txid.substring(0, 8)}.json` 
+
+            const attachment = new AttachmentBuilder(filePath, {
+                name: `${blockchain}_tx_${txid.substring(0, 8)}.json`
             });
-            
+
             await interaction.editReply({
                 content: `Full data for ${blockchainInfo.name} transaction: ${txid}`,
                 files: [attachment]
             });
-            
-            // Clean up the file after sending
-            setTimeout(() => {
-                try {
-                    fs.unlinkSync(filePath);
-                } catch (error) {
-                    console.error('Error cleaning up temporary file:', error);
-                }
-            }, 5000);
-            
+
+            cleanupFile(filePath, 5000);
             return;
         }
-        
+
         // Extract useful data based on blockchain
         const summary = extractTransactionSummary(blockchain, data, blockchainInfo);
-        
+
         // Create embed for transaction information
         const embed = new EmbedBuilder()
             .setTitle(`${blockchainInfo.name} Transaction Information`)
-            .setDescription(`Transaction ID: \`${txid}\``)
+            .setDescription(capField(`Transaction ID: \`${txid}\``))
             .setColor(0x2196F3)
             .addFields(
-                { name: 'Status', value: summary.status, inline: true },
-                { name: 'Block', value: summary.block, inline: true },
-                { name: 'Timestamp', value: summary.timestamp, inline: true },
-                { name: 'Amount', value: summary.amount, inline: true },
-                { name: 'Fee', value: summary.fee, inline: true }
+                { name: 'Status', value: capField(summary.status), inline: true },
+                { name: 'Block', value: capField(summary.block), inline: true },
+                { name: 'Timestamp', value: capField(summary.timestamp), inline: true },
+                { name: 'Amount', value: capField(summary.amount), inline: true },
+                { name: 'Fee', value: capField(summary.fee), inline: true }
             )
-            .setFooter({ text: `Data from ${summary.dataSource}` })
+            .setFooter({ text: capField(`Data from ${summary.dataSource}`) })
             .setTimestamp();
-        
+
         // Add sender/recipient fields
         embed.addFields(
-            { name: 'From', value: summary.from || 'Unknown', inline: false },
-            { name: 'To', value: summary.to || 'Unknown', inline: false }
+            { name: 'From', value: capField(summary.from || 'Unknown'), inline: false },
+            { name: 'To', value: capField(summary.to || 'Unknown'), inline: false }
         );
-        
+
         // Add additional fields based on blockchain-specific data
         if (summary.additionalFields) {
             for (const field of summary.additionalFields) {
-                embed.addFields({ name: field.name, value: field.value, inline: field.inline || false });
+                embed.addFields({ name: field.name, value: capField(field.value), inline: field.inline || false });
             }
         }
-        
+
         // Set explorer URL for transaction
         if (summary.explorerUrl) {
             embed.setURL(summary.explorerUrl);
         }
-        
+
         // Send the response
         await interaction.editReply({ embeds: [embed] });
-        
+
     } catch (error) {
-        console.error(`Error fetching ${blockchainInfo.name} transaction:`, error);
+        console.error(`Error fetching ${blockchainInfo.name} transaction:`, error.message);
         await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
 }
@@ -312,82 +302,74 @@ async function handleTransactionLookup(interaction, blockchain, blockchainInfo, 
  */
 async function handleBlockLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId) {
     const block = interaction.options.getString('block');
-    
+
     // Determine if block is a height or hash
     const isHeight = /^\d+$/.test(block);
     const blockIdentifier = isHeight ? 'height' : 'hash';
-    
+
     try {
         // Fetch block data using appropriate API for the blockchain
         const data = await fetchBlockData(blockchain, block, isHeight);
-        
+
         if (!data) {
             return interaction.editReply(`No data found for ${blockchainInfo.name} block ${blockIdentifier}: ${block}`);
         }
-        
+
         // If full data is requested, return JSON file
         if (fullData) {
             const filePath = path.join(tempDir, `${blockchain}_block_${requestId}.json`);
             fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-            
-            const attachment = new AttachmentBuilder(filePath, { 
-                name: `${blockchain}_block_${block.substring(0, 8)}.json` 
+
+            const attachment = new AttachmentBuilder(filePath, {
+                name: `${blockchain}_block_${block.substring(0, 8)}.json`
             });
-            
+
             await interaction.editReply({
                 content: `Full data for ${blockchainInfo.name} block ${blockIdentifier}: ${block}`,
                 files: [attachment]
             });
-            
-            // Clean up the file after sending
-            setTimeout(() => {
-                try {
-                    fs.unlinkSync(filePath);
-                } catch (error) {
-                    console.error('Error cleaning up temporary file:', error);
-                }
-            }, 5000);
-            
+
+            cleanupFile(filePath, 5000);
             return;
         }
-        
+
         // Extract useful data based on blockchain
         const summary = extractBlockSummary(blockchain, data, blockchainInfo);
-        
+
         // Create embed for block information
         const embed = new EmbedBuilder()
             .setTitle(`${blockchainInfo.name} Block Information`)
-            .setDescription(`Block ${blockIdentifier}: \`${block}\``)
+            .setDescription(capField(`Block ${blockIdentifier}: \`${block}\``))
             .setColor(0xFF9800)
             .addFields(
-                { name: 'Height', value: summary.height, inline: true },
-                { name: 'Hash', value: summary.hash, inline: false },
-                { name: 'Timestamp', value: summary.timestamp, inline: true },
-                { name: 'Transactions', value: summary.txCount, inline: true },
-                { name: 'Size', value: summary.size, inline: true },
-                { name: 'Difficulty', value: summary.difficulty, inline: true },
-                { name: 'Miner', value: summary.miner || 'Unknown', inline: false }
+                { name: 'Height', value: capField(summary.height), inline: true },
+                { name: 'Hash', value: capField(summary.hash), inline: false },
+                { name: 'Timestamp', value: capField(summary.timestamp), inline: true },
+                { name: 'Transactions', value: capField(summary.txCount), inline: true },
+                { name: 'Size', value: capField(summary.size), inline: true },
+                { name: 'Difficulty', value: capField(summary.difficulty), inline: true },
+                { name: 'Miner', value: safeAscii(summary.miner || 'Unknown'), inline: false }
             )
-            .setFooter({ text: `Data from ${summary.dataSource}` })
+            .setFooter({ text: capField(`Data from ${summary.dataSource}`) })
             .setTimestamp();
-        
+
         // Add additional fields based on blockchain-specific data
         if (summary.additionalFields) {
             for (const field of summary.additionalFields) {
-                embed.addFields({ name: field.name, value: field.value, inline: field.inline || false });
+                embed.addFields({ name: field.name, value: capField(field.value), inline: field.inline || false });
             }
         }
-        
+
         // Set explorer URL for block
         if (summary.explorerUrl) {
             embed.setURL(summary.explorerUrl);
         }
-        
+
         // Send the response
         await interaction.editReply({ embeds: [embed] });
-        
+
     } catch (error) {
-        console.error(`Error fetching ${blockchainInfo.name} block:`, error);
+        console.error(`Error fetching ${blockchainInfo.name} block:`, error.message);
         await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
 }
@@ -397,36 +379,37 @@ async function handleBlockLookup(interaction, blockchain, blockchainInfo, fullDa
  * @param {string} blockchain - Blockchain identifier
  * @param {string} address - Address to validate
  * @returns {boolean} - Whether the address is valid
+ * @throws {Error} - If blockchain is unknown/not whitelisted
  */
 function validateBlockchainAddress(blockchain, address) {
-    // Basic validation based on blockchain
     switch (blockchain) {
         case 'btc':
-            // Bitcoin addresses start with 1, 3, or bc1
-            return /^(1|3|bc1)[a-zA-Z0-9]{25,90}$/.test(address);
+            // Bitcoin: legacy (P2PKH/P2SH) and native SegWit (bech32/bech32m)
+            return /^(1[a-km-zA-HJ-NP-Z1-9]{25,34}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-z0-9]{6,87})$/.test(address);
         case 'eth':
         case 'bsc':
         case 'matic':
-            // Ethereum-style addresses are 0x followed by 40 hex chars
+            // Ethereum-style addresses: 0x + exactly 40 hex characters
             return /^0x[a-fA-F0-9]{40}$/.test(address);
         case 'ltc':
-            // Litecoin addresses start with L, M, or ltc1
-            return /^(L|M|ltc1)[a-zA-Z0-9]{25,90}$/.test(address);
+            // Litecoin: legacy (L/M) and native SegWit (ltc1)
+            return /^(L[a-km-zA-HJ-NP-Z1-9]{26,33}|M[a-km-zA-HJ-NP-Z1-9]{26,33}|ltc1[a-z0-9]{6,87})$/.test(address);
         case 'bch':
-            // Bitcoin Cash addresses start with q, p, or bitcoincash:
-            return /^(q|p|bitcoincash:)[a-zA-Z0-9]{25,90}$/.test(address);
+            // Bitcoin Cash: cashaddr (q/p prefix) or legacy (1/3)
+            return /^(bitcoincash:)?[qp][a-z0-9]{41,111}$/.test(address) ||
+                   /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address);
         case 'doge':
-            // Dogecoin addresses start with D
-            return /^D[a-zA-Z0-9]{25,40}$/.test(address);
+            // Dogecoin addresses start with D, followed by 33 base58 chars
+            return /^D[a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address);
         case 'dash':
-            // Dash addresses start with X
-            return /^X[a-zA-Z0-9]{25,40}$/.test(address);
+            // Dash addresses start with X, followed by 33 base58 chars
+            return /^X[a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address);
         case 'zec':
-            // Zcash addresses are either t-addr (transparent) or z-addr (shielded)
-            return /^(t|z)[a-zA-Z0-9]{25,90}$/.test(address);
+            // Zcash: transparent t-addr (t1/t3) or shielded z-addr (zs/zc)
+            return /^t[13][a-km-zA-HJ-NP-Z1-9]{33}$/.test(address) ||
+                   /^z[sc][a-km-zA-HJ-NP-Z1-9]{93,95}$/.test(address);
         default:
-            // For unknown blockchains, do minimal validation (not empty and no spaces)
-            return address && address.trim() === address && address.length > 10;
+            throw new Error(`Unknown blockchain '${blockchain}': address validation refused.`);
     }
 }
 
@@ -448,51 +431,83 @@ function validateTransactionId(blockchain, txid) {
  * @returns {Promise<Object>} - Address data
  */
 async function fetchAddressData(blockchain, address) {
-    // Various APIs for different blockchains
-    let apiUrl;
-    let apiKey;
+    const safeConfig = {
+        ...getSafeAxiosConfig(),
+        timeout: 10000,
+        maxContentLength: MAX_CONTENT,
+        maxBodyLength: MAX_CONTENT
+    };
 
     switch (blockchain) {
-        case 'btc':
-            // Blockchain.com Bitcoin API
-            apiUrl = `https://blockchain.info/rawaddr/${address}`;
-            break;
-        case 'eth':
-            // Etherscan API
-            apiKey = process.env.ETHERSCAN_API_KEY || '';
-            apiUrl = `https://api.etherscan.io/api?module=account&action=balance&address=${address}&tag=latest&apikey=${apiKey}`;
-            break;
+        case 'btc': {
+            const response = await axios.get(`https://blockchain.info/rawaddr/${address}`, safeConfig);
+            return response.data;
+        }
+        case 'eth': {
+            const response = await axios.get('https://api.etherscan.io/api', {
+                params: {
+                    module: 'account',
+                    action: 'balance',
+                    address,
+                    tag: 'latest',
+                    apikey: process.env.ETHERSCAN_API_KEY || ''
+                },
+                ...safeConfig
+            });
+            return response.data;
+        }
         case 'ltc':
         case 'bch':
-        case 'dash':
-            // Blockchair API for these blockchains
-            apiUrl = `https://api.blockchair.com/${getBlockchairChain(blockchain)}/dashboards/address/${address}`;
-            break;
-        case 'doge':
-            // DogeChain.info API
-            apiUrl = `https://dogechain.info/api/v1/address/balance/${address}`;
-            break;
-        case 'bsc':
-            // BscScan API
-            apiKey = process.env.BSCSCAN_API_KEY || '';
-            apiUrl = `https://api.bscscan.com/api?module=account&action=balance&address=${address}&tag=latest&apikey=${apiKey}`;
-            break;
-        case 'matic':
-            // PolygonScan API
-            apiKey = process.env.POLYGONSCAN_API_KEY || '';
-            apiUrl = `https://api.polygonscan.com/api?module=account&action=balance&address=${address}&tag=latest&apikey=${apiKey}`;
-            break;
-        case 'zec':
-            // Zcash Explorer API
-            apiUrl = `https://api.zcha.in/v2/mainnet/accounts/${address}`;
-            break;
+        case 'dash': {
+            const response = await axios.get(
+                `https://api.blockchair.com/${getBlockchairChain(blockchain)}/dashboards/address/${address}`,
+                safeConfig
+            );
+            return response.data;
+        }
+        case 'doge': {
+            const response = await axios.get(
+                `https://dogechain.info/api/v1/address/balance/${address}`,
+                safeConfig
+            );
+            return response.data;
+        }
+        case 'bsc': {
+            const response = await axios.get('https://api.bscscan.com/api', {
+                params: {
+                    module: 'account',
+                    action: 'balance',
+                    address,
+                    tag: 'latest',
+                    apikey: process.env.BSCSCAN_API_KEY || ''
+                },
+                ...safeConfig
+            });
+            return response.data;
+        }
+        case 'matic': {
+            const response = await axios.get('https://api.polygonscan.com/api', {
+                params: {
+                    module: 'account',
+                    action: 'balance',
+                    address,
+                    tag: 'latest',
+                    apikey: process.env.POLYGONSCAN_API_KEY || ''
+                },
+                ...safeConfig
+            });
+            return response.data;
+        }
+        case 'zec': {
+            const response = await axios.get(
+                `https://api.zcha.in/v2/mainnet/accounts/${address}`,
+                safeConfig
+            );
+            return response.data;
+        }
         default:
             throw new Error(`API not available for ${blockchain}`);
     }
-    
-    // Make the API request
-    const response = await axios.get(apiUrl, { timeout: 10000 });
-    return response.data;
 }
 
 /**
@@ -502,51 +517,75 @@ async function fetchAddressData(blockchain, address) {
  * @returns {Promise<Object>} - Transaction data
  */
 async function fetchTransactionData(blockchain, txid) {
-    // Various APIs for different blockchains
-    let apiUrl;
-    let apiKey;
+    const safeConfig = {
+        ...getSafeAxiosConfig(),
+        timeout: 10000,
+        maxContentLength: MAX_CONTENT,
+        maxBodyLength: MAX_CONTENT
+    };
 
     switch (blockchain) {
-        case 'btc':
-            // Blockchain.com Bitcoin API
-            apiUrl = `https://blockchain.info/rawtx/${txid}`;
-            break;
-        case 'eth':
-            // Etherscan API
-            apiKey = process.env.ETHERSCAN_API_KEY || '';
-            apiUrl = `https://api.etherscan.io/api?module=proxy&action=eth_getTransactionByHash&txhash=${txid}&apikey=${apiKey}`;
-            break;
+        case 'btc': {
+            const response = await axios.get(`https://blockchain.info/rawtx/${txid}`, safeConfig);
+            return response.data;
+        }
+        case 'eth': {
+            const response = await axios.get('https://api.etherscan.io/api', {
+                params: {
+                    module: 'proxy',
+                    action: 'eth_getTransactionByHash',
+                    txhash: txid,
+                    apikey: process.env.ETHERSCAN_API_KEY || ''
+                },
+                ...safeConfig
+            });
+            return response.data;
+        }
         case 'ltc':
         case 'bch':
         case 'dash':
-            // Blockchair API for these blockchains
-            apiUrl = `https://api.blockchair.com/${getBlockchairChain(blockchain)}/dashboards/transaction/${txid}`;
-            break;
-        case 'doge':
-            // Use Blockchair API for Dogecoin as well
-            apiUrl = `https://api.blockchair.com/dogecoin/dashboards/transaction/${txid}`;
-            break;
-        case 'bsc':
-            // BscScan API
-            apiKey = process.env.BSCSCAN_API_KEY || '';
-            apiUrl = `https://api.bscscan.com/api?module=proxy&action=eth_getTransactionByHash&txhash=${txid}&apikey=${apiKey}`;
-            break;
-        case 'matic':
-            // PolygonScan API
-            apiKey = process.env.POLYGONSCAN_API_KEY || '';
-            apiUrl = `https://api.polygonscan.com/api?module=proxy&action=eth_getTransactionByHash&txhash=${txid}&apikey=${apiKey}`;
-            break;
-        case 'zec':
-            // Zcash Explorer API
-            apiUrl = `https://api.zcha.in/v2/mainnet/transactions/${txid}`;
-            break;
+        case 'doge': {
+            const chain = blockchain === 'doge' ? 'dogecoin' : getBlockchairChain(blockchain);
+            const response = await axios.get(
+                `https://api.blockchair.com/${chain}/dashboards/transaction/${txid}`,
+                safeConfig
+            );
+            return response.data;
+        }
+        case 'bsc': {
+            const response = await axios.get('https://api.bscscan.com/api', {
+                params: {
+                    module: 'proxy',
+                    action: 'eth_getTransactionByHash',
+                    txhash: txid,
+                    apikey: process.env.BSCSCAN_API_KEY || ''
+                },
+                ...safeConfig
+            });
+            return response.data;
+        }
+        case 'matic': {
+            const response = await axios.get('https://api.polygonscan.com/api', {
+                params: {
+                    module: 'proxy',
+                    action: 'eth_getTransactionByHash',
+                    txhash: txid,
+                    apikey: process.env.POLYGONSCAN_API_KEY || ''
+                },
+                ...safeConfig
+            });
+            return response.data;
+        }
+        case 'zec': {
+            const response = await axios.get(
+                `https://api.zcha.in/v2/mainnet/transactions/${txid}`,
+                safeConfig
+            );
+            return response.data;
+        }
         default:
             throw new Error(`API not available for ${blockchain}`);
     }
-    
-    // Make the API request
-    const response = await axios.get(apiUrl, { timeout: 10000 });
-    return response.data;
 }
 
 /**
@@ -557,60 +596,63 @@ async function fetchTransactionData(blockchain, txid) {
  * @returns {Promise<Object>} - Block data
  */
 async function fetchBlockData(blockchain, block, isHeight) {
-    // Various APIs for different blockchains
-    let apiUrl;
-    let apiKey;
+    const safeConfig = {
+        ...getSafeAxiosConfig(),
+        timeout: 10000,
+        maxContentLength: MAX_CONTENT,
+        maxBodyLength: MAX_CONTENT
+    };
 
     switch (blockchain) {
-        case 'btc':
-            // Blockchain.com Bitcoin API
-            apiUrl = isHeight
+        case 'btc': {
+            const url = isHeight
                 ? `https://blockchain.info/block-height/${block}?format=json`
                 : `https://blockchain.info/rawblock/${block}`;
-            break;
-        case 'eth':
-            // Etherscan API
-            apiKey = process.env.ETHERSCAN_API_KEY || '';
-            apiUrl = isHeight
-                ? `https://api.etherscan.io/api?module=proxy&action=eth_getBlockByNumber&tag=0x${parseInt(block).toString(16)}&boolean=true&apikey=${apiKey}`
-                : `https://api.etherscan.io/api?module=proxy&action=eth_getBlockByHash&hash=${block}&boolean=true&apikey=${apiKey}`;
-            break;
+            const response = await axios.get(url, safeConfig);
+            return response.data;
+        }
+        case 'eth': {
+            const params = isHeight
+                ? { module: 'proxy', action: 'eth_getBlockByNumber', tag: `0x${parseInt(block).toString(16)}`, boolean: 'true', apikey: process.env.ETHERSCAN_API_KEY || '' }
+                : { module: 'proxy', action: 'eth_getBlockByHash', hash: block, boolean: 'true', apikey: process.env.ETHERSCAN_API_KEY || '' };
+            const response = await axios.get('https://api.etherscan.io/api', { params, ...safeConfig });
+            return response.data;
+        }
         case 'ltc':
         case 'bch':
         case 'dash':
         case 'doge': {
-            // Blockchair API for these blockchains
             const blockParam = isHeight ? `height/${block}` : `hash/${block}`;
-            apiUrl = `https://api.blockchair.com/${getBlockchairChain(blockchain)}/dashboards/block/${blockParam}`;
-            break;
+            const response = await axios.get(
+                `https://api.blockchair.com/${getBlockchairChain(blockchain)}/dashboards/block/${blockParam}`,
+                safeConfig
+            );
+            return response.data;
         }
-        case 'bsc':
-            // BscScan API
-            apiKey = process.env.BSCSCAN_API_KEY || '';
-            apiUrl = isHeight 
-                ? `https://api.bscscan.com/api?module=proxy&action=eth_getBlockByNumber&tag=0x${parseInt(block).toString(16)}&boolean=true&apikey=${apiKey}` 
-                : `https://api.bscscan.com/api?module=proxy&action=eth_getBlockByHash&hash=${block}&boolean=true&apikey=${apiKey}`;
-            break;
-        case 'matic':
-            // PolygonScan API
-            apiKey = process.env.POLYGONSCAN_API_KEY || '';
-            apiUrl = isHeight 
-                ? `https://api.polygonscan.com/api?module=proxy&action=eth_getBlockByNumber&tag=0x${parseInt(block).toString(16)}&boolean=true&apikey=${apiKey}` 
-                : `https://api.polygonscan.com/api?module=proxy&action=eth_getBlockByHash&hash=${block}&boolean=true&apikey=${apiKey}`;
-            break;
-        case 'zec':
-            // Zcash Explorer API
-            apiUrl = isHeight 
-                ? `https://api.zcha.in/v2/mainnet/blocks/${block}` 
-                : `https://api.zcha.in/v2/mainnet/blocks/${block}`;
-            break;
+        case 'bsc': {
+            const params = isHeight
+                ? { module: 'proxy', action: 'eth_getBlockByNumber', tag: `0x${parseInt(block).toString(16)}`, boolean: 'true', apikey: process.env.BSCSCAN_API_KEY || '' }
+                : { module: 'proxy', action: 'eth_getBlockByHash', hash: block, boolean: 'true', apikey: process.env.BSCSCAN_API_KEY || '' };
+            const response = await axios.get('https://api.bscscan.com/api', { params, ...safeConfig });
+            return response.data;
+        }
+        case 'matic': {
+            const params = isHeight
+                ? { module: 'proxy', action: 'eth_getBlockByNumber', tag: `0x${parseInt(block).toString(16)}`, boolean: 'true', apikey: process.env.POLYGONSCAN_API_KEY || '' }
+                : { module: 'proxy', action: 'eth_getBlockByHash', hash: block, boolean: 'true', apikey: process.env.POLYGONSCAN_API_KEY || '' };
+            const response = await axios.get('https://api.polygonscan.com/api', { params, ...safeConfig });
+            return response.data;
+        }
+        case 'zec': {
+            const response = await axios.get(
+                `https://api.zcha.in/v2/mainnet/blocks/${block}`,
+                safeConfig
+            );
+            return response.data;
+        }
         default:
             throw new Error(`API not available for ${blockchain}`);
     }
-    
-    // Make the API request
-    const response = await axios.get(apiUrl, { timeout: 10000 });
-    return response.data;
 }
 
 /**
@@ -646,7 +688,7 @@ function extractAddressSummary(blockchain, data, blockchainInfo) {
         dataSource: 'Blockchain APIs',
         additionalFields: []
     };
-    
+
     // Extract data based on blockchain
     switch (blockchain) {
         case 'btc':
@@ -710,7 +752,7 @@ function extractAddressSummary(blockchain, data, blockchainInfo) {
             summary.dataSource = 'zcha.in';
             break;
     }
-    
+
     return summary;
 }
 
@@ -734,7 +776,7 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
         dataSource: 'Blockchain APIs',
         additionalFields: []
     };
-    
+
     // Extract data based on blockchain
     switch (blockchain) {
         case 'btc': {
@@ -751,23 +793,23 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
                 }
             }
             summary.amount = `${(totalAmount / 100000000).toFixed(8)} ${blockchainInfo.symbol}`;
-            
+
             // Calculate fee
             summary.fee = `${(data.fee / 100000000).toFixed(8)} ${blockchainInfo.symbol}`;
-            
+
             // Get from/to addresses
             if (data.inputs && data.inputs.length > 0) {
-                summary.from = data.inputs.map(input => 
+                summary.from = data.inputs.map(input =>
                     input.prev_out && input.prev_out.addr ? input.prev_out.addr : 'Unknown'
                 ).join('\n');
             }
-            
+
             if (data.out && data.out.length > 0) {
-                summary.to = data.out.map(output => 
+                summary.to = data.out.map(output =>
                     output.addr ? output.addr : 'Unknown'
                 ).join('\n');
             }
-            
+
             summary.dataSource = 'Blockchain.info';
             summary.explorerUrl = `https://www.blockchain.com/explorer/transactions/btc/${data.hash}`;
             break;
@@ -780,8 +822,8 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
                 summary.status = tx.blockNumber ? 'Confirmed' : 'Pending';
                 summary.block = tx.blockNumber ? parseInt(tx.blockNumber, 16).toString() : 'Pending';
                 summary.amount = `${(parseInt(tx.value, 16) / 1e18).toFixed(8)} ${blockchainInfo.symbol}`;
-                summary.fee = tx.gas && tx.gasPrice ? 
-                    `${(parseInt(tx.gas, 16) * parseInt(tx.gasPrice, 16) / 1e18).toFixed(8)} ${blockchainInfo.symbol}` : 
+                summary.fee = tx.gas && tx.gasPrice ?
+                    `${(parseInt(tx.gas, 16) * parseInt(tx.gasPrice, 16) / 1e18).toFixed(8)} ${blockchainInfo.symbol}` :
                     'Unknown';
                 summary.from = tx.from || 'Unknown';
                 summary.to = tx.to || 'Unknown';
@@ -789,7 +831,7 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
                 summary.explorerUrl = `https://etherscan.io/tx/${tx.hash}`;
             }
             break;
-            
+
         case 'ltc':
         case 'bch':
         case 'dash':
@@ -802,25 +844,25 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
                 summary.timestamp = txData.transaction.time ? new Date(txData.transaction.time * 1000).toUTCString() : 'Pending';
                 summary.amount = `${(txData.transaction.output_total / 1e8).toFixed(8)} ${blockchainInfo.symbol}`;
                 summary.fee = `${(txData.transaction.fee / 1e8).toFixed(8)} ${blockchainInfo.symbol}`;
-                
+
                 // Get from/to addresses from inputs/outputs
                 if (txData.inputs && txData.inputs.length > 0) {
-                    summary.from = txData.inputs.map(input => 
+                    summary.from = txData.inputs.map(input =>
                         input.recipient || 'Unknown'
                     ).join('\n');
                 }
-                
+
                 if (txData.outputs && txData.outputs.length > 0) {
-                    summary.to = txData.outputs.map(output => 
+                    summary.to = txData.outputs.map(output =>
                         output.recipient || 'Unknown'
                     ).join('\n');
                 }
-                
+
                 summary.dataSource = 'Blockchair.com';
                 summary.explorerUrl = `https://blockchair.com/${getBlockchairChain(blockchain)}/transaction/${Object.keys(data.data)[0]}`;
             }
             break;
-            
+
         case 'bsc':
             // BscScan API
             if (data.result) {
@@ -828,8 +870,8 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
                 summary.status = tx.blockNumber ? 'Confirmed' : 'Pending';
                 summary.block = tx.blockNumber ? parseInt(tx.blockNumber, 16).toString() : 'Pending';
                 summary.amount = `${(parseInt(tx.value, 16) / 1e18).toFixed(8)} ${blockchainInfo.symbol}`;
-                summary.fee = tx.gas && tx.gasPrice ? 
-                    `${(parseInt(tx.gas, 16) * parseInt(tx.gasPrice, 16) / 1e18).toFixed(8)} ${blockchainInfo.symbol}` : 
+                summary.fee = tx.gas && tx.gasPrice ?
+                    `${(parseInt(tx.gas, 16) * parseInt(tx.gasPrice, 16) / 1e18).toFixed(8)} ${blockchainInfo.symbol}` :
                     'Unknown';
                 summary.from = tx.from || 'Unknown';
                 summary.to = tx.to || 'Unknown';
@@ -837,7 +879,7 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
                 summary.explorerUrl = `https://bscscan.com/tx/${tx.hash}`;
             }
             break;
-            
+
         case 'matic':
             // PolygonScan API
             if (data.result) {
@@ -845,8 +887,8 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
                 summary.status = tx.blockNumber ? 'Confirmed' : 'Pending';
                 summary.block = tx.blockNumber ? parseInt(tx.blockNumber, 16).toString() : 'Pending';
                 summary.amount = `${(parseInt(tx.value, 16) / 1e18).toFixed(8)} ${blockchainInfo.symbol}`;
-                summary.fee = tx.gas && tx.gasPrice ? 
-                    `${(parseInt(tx.gas, 16) * parseInt(tx.gasPrice, 16) / 1e18).toFixed(8)} ${blockchainInfo.symbol}` : 
+                summary.fee = tx.gas && tx.gasPrice ?
+                    `${(parseInt(tx.gas, 16) * parseInt(tx.gasPrice, 16) / 1e18).toFixed(8)} ${blockchainInfo.symbol}` :
                     'Unknown';
                 summary.from = tx.from || 'Unknown';
                 summary.to = tx.to || 'Unknown';
@@ -854,7 +896,7 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
                 summary.explorerUrl = `https://polygonscan.com/tx/${tx.hash}`;
             }
             break;
-            
+
         case 'zec':
             // Zcash Explorer API
             summary.status = data.confirmations > 0 ? 'Confirmed' : 'Pending';
@@ -862,26 +904,26 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
             summary.timestamp = data.timestamp ? new Date(data.timestamp * 1000).toUTCString() : 'Pending';
             summary.amount = `${parseFloat(data.value).toFixed(8)} ${blockchainInfo.symbol}`;
             summary.fee = `${parseFloat(data.fee).toFixed(8)} ${blockchainInfo.symbol}`;
-            
+
             // Join input/output addresses
             if (data.vin && data.vin.length > 0) {
-                summary.from = data.vin.map(input => 
+                summary.from = data.vin.map(input =>
                     input.addresses ? input.addresses.join(', ') : 'Unknown'
                 ).join('\n');
             }
-            
+
             if (data.vout && data.vout.length > 0) {
-                summary.to = data.vout.map(output => 
-                    output.scriptPubKey && output.scriptPubKey.addresses ? 
+                summary.to = data.vout.map(output =>
+                    output.scriptPubKey && output.scriptPubKey.addresses ?
                     output.scriptPubKey.addresses.join(', ') : 'Unknown'
                 ).join('\n');
             }
-            
+
             summary.dataSource = 'zcha.in';
             summary.explorerUrl = `https://explorer.zcha.in/transactions/${data.hash}`;
             break;
     }
-    
+
     return summary;
 }
 
@@ -905,7 +947,7 @@ function extractBlockSummary(blockchain, data, _blockchainInfo) {
         dataSource: 'Blockchain APIs',
         additionalFields: []
     };
-    
+
     // Extract data based on blockchain
     switch (blockchain) {
         case 'btc':
@@ -914,14 +956,14 @@ function extractBlockSummary(blockchain, data, _blockchainInfo) {
                 // If block-height was used, get the first block
                 data = data.blocks[0];
             }
-            
+
             summary.height = data.height.toString();
             summary.hash = data.hash;
             summary.timestamp = new Date(data.time * 1000).toUTCString();
             summary.txCount = data.n_tx.toString();
             summary.size = `${(data.size / 1024).toFixed(2)} KB`;
             summary.difficulty = data.difficulty.toLocaleString();
-            
+
             // Try to get miner info from coinbase transaction
             if (data.tx && data.tx.length > 0 && data.tx[0].inputs && data.tx[0].inputs.length > 0) {
                 const coinbase = data.tx[0].inputs[0].script;
@@ -944,11 +986,11 @@ function extractBlockSummary(blockchain, data, _blockchainInfo) {
                     }
                 }
             }
-            
+
             summary.dataSource = 'Blockchain.info';
             summary.explorerUrl = `https://www.blockchain.com/explorer/blocks/btc/${data.hash}`;
             break;
-            
+
         case 'eth':
             // Etherscan API
             if (data.result) {
@@ -960,25 +1002,25 @@ function extractBlockSummary(blockchain, data, _blockchainInfo) {
                 summary.size = `${parseInt(block.size, 16).toLocaleString()} bytes`;
                 summary.difficulty = parseInt(block.difficulty, 16).toLocaleString();
                 summary.miner = block.miner || 'Unknown';
-                
+
                 // Add gas used and gas limit as additional fields
                 summary.additionalFields.push({
                     name: 'Gas Used',
                     value: parseInt(block.gasUsed, 16).toLocaleString(),
                     inline: true
                 });
-                
+
                 summary.additionalFields.push({
                     name: 'Gas Limit',
                     value: parseInt(block.gasLimit, 16).toLocaleString(),
                     inline: true
                 });
-                
+
                 summary.dataSource = 'Etherscan.io';
                 summary.explorerUrl = `https://etherscan.io/block/${summary.height}`;
             }
             break;
-            
+
         case 'ltc':
         case 'bch':
         case 'dash':
@@ -992,7 +1034,7 @@ function extractBlockSummary(blockchain, data, _blockchainInfo) {
                 summary.txCount = blockData.block.transaction_count.toString();
                 summary.size = `${(blockData.block.size / 1024).toFixed(2)} KB`;
                 summary.difficulty = blockData.block.difficulty.toLocaleString();
-                
+
                 // Try to get miner from coinbase data
                 if (blockData.transactions && blockData.transactions.length > 0) {
                     const coinbaseData = blockData.transactions[0];
@@ -1000,12 +1042,12 @@ function extractBlockSummary(blockchain, data, _blockchainInfo) {
                         summary.miner = coinbaseData.output_address;
                     }
                 }
-                
+
                 summary.dataSource = 'Blockchair.com';
                 summary.explorerUrl = `https://blockchair.com/${getBlockchairChain(blockchain)}/block/${summary.height}`;
             }
             break;
-            
+
         case 'bsc':
             // BscScan API
             if (data.result) {
@@ -1017,12 +1059,12 @@ function extractBlockSummary(blockchain, data, _blockchainInfo) {
                 summary.size = `${parseInt(block.size, 16).toLocaleString()} bytes`;
                 summary.difficulty = parseInt(block.difficulty, 16).toLocaleString();
                 summary.miner = block.miner || 'Unknown';
-                
+
                 summary.dataSource = 'BscScan.com';
                 summary.explorerUrl = `https://bscscan.com/block/${summary.height}`;
             }
             break;
-            
+
         case 'matic':
             // PolygonScan API
             if (data.result) {
@@ -1034,12 +1076,12 @@ function extractBlockSummary(blockchain, data, _blockchainInfo) {
                 summary.size = `${parseInt(block.size, 16).toLocaleString()} bytes`;
                 summary.difficulty = parseInt(block.difficulty, 16).toLocaleString();
                 summary.miner = block.miner || 'Unknown';
-                
+
                 summary.dataSource = 'PolygonScan.com';
                 summary.explorerUrl = `https://polygonscan.com/block/${summary.height}`;
             }
             break;
-            
+
         case 'zec':
             // Zcash Explorer API
             summary.height = data.height.toString();
@@ -1048,18 +1090,18 @@ function extractBlockSummary(blockchain, data, _blockchainInfo) {
             summary.txCount = data.transactions.length.toString();
             summary.size = `${data.size.toLocaleString()} bytes`;
             summary.difficulty = data.difficulty.toLocaleString();
-            
+
             // Add specific Zcash fields
             summary.additionalFields.push({
                 name: 'Solution Size',
                 value: data.solutionSize.toString(),
                 inline: true
             });
-            
+
             summary.dataSource = 'zcha.in';
             summary.explorerUrl = `https://explorer.zcha.in/blocks/${data.hash}`;
             break;
     }
-    
+
     return summary;
 }

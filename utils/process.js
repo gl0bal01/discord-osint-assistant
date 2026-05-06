@@ -101,7 +101,8 @@ function safeSpawnToFile(command, args = [], outputFilePath, options = {}) {
         timeout = 300000,
         cwd,
         env = getSafeEnv(),
-        maxFileSize = 50 * 1024 * 1024 // 50MB default
+        maxFileSize = 50 * 1024 * 1024, // 50MB default
+        input // optional string written to child stdin then closed
     } = options;
 
     return new Promise((resolve, reject) => {
@@ -109,9 +110,14 @@ function safeSpawnToFile(command, args = [], outputFilePath, options = {}) {
         const proc = spawn(command, args, {
             cwd,
             env,
-            stdio: ['ignore', 'pipe', 'pipe'],
+            stdio: [input != null ? 'pipe' : 'ignore', 'pipe', 'pipe'],
             shell: false
         });
+
+        if (input != null) {
+            proc.stdin.on('error', () => { /* child closed stdin early */ });
+            proc.stdin.end(String(input).endsWith('\n') ? input : input + '\n');
+        }
 
         let stderr = '';
         let killed = false;

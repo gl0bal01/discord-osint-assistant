@@ -1,14 +1,14 @@
 /**
  * JWT Tool Discord Bot Command
  * ============================
- * 
+ *
  * A comprehensive Discord slash command for JWT (JSON Web Token) analysis and manipulation.
  * This command provides three main functionalities:
- * 
+ *
  * 1. ANALYZE: Decode and analyze JWT structure, claims, and metadata
  * 2. TAMPER: Modify, add, or delete JWT claims with proper re-signing
  * 3. CRACK: Attempt to crack JWT signatures using dictionary attacks
- * 
+ *
  * Features:
  * - Input validation and sanitization
  * - Secure command execution with timeouts
@@ -16,22 +16,26 @@
  * - File-based output management with automatic cleanup
  * - Discord embed formatting for better UX
  * - Support for custom wordlists and secret keys
- * 
+ *
  * Security Considerations:
  * - All user inputs are properly escaped to prevent injection attacks
  * - Commands execute with configurable timeouts to prevent resource exhaustion
  * - Temporary files are cleaned up automatically
  * - Sensitive information is handled securely
- * 
+ * - Secrets are passed via environment variable (JWT_SECRET) to avoid
+ *   /proc/<pid>/cmdline exposure; jwt_tool reads $JWT_SECRET when -p is omitted.
+ *   NOTE: jwt_tool (ticarpi/jwt_tool) does not support a --keyfile / -pf flag as
+ *   of the version targeted here, so the env-var approach is used as the safe default.
+ *
  * Requirements:
  * - jwt_tool installed and accessible
  * - Appropriate file system permissions for temp directory
  * - Discord.js v14+ with slash command support
- * 
+ *
  * Author: gl0bal01
  */
 
-const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { safeSpawn, safeSpawnToFile } = require('../utils/process');
 const fs = require('fs').promises;
 const fsSync = require('fs');
@@ -49,7 +53,7 @@ const CONFIG = {
     MAX_FILE_AGE: 24 * 60 * 60 * 1000 // 24 hours max file age
 };
 
-// JWT token validation regex
+// JWT token validation regex — rejects malformed tokens before invoking jwt_tool
 const JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
 
 // Utility functions
@@ -62,26 +66,27 @@ const generateSecureFilename = (prefix) => {
 const cleanupOldFiles = async () => {
     try {
         if (!fsSync.existsSync(CONFIG.TEMP_FOLDER)) return;
-        
+
         const files = await fs.readdir(CONFIG.TEMP_FOLDER);
         const now = Date.now();
-        
+
         for (const file of files) {
             const filePath = path.join(CONFIG.TEMP_FOLDER, file);
             const stats = await fs.stat(filePath);
-            
+
             if (now - stats.mtime.getTime() > CONFIG.MAX_FILE_AGE) {
                 await fs.unlink(filePath);
                 console.log(`Cleaned up old file: ${file}`);
             }
         }
     } catch (error) {
-        console.error('Error during cleanup:', error);
+        console.error('Error during cleanup:', error.message);
     }
 };
 
-// Set up periodic cleanup
-setInterval(cleanupOldFiles, CONFIG.CLEANUP_INTERVAL);
+// Set up periodic cleanup; .unref() so the interval does not prevent process exit
+const cleanupInterval = setInterval(cleanupOldFiles, CONFIG.CLEANUP_INTERVAL);
+cleanupInterval.unref();
 
 const findJwtTool = async () => {
     try {
@@ -100,9 +105,9 @@ const findJwtTool = async () => {
     throw new Error('jwt_tool not found.');
 };
 
-const executeJwtCommand = async (cmd, args, outputFile) => {
+const executeJwtCommand = async (cmd, args, outputFile, spawnOptions = {}) => {
     try {
-        await safeSpawnToFile(cmd, args, outputFile, { timeout: CONFIG.COMMAND_TIMEOUT });
+        await safeSpawnToFile(cmd, args, outputFile, { timeout: CONFIG.COMMAND_TIMEOUT, ...spawnOptions });
     } catch (error) {
         const fsSync = require('fs');
         if (!fsSync.existsSync(outputFile) || fsSync.statSync(outputFile).size === 0) {
@@ -199,15 +204,16 @@ module.exports = {
                         ))),
 
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: false });
+        // All JWT subcommands are ephemeral — output may contain sensitive token data
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         let outputFile = null;
-        
+
         try {
             const subcommand = interaction.options.getSubcommand();
             const token = interaction.options.getString('token').trim();
 
-            // Validate JWT format
+            // Validate JWT format — rejects malformed tokens before invoking jwt_tool
             if (!JWT_PATTERN.test(token)) {
                 const embed = createResultEmbed(
                     '❌ Invalid JWT Format',
@@ -224,13 +230,15 @@ module.exports = {
 
             // Find jwt_tool
             const jwtToolCmd = await findJwtTool();
-            
+
             // Create secure output file
             outputFile = path.join(CONFIG.TEMP_FOLDER, generateSecureFilename(`jwt-${subcommand}`));
 
             let jwtArgs = [];
             let embedTitle = '';
             let embedColor = 0x0099FF;
+            // Extra spawn options (e.g. env containing JWT_SECRET for tamper)
+            let spawnOptions = {};
 
             // Build args array based on subcommand (no shell interpolation)
             switch (subcommand) {
@@ -268,9 +276,15 @@ module.exports = {
                         return interaction.editReply({ embeds: [embed] });
                     }
 
-                    // Build tamper args
+                    // Pass secret via stdin (not argv, not env) to avoid
+                    // /proc/<pid>/cmdline and /proc/<pid>/environ exposure.
+                    // jwt_tool (ticarpi/jwt_tool) prompts for the HMAC secret
+                    // via input() when -p is omitted, which reads from stdin.
+                    spawnOptions = { input: secret };
+
+                    // Build tamper args — no -p <secret> in argv
                     const baseArgs = ['-v', token, '-I'];
-                    const signArgs = ['-S', algorithm, '-p', secret];
+                    const signArgs = ['-S', algorithm];
 
                     switch (action) {
                         case 'modify':
@@ -322,11 +336,11 @@ module.exports = {
             await interaction.editReply({ embeds: [progressEmbed] });
 
             // Execute command using safe spawn (no shell interpolation)
-            await executeJwtCommand(jwtToolCmd, jwtArgs, outputFile);
+            await executeJwtCommand(jwtToolCmd, jwtArgs, outputFile, spawnOptions);
 
             // Read and process output
             const outputContent = await fs.readFile(outputFile, 'utf8');
-            
+
             if (!outputContent.trim()) {
                 const embed = createResultEmbed(
                     '⚠️ No Output Generated',
@@ -337,14 +351,14 @@ module.exports = {
             }
 
             // Create attachment for full output
-            const attachment = new AttachmentBuilder(outputFile, { 
+            const attachment = new AttachmentBuilder(outputFile, {
                 name: `jwt-${subcommand}-results.txt`,
                 description: `Complete ${subcommand} results for JWT analysis`
             });
 
             // Create result embed
             const resultEmbed = createResultEmbed(embedTitle, outputContent, embedColor);
-            
+
             // Add useful footer information
             if (subcommand === 'crack' && outputContent.includes('MATCH')) {
                 resultEmbed.addFields({
@@ -362,7 +376,9 @@ module.exports = {
             });
 
         } catch (error) {
-            console.error('Error in JWT command:', error);
+            // Log only the message — never log error.config.url or full error objects
+            // which may contain secrets or sensitive request data
+            console.error('Error in JWT command:', error.message);
 
             let errorMessage = 'An unexpected error occurred while processing your request.';
             let errorColor = 0xFF0000;
@@ -376,7 +392,7 @@ module.exports = {
             }
 
             const errorEmbed = createResultEmbed('❌ Error', errorMessage, errorColor);
-            
+
             if (error.stderr) {
                 console.error('JWT tool stderr:', error.stderr);
             }
@@ -389,11 +405,15 @@ module.exports = {
                     try {
                         await fs.unlink(outputFile);
                         console.log(`Cleaned up output file: ${outputFile}`);
-                    } catch (error) {
-                        console.error(`Failed to cleanup file ${outputFile}:`, error);
+                    } catch (cleanupError) {
+                        console.error(`Failed to cleanup file ${outputFile}:`, cleanupError.message);
                     }
                 }, 30000); // 30 second delay
             }
         }
+    },
+
+    shutdown() {
+        clearInterval(cleanupInterval);
     },
 };

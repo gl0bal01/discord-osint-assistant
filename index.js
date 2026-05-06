@@ -18,9 +18,9 @@ const path = require('node:path');
 const { checkPermission } = require('./utils/permissions');
 const { checkRateLimit } = require('./utils/ratelimit');
 
-// Validate environment variables via centralized config
-const { loadConfig } = require('./utils/config');
-loadConfig();
+// Validate environment variables via centralized config (singleton).
+// Importing the module triggers validation; missing required vars exit(1).
+require('./utils/config');
 
 // Clean up orphaned temp files from previous runs
 const tempDir = path.join(__dirname, 'temp');
@@ -43,12 +43,21 @@ if (fs.existsSync(tempDir)) {
     }
 }
 
-// Initialize Discord client with required intents
-const client = new Client({ 
+// Parse the guild whitelist once at startup (empty = allow all)
+const ALLOWED_GUILDS = (process.env.ALLOWED_GUILD_IDS || '')
+    .split(',')
+    .map(id => id.trim())
+    .filter(Boolean);
+
+// Initialize Discord client with required intents.
+// allowedMentions blocks @everyone/@here/role pings injected via third-party
+// data (WHOIS, blockchain, AI chat output, link extraction, etc.).
+const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages
-    ] 
+    ],
+    allowedMentions: { parse: ['users'], repliedUser: false }
 });
 
 // Create a collection to store commands
@@ -107,13 +116,9 @@ client.once(Events.ClientReady, (readyClient) => {
     client.user.setActivity('OSINT operations', { type: 'WATCHING' });
 
     // Guild whitelist: auto-leave unauthorized servers
-    const allowedGuilds = process.env.ALLOWED_GUILD_IDS
-        ? process.env.ALLOWED_GUILD_IDS.split(',').map(id => id.trim())
-        : [];
-
-    if (allowedGuilds.length > 0) {
+    if (ALLOWED_GUILDS.length > 0) {
         for (const guild of readyClient.guilds.cache.values()) {
-            if (!allowedGuilds.includes(guild.id)) {
+            if (!ALLOWED_GUILDS.includes(guild.id)) {
                 console.log(`🚫 Leaving unauthorized guild: ${guild.name} (${guild.id})`);
                 guild.leave().catch(err => console.error(`Failed to leave guild ${guild.id}:`, err));
             }
@@ -126,11 +131,7 @@ client.once(Events.ClientReady, (readyClient) => {
  * Auto-leave unauthorized servers when bot is added
  */
 client.on(Events.GuildCreate, (guild) => {
-    const allowedGuilds = process.env.ALLOWED_GUILD_IDS
-        ? process.env.ALLOWED_GUILD_IDS.split(',').map(id => id.trim())
-        : [];
-
-    if (allowedGuilds.length > 0 && !allowedGuilds.includes(guild.id)) {
+    if (ALLOWED_GUILDS.length > 0 && !ALLOWED_GUILDS.includes(guild.id)) {
         console.log(`🚫 Leaving unauthorized guild: ${guild.name} (${guild.id})`);
         guild.leave().catch(err => console.error(`Failed to leave guild ${guild.id}:`, err));
     }
@@ -141,9 +142,25 @@ client.on(Events.GuildCreate, (guild) => {
  * Handles all incoming interactions (slash commands, buttons, etc.)
  */
 client.on(Events.InteractionCreate, async interaction => {
+    // Hard-fail unauthorized guilds and DMs (when whitelist is set) before
+    // any routing, so component handlers added later inherit the same gate.
+    if (ALLOWED_GUILDS.length > 0) {
+        if (!interaction.guild || !ALLOWED_GUILDS.includes(interaction.guild.id)) {
+            if (interaction.isRepliable && interaction.isRepliable()) {
+                try {
+                    await interaction.reply({
+                        content: 'This bot is not authorized in this context.',
+                        flags: MessageFlags.Ephemeral
+                    });
+                } catch { /* interaction already expired */ }
+            }
+            return;
+        }
+    }
+
     // Only process slash command interactions
     if (!interaction.isChatInputCommand()) return;
-    
+
     // Retrieve the command from our collection
     const command = client.commands.get(interaction.commandName);
     
@@ -223,17 +240,22 @@ process.on('unhandledRejection', (reason, promise) => {
 /**
  * Graceful shutdown handling
  */
-process.on('SIGINT', () => {
-    console.log('\n🛑 Received SIGINT. Gracefully shutting down...');
+function shutdown(signal) {
+    console.log(`\n🛑 Received ${signal}. Gracefully shutting down...`);
+    // Allow command modules to clean up timers and intervals so the
+    // event loop can drain instead of being yanked by process.exit.
+    for (const cmd of client.commands.values()) {
+        if (typeof cmd.shutdown === 'function') {
+            try { cmd.shutdown(); } catch (e) { console.error('command shutdown error:', e); }
+        }
+    }
     client.destroy();
-    process.exit(0);
-});
+    // Give in-flight connections a moment to close before exit.
+    setTimeout(() => process.exit(0), 1000).unref();
+}
 
-process.on('SIGTERM', () => {
-    console.log('\n🛑 Received SIGTERM. Gracefully shutting down...');
-    client.destroy();
-    process.exit(0);
-});
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 // Start the bot by logging in to Discord
 console.log('🚀 Starting Discord OSINT Assistant...');

@@ -12,6 +12,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { getSafeAxiosConfig } = require('../utils/ssrf');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -102,12 +103,18 @@ async function handleVinDecode(interaction, returnRaw) {
     
     try {
         // Get both basic and extended data for more complete information
-        const basicResponse = await axios.get(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${vin}?format=json`, { 
-            timeout: 10000 
+        const basicResponse = await axios.get(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${vin}?format=json`, {
+            timeout: 10000,
+            maxContentLength: 5 * 1024 * 1024,
+            maxBodyLength: 5 * 1024 * 1024,
+            ...getSafeAxiosConfig()
         });
-        
-        const extendedResponse = await axios.get(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/${vin}?format=json`, { 
-            timeout: 10000 
+
+        const extendedResponse = await axios.get(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/${vin}?format=json`, {
+            timeout: 10000,
+            maxContentLength: 5 * 1024 * 1024,
+            maxBodyLength: 5 * 1024 * 1024,
+            ...getSafeAxiosConfig()
         });
         
         // Check if we got valid responses
@@ -248,8 +255,13 @@ async function handleGetMakes(interaction, returnRaw) {
             url = `https://vpic.nhtsa.dot.gov/api/vehicles/GetMakeForManufacturer/${year}?format=json`;
         }
         
-        const response = await axios.get(url, { timeout: 10000 });
-        
+        const response = await axios.get(url, {
+            timeout: 10000,
+            maxContentLength: 10 * 1024 * 1024,
+            maxBodyLength: 10 * 1024 * 1024,
+            ...getSafeAxiosConfig()
+        });
+
         // Check if we got valid response data
         if (!response.data || !response.data.Results) {
             return interaction.editReply('No make data available from NHTSA API.');
@@ -366,8 +378,13 @@ async function handleGetModels(interaction, returnRaw) {
             url = `https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`;
         }
         
-        const response = await axios.get(url, { timeout: 10000 });
-        
+        const response = await axios.get(url, {
+            timeout: 10000,
+            maxContentLength: 10 * 1024 * 1024,
+            maxBodyLength: 10 * 1024 * 1024,
+            ...getSafeAxiosConfig()
+        });
+
         // Check if we got valid response data
         if (!response.data || !response.data.Results) {
             return interaction.editReply(`No models found for make: ${make}${year ? ` and year: ${year}` : ''}. Please check the spelling or try a different make.`);

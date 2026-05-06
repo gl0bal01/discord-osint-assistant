@@ -73,27 +73,68 @@ async function validateUrlNotInternal(url) {
 function createSafeAgent(protocol) {
     const AgentClass = protocol === 'https:' ? https.Agent : http.Agent;
     return new AgentClass({
+        keepAlive: true,
         lookup(hostname, options, callback) {
-            dnsCallback.lookup(hostname, options, (err, address, family) => {
+            // Always resolve with all:true so we can validate every record,
+            // but mirror the caller's `all` flag in the callback signature
+            // (some Node internals pass all:true and expect an array back).
+            const wantsAll = !!(options && options.all);
+            const opts = { ...options, all: true, family: 0 };
+            dnsCallback.lookup(hostname, opts, (err, addresses) => {
                 if (err) return callback(err);
-                if (isPrivateIp(address)) {
-                    return callback(new Error('Connection to private/internal IP address blocked'));
+                const list = Array.isArray(addresses)
+                    ? addresses
+                    : (addresses ? [{ address: addresses, family: opts.family || 4 }] : []);
+                const valid = list.filter(a => a && typeof a.address === 'string' && a.address.length > 0);
+                if (valid.length === 0) {
+                    return callback(new Error(`Could not resolve hostname: ${hostname}`));
                 }
-                callback(null, address, family);
+                for (const a of valid) {
+                    if (isPrivateIp(a.address)) {
+                        return callback(new Error('Connection to private/internal IP address blocked'));
+                    }
+                }
+                if (wantsAll) {
+                    return callback(null, valid.map(a => ({
+                        address: a.address,
+                        family: a.family || (net.isIPv6(a.address) ? 6 : 4)
+                    })));
+                }
+                const first = valid[0];
+                callback(null, first.address, first.family || (net.isIPv6(first.address) ? 6 : 4));
             });
         }
     });
 }
 
+// Singletons. Lookup hook is stateless; reusing the agents keeps the
+// keepalive socket pool warm across calls.
+const SAFE_HTTP_AGENT = createSafeAgent('http:');
+const SAFE_HTTPS_AGENT = createSafeAgent('https:');
+
+const SAFE_AXIOS_CONFIG = Object.freeze({
+    httpAgent: SAFE_HTTP_AGENT,
+    httpsAgent: SAFE_HTTPS_AGENT
+});
+
 /**
- * Returns axios config objects with safe HTTP/HTTPS agents that block
- * connections to private/internal IP addresses at connect time.
+ * Returns axios config with safe HTTP/HTTPS agents that block connections
+ * to private/internal IP addresses at connect time.
  */
 function getSafeAxiosConfig() {
-    return {
-        httpAgent: createSafeAgent('http:'),
-        httpsAgent: createSafeAgent('https:')
-    };
+    return SAFE_AXIOS_CONFIG;
 }
 
-module.exports = { validateUrlNotInternal, isPrivateIp, getSafeAxiosConfig };
+// Common response-size budgets for axios maxContentLength / maxBodyLength.
+const SIZE_1MB = 1 * 1024 * 1024;
+const SIZE_5MB = 5 * 1024 * 1024;
+const SIZE_10MB = 10 * 1024 * 1024;
+const SIZE_25MB = 25 * 1024 * 1024;
+const SIZE_50MB = 50 * 1024 * 1024;
+
+module.exports = {
+    validateUrlNotInternal,
+    isPrivateIp,
+    getSafeAxiosConfig,
+    SIZE_1MB, SIZE_5MB, SIZE_10MB, SIZE_25MB, SIZE_50MB
+};

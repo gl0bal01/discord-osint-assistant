@@ -21,9 +21,10 @@
  *        /bob-whoxy type:reverse identifier:email value:admin@example.com
  */
 
-const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const { isValidDomain, isValidEmail, sanitizeInput } = require('../utils/validation');
+const { getSafeAxiosConfig } = require('../utils/ssrf');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -97,7 +98,7 @@ module.exports = {
                         '**Setup Instructions:**\n' +
                         '1. Get API key from https://www.whoxy.com/\n' +
                         '2. Add WHOXY_API_KEY to environment variables',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
         
@@ -114,7 +115,7 @@ module.exports = {
                         return interaction.editReply({
                             content: '❌ **Missing Domain**\n' +
                                     'Please provide a domain name for WHOIS history analysis.',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
                     analysisData = await performHistoryAnalysis(domain, apiKey, detailed, privacyMode);
@@ -124,7 +125,7 @@ module.exports = {
                         return interaction.editReply({
                             content: '❌ **Missing Search Parameters**\n' +
                                     'Please provide both an identifier type and search value for reverse WHOIS lookup.',
-                            ephemeral: true
+                            flags: MessageFlags.Ephemeral
                         });
                     }
                     analysisData = await performReverseAnalysis(identifier, searchValue, apiKey, detailed, privacyMode);
@@ -133,7 +134,7 @@ module.exports = {
                     return interaction.editReply({
                         content: '❌ **Invalid Request Type**\n' +
                                 'Please select a valid analysis type.',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
             }
             
@@ -152,7 +153,7 @@ module.exports = {
             console.log(`✅ [WHOXY] Successfully completed ${requestType} analysis`);
             
         } catch (error) {
-            console.error(`❌ [WHOXY] Error during ${requestType} analysis:`, error.message);
+            console.error(`❌ [WHOXY] Error during ${requestType} analysis:`, { status: error.response?.status, message: error.message });
             await handleWhoxyError(interaction, error, requestType);
         }
     },
@@ -164,9 +165,13 @@ module.exports = {
  * @returns {Promise<Object>} Balance analysis data
  */
 async function performBalanceCheck(apiKey) {
-    const response = await axios.get(`https://api.whoxy.com/?key=${apiKey}&account=balance`, {
+    const response = await axios.get('https://api.whoxy.com/', {
+        params: { key: apiKey, account: 'balance' },
         timeout: 10000,
-        headers: { 'User-Agent': 'Discord-OSINT-Assistant/2.0' }
+        maxContentLength: 5 * 1024 * 1024,
+        maxBodyLength: 5 * 1024 * 1024,
+        headers: { 'User-Agent': 'Discord-OSINT-Assistant/2.0' },
+        ...getSafeAxiosConfig()
     });
     
     return {
@@ -191,9 +196,13 @@ async function performHistoryAnalysis(domain, apiKey, detailed, privacyMode) {
         throw new Error('Invalid domain format. Please provide a valid domain name.');
     }
     
-    const response = await axios.get(`https://api.whoxy.com/?key=${apiKey}&history=${domain}`, {
+    const response = await axios.get('https://api.whoxy.com/', {
+        params: { key: apiKey, history: domain },
         timeout: 15000,
-        headers: { 'User-Agent': 'Discord-OSINT-Assistant/2.0' }
+        maxContentLength: 10 * 1024 * 1024,
+        maxBodyLength: 10 * 1024 * 1024,
+        headers: { 'User-Agent': 'Discord-OSINT-Assistant/2.0' },
+        ...getSafeAxiosConfig()
     });
     
     const data = response.data;
@@ -239,10 +248,13 @@ async function performReverseAnalysis(identifier, searchValue, apiKey, detailed,
         throw new Error('Invalid email format for email search.');
     }
     
-    const encodedValue = encodeURIComponent(searchValue);
-    const response = await axios.get(`https://api.whoxy.com/?key=${apiKey}&reverse=whois&${identifier}=${encodedValue}`, {
+    const response = await axios.get('https://api.whoxy.com/', {
+        params: { key: apiKey, reverse: 'whois', [identifier]: searchValue },
         timeout: 20000,
-        headers: { 'User-Agent': 'Discord-OSINT-Assistant/2.0' }
+        maxContentLength: 10 * 1024 * 1024,
+        maxBodyLength: 10 * 1024 * 1024,
+        headers: { 'User-Agent': 'Discord-OSINT-Assistant/2.0' },
+        ...getSafeAxiosConfig()
     });
     
     const data = response.data;

@@ -4,7 +4,8 @@
  */
 
 const REQUIRED = {
-    DISCORD_TOKEN: 'Discord bot token'
+    DISCORD_TOKEN: 'Discord bot token',
+    CLIENT_ID: 'Discord application client ID'
 };
 
 const OPTIONAL = {
@@ -34,7 +35,8 @@ const OPTIONAL = {
     SECURITY_WEBHOOK_URL: { desc: 'Webhook URL for security alerts', default: null },
     AWS_ACCESS_KEY_ID: { desc: 'AWS access key for Rekognition', default: null },
     AWS_SECRET_ACCESS_KEY: { desc: 'AWS secret key for Rekognition', default: null },
-    AWS_REGION: { desc: 'AWS region', default: 'us-east-1' }
+    AWS_REGION: { desc: 'AWS region', default: 'us-east-1' },
+    RATE_LIMIT_DAILY: { desc: 'Per-user daily command limit', default: '200' }
 };
 
 function loadConfig() {
@@ -61,4 +63,7 @@ function loadConfig() {
     return config;
 }
 
-module.exports = { loadConfig, REQUIRED, OPTIONAL };
+// Validate at import time and freeze the result. `loadConfig` itself is not
+// exported because re-running validation is meaningless (env doesn't change).
+const config = Object.freeze(loadConfig());
+module.exports = { config, REQUIRED, OPTIONAL };

@@ -15,10 +15,11 @@
  * 
  * Author: gl0bal01
  */
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const { getSafeAxiosConfig } = require('../utils/ssrf');
 
 function escapeHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
@@ -194,7 +195,7 @@ module.exports = {
       setToken(newToken);
       await interaction.editReply({
         content: '✅ New token saved successfully! This token will be used for searches until it expires (typically after 1 hour).',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 
@@ -213,7 +214,7 @@ module.exports = {
     if (token && !newToken) {
       await interaction.followUp({
         content: 'ℹ️ Using saved token. If the lookup fails with an authorization error, you\'ll need to provide a new token.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
     
@@ -247,7 +248,13 @@ module.exports = {
     };
 
     try {
-      const response = await axios.get(URL, { headers: HEADERS });
+      const response = await axios.get(URL, {
+        headers: HEADERS,
+        timeout: 15000,
+        maxContentLength: 5 * 1024 * 1024,
+        maxBodyLength: 5 * 1024 * 1024,
+        ...getSafeAxiosConfig()
+      });
 
       if (response.status === 401) {
         // Clear cached token
@@ -391,8 +398,8 @@ module.exports = {
       }
 
     } catch (err) {
-      console.error(err);
-      
+      console.error('Nike lookup error:', { status: err.response?.status, message: err.message });
+
       // Check if it's a 401 error (Unauthorized - likely expired token)
       if (err.response && err.response.status === 401) {
         // Clear cached token

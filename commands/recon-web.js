@@ -22,7 +22,7 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
-const { isValidDomain } = require('../utils/validation');
+const { isValidDomain, sanitizeFilename } = require('../utils/validation');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
@@ -284,7 +284,7 @@ module.exports = {
                             const parsedUrl = new URL(targetUrl);
                             const rawDomainName = parsedUrl.hostname;
                             // Sanitize the domain name to prevent path traversal
-                            const domainName = sanitizeFilenameComponent(rawDomainName);
+                            const domainName = sanitizeFilename(rawDomainName);
 
                             // Fetch the webpage content
                             const response = await axios.get(targetUrl, getSafeAxiosConfig());
@@ -467,40 +467,6 @@ module.exports = {
     },
 };
 
-/**
- * Sanitize filename component to prevent path traversal attacks
- * @param {string} input - The input string to sanitize
- * @returns {string} Sanitized filename component
- */
-function sanitizeFilenameComponent(input) {
-    if (!input || typeof input !== 'string') {
-        return 'unknown';
-    }
-
-    // Remove any path separators and parent directory references
-    let sanitized = input
-        .replace(/\.\./g, '')      // Remove parent directory references
-        .replace(/[/\\]/g, '')      // Remove path separators
-        .replace(/\0/g, '')         // Remove null bytes
-        .replace(/:/g, '')          // Remove colons (Windows drive letters)
-        .replace(/\*/g, '')         // Remove wildcards
-        .replace(/\?/g, '')         // Remove question marks
-        .replace(/"/g, '')          // Remove quotes
-        .replace(/</g, '')          // Remove angle brackets
-        .replace(/>/g, '')          // Remove angle brackets
-        .replace(/\|/g, '');        // Remove pipes
-
-    // Only allow alphanumeric, dashes, underscores, and dots
-    sanitized = sanitized.replace(/[^a-zA-Z0-9._-]/g, '_');
-
-    // Prevent empty strings or strings that are only dots
-    if (!sanitized || /^\.+$/.test(sanitized)) {
-        return 'unknown';
-    }
-
-    // Limit length to prevent issues
-    return sanitized.substring(0, 100);
-}
 
 /**
  * Validate and sanitize file extension for images

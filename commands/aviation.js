@@ -7,8 +7,9 @@
  * airline code, or airport code using the AviationStack API.
  */
 
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const axios = require('axios');
+const { getSafeAxiosConfig } = require('../utils/ssrf');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('bob-flight')
@@ -80,13 +81,16 @@ module.exports = {
 
             // Make API request with timeout and proper error handling
             try {
-                const response = await axios.get('http://api.aviationstack.com/v1/flights', { 
+                const response = await axios.get('https://api.aviationstack.com/v1/flights', {
                     params,
-                    timeout: 10000 // 10 second timeout
+                    timeout: 10000, // 10 second timeout
+                    maxContentLength: 10 * 1024 * 1024,
+                    maxBodyLength: 10 * 1024 * 1024,
+                    ...getSafeAxiosConfig()
                 });
                 
                 if (response.data.error) {
-                    console.error('Aviation Stack API error:', response.data.error);
+                    console.error('Aviation Stack API error:', { message: String(response.data.error) });
                     return interaction.editReply('The aviation API returned an error. Please try again later.');
                 }
 
@@ -138,7 +142,7 @@ module.exports = {
                         if (isNaN(date.getTime())) return 'Invalid Date';
                         return date.toLocaleString();
                     } catch (error) {
-                        console.error('Date formatting error:', error);
+                        console.error('Date formatting error:', { message: error.message });
                         return 'Date Error';
                     }
                 }
@@ -157,12 +161,12 @@ module.exports = {
                     }
                 }
             } catch (apiError) {
-                console.error('Error fetching flight data:', apiError);
+                console.error('Error fetching flight data:', { status: apiError.response?.status, message: apiError.message });
                 
                 // Provide informative error message based on the error type
                 if (apiError.response) {
                     // API responded with an error status code
-                    console.error('API error response:', apiError.response.status, apiError.response.data);
+                    console.error('API error response:', { status: apiError.response.status });
                     
                     if (apiError.response.status === 401) {
                         return interaction.editReply('Authentication error: Invalid API key. Please contact the administrator.');
@@ -172,26 +176,26 @@ module.exports = {
                         return interaction.editReply('Rate limit exceeded. Please try again later.');
                     }
                     
-                    console.error('Aviation API error:', apiError.response?.data);
+                    console.error('Aviation API error:', { status: apiError.response?.status, message: apiError.message });
                     return interaction.editReply('The aviation API returned an error. Please try again later.');
                 } else if (apiError.request) {
                     // No response received
                     return interaction.editReply('Could not connect to flight data service. Please try again later.');
                 } else {
                     // Other error
-                    console.error('Aviation fetch error:', apiError);
+                    console.error('Aviation fetch error:', { message: apiError.message });
                     return interaction.editReply('An error occurred while fetching flight data. Please try again later.');
                 }
             }
         } catch (commandError) {
             // Handle any unexpected errors in the command execution
-            console.error('Command execution error:', commandError);
+            console.error('Command execution error:', { message: commandError.message });
             
             // Check if we've already replied (deferred)
             if (interaction.replied || interaction.deferred) {
                 await interaction.editReply('An unexpected error occurred while processing your request. Please try again later.');
             } else {
-                await interaction.reply({ content: 'An unexpected error occurred while processing your request. Please try again later.', ephemeral: true });
+                await interaction.reply({ content: 'An unexpected error occurred while processing your request. Please try again later.', flags: MessageFlags.Ephemeral });
             }
         }
     },

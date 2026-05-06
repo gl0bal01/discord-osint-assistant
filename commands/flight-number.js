@@ -7,7 +7,7 @@
  * for various flight tracking services to help users monitor flights.
  */
 
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -54,7 +54,7 @@ module.exports = {
             console.error('Error in flight-number command:', error);
             await interaction.reply({
                 content: 'An error occurred while processing your request. Please try again later.',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
     },

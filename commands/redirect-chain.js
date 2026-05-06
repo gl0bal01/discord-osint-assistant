@@ -13,16 +13,27 @@ const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discor
 const axios = require('axios');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { isValidUrl } = require('../utils/validation');
-const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 const dns = require('dns').promises;
 const tls = require('tls');
+const { cleanupFile } = require('../utils/temp');
 
 // Cache for historical comparison
 const redirectCache = new Map();
+const MAX_CACHE_SIZE = 1000;
+
+function setCache(key, value) {
+    if (redirectCache.size >= MAX_CACHE_SIZE) {
+        const oldest = redirectCache.keys().next().value;
+        redirectCache.delete(oldest);
+    }
+    redirectCache.set(key, value);
+}
 
 module.exports = {
+    shutdown() { clearInterval(cachePruneInterval); },
     data: new SlashCommandBuilder()
         .setName('bob-redirect-check')
         .setDescription('Check URL redirects with advanced security analysis')
@@ -93,13 +104,11 @@ module.exports = {
             // Handle export formats
             if (exportFormat) {
                 const tempDir = path.join(__dirname, '..', 'temp');
-                if (!fs.existsSync(tempDir)) {
-                    fs.mkdirSync(tempDir, { recursive: true });
-                }
-                
+                await fsp.mkdir(tempDir, { recursive: true });
+
                 const randomId = crypto.randomBytes(4).toString('hex');
                 let filePath, content, fileName;
-                
+
                 if (exportFormat === 'csv') {
                     content = generateCSVReport(result);
                     fileName = 'redirect_analysis.csv';
@@ -109,23 +118,17 @@ module.exports = {
                     fileName = 'redirect_diagram.mmd';
                     filePath = path.join(tempDir, `redirects_${randomId}.mmd`);
                 }
-                
-                fs.writeFileSync(filePath, content);
+
+                await fsp.writeFile(filePath, content);
                 const attachment = new AttachmentBuilder(filePath, { name: fileName });
-                
+
                 await interaction.editReply({
                     content: `📊 Export complete for: ${url}`,
                     files: [attachment]
                 });
-                
-                setTimeout(() => {
-                    try {
-                        fs.unlinkSync(filePath);
-                    } catch (error) {
-                        console.error('Error cleaning up temp file:', error);
-                    }
-                }, 5000);
-                
+
+                cleanupFile(filePath, 5000);
+
                 return;
             }
             
@@ -137,34 +140,26 @@ module.exports = {
                     historical_comparison: historicalComparison,
                     timestamp: new Date().toISOString()
                 };
-                
+
                 const tempDir = path.join(__dirname, '..', 'temp');
-                if (!fs.existsSync(tempDir)) {
-                    fs.mkdirSync(tempDir, { recursive: true });
-                }
-                
+                await fsp.mkdir(tempDir, { recursive: true });
+
                 const randomId = crypto.randomBytes(4).toString('hex');
                 const filePath = path.join(tempDir, `redirects_${randomId}.json`);
-                
-                fs.writeFileSync(filePath, JSON.stringify(fullResult, null, 2));
-                
-                const attachment = new AttachmentBuilder(filePath, { 
+
+                await fsp.writeFile(filePath, JSON.stringify(fullResult, null, 2));
+
+                const attachment = new AttachmentBuilder(filePath, {
                     name: 'redirect_analysis.json'
                 });
-                
+
                 await interaction.editReply({
                     content: `✅ Redirect analysis complete for: ${url}`,
                     files: [attachment]
                 });
-                
-                setTimeout(() => {
-                    try {
-                        fs.unlinkSync(filePath);
-                    } catch (error) {
-                        console.error('Error cleaning up temp file:', error);
-                    }
-                }, 5000);
-                
+
+                cleanupFile(filePath, 5000);
+
                 return;
             }
             
@@ -197,7 +192,7 @@ module.exports = {
             }
             
         } catch (error) {
-            console.error('Redirect-chain command error:', error);
+            console.error('Redirect-chain command error:', { status: error.response?.status, message: error.message });
             await interaction.editReply('An error occurred while processing your request. Please try again later.');
         }
     },
@@ -535,7 +530,7 @@ async function robustRequest(url, options, maxRetries = 3) {
     
     for (let i = 0; i < maxRetries; i++) {
         try {
-            return await axios.get(url, { ...options, ...getSafeAxiosConfig() });
+            return await axios.get(url, { ...options, ...getSafeAxiosConfig(), maxContentLength: 5 * 1024 * 1024, maxBodyLength: 5 * 1024 * 1024 });
         } catch (error) {
             lastError = error;
             
@@ -782,14 +777,15 @@ async function analyzeContent(url, headers) {
     
     try {
         const response = await axios.get(url, {
+            ...getSafeAxiosConfig(),
             maxRedirects: 0,
             timeout: 5000,
             responseType: 'text',
-            maxContentLength: 1024 * 1024, // 1MB limit
+            maxContentLength: 5 * 1024 * 1024,
+            maxBodyLength: 5 * 1024 * 1024,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            ...getSafeAxiosConfig()
+            }
         });
         
         const html = response.data;
@@ -902,17 +898,11 @@ function compareWithHistory(url, currentResult) {
     }
     
     // Store current result
-    redirectCache.set(cacheKey, {
+    setCache(cacheKey, {
         ...currentResult,
         timestamp: new Date().toISOString()
     });
-    
-    // Limit cache size
-    if (redirectCache.size > 1000) {
-        const firstKey = redirectCache.keys().next().value;
-        redirectCache.delete(firstKey);
-    }
-    
+
     return comparison;
 }
 
@@ -1063,17 +1053,17 @@ async function notifyWebhook(url, result, suspiciousIndicators) {
             }]
         };
         
-        await axios.post(process.env.SECURITY_WEBHOOK_URL, payload, getSafeAxiosConfig());
+        await axios.post(process.env.SECURITY_WEBHOOK_URL, payload, { ...getSafeAxiosConfig(), maxContentLength: 5 * 1024 * 1024, maxBodyLength: 5 * 1024 * 1024 });
     } catch (error) {
         console.error('Failed to send webhook notification:', error);
     }
 }
 
 // Clean up old cache entries periodically
-setInterval(() => {
+const cachePruneInterval = setInterval(() => {
     const now = Date.now();
     const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-    
+
     for (const [key, value] of redirectCache.entries()) {
         const timestamp = new Date(value.timestamp).getTime();
         if (now - timestamp > maxAge) {
@@ -1081,3 +1071,4 @@ setInterval(() => {
         }
     }
 }, 60 * 60 * 1000); // Run every hour
+cachePruneInterval.unref();

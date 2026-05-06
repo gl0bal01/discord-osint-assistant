@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { isValidDomain } = require('../utils/validation');
+const { getSafeAxiosConfig } = require('../utils/ssrf');
 
 // Available field types for search by field subcommand
 const FIELD_TYPES = [
@@ -148,9 +149,12 @@ module.exports = {
             
             try {
                 // Make API request
-                const response = await axios.get(endpoint, { 
+                const response = await axios.get(endpoint, {
                     params,
-                    timeout: 15000  // 15 second timeout
+                    timeout: 15000,  // 15 second timeout
+                    maxContentLength: 10 * 1024 * 1024,
+                    maxBodyLength: 10 * 1024 * 1024,
+                    ...getSafeAxiosConfig()
                 });
                 
                 apiResponse = response.data;
@@ -212,7 +216,7 @@ module.exports = {
             }, 5000);
             
         } catch (error) {
-            console.error('Hostio command error:', error);
+            console.error('Hostio command error:', { status: error.response?.status, message: error.message });
             await interaction.editReply('An error occurred while processing your request. Please try again later.');
         }
     },
@@ -224,7 +228,7 @@ module.exports = {
  * @param {Object} interaction - Discord interaction object
  */
 function handleApiError(error, interaction) {
-    console.error('Error with host.io API:', error);
+    console.error('Error with host.io API:', { status: error.response?.status, message: error.message });
     
     let errorMessage;
 

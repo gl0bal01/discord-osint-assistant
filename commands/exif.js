@@ -22,22 +22,16 @@
  * Usage: /bob-exif url:https://example.com/image.jpg
  */
 
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
+const axios = require('axios');
 const fs = require('fs');
-const https = require('https');
 const path = require('path');
 const { URL } = require('url');
-const crypto = require('crypto');
 const { isValidUrl, sanitizeInput } = require('../utils/validation');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
+const { tempFilePath, cleanupFile } = require('../utils/temp');
 const fsPromises = require('fs').promises;
-
-// Ensure the temp directory exists
-const tempDir = path.join(__dirname, '..', 'temp');
-if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
-}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -77,10 +71,10 @@ module.exports = {
                             '**Example:** `https://example.com/photo.jpg`\n' +
                             '**Supported formats:** JPEG, PNG, GIF, WEBP, TIFF, BMP\n' +
                             '**Note:** Only HTTPS URLs are accepted for security reasons.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
-            
+
             // Parse URL for additional validation
             let parsedUrl;
             try {
@@ -94,7 +88,7 @@ module.exports = {
                             'The provided URL is not accessible or uses an unsupported protocol.\n' +
                             'Only HTTPS URLs are supported for security reasons.\n' +
                             'HTTP connections transmit data in cleartext and are not allowed.',
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
             
@@ -114,10 +108,8 @@ module.exports = {
 
             try {
                 // Generate unique filename to prevent collisions
-                const randomId = crypto.randomBytes(8).toString('hex');
-                const timestamp = Date.now();
                 const fileExtension = getExtensionFromUrl(imageUrl);
-                const imagePath = path.join(tempDir, `exif_${timestamp}_${randomId}.${fileExtension}`);
+                const imagePath = tempFilePath('exif', fileExtension);
                 
                 // Download the image with validation
                 await downloadImageFromUrl(imageUrl, imagePath);
@@ -164,7 +156,7 @@ module.exports = {
             const errorResponse = {
                 content: '❌ **Unexpected Error**\n' +
                         'An unexpected error occurred while processing the image. Please try again later.',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             };
             
             if (interaction.deferred) {
@@ -180,75 +172,41 @@ module.exports = {
  * Download image from URL with proper error handling
  * @param {string} url - Image URL to download
  * @param {string} filePath - Local path to save the file
- * @returns {Promise<string>} Resolved with file path when complete
+ * @returns {Promise<void>} Resolved when download is complete
  */
 async function downloadImageFromUrl(url, filePath) {
-    return new Promise((resolve, reject) => {
-        console.log(`⬇️ [EXIF] Downloading image from: ${url}`);
+    console.log(`⬇️ [EXIF] Downloading image from: ${url}`);
 
-        const file = fs.createWriteStream(filePath);
-
-        // Set timeout for download
-        const timeout = setTimeout(() => {
-            file.close();
-            fs.unlink(filePath, () => {});
-            reject(new Error('Download timeout after 30 seconds'));
-        }, 30000);
-
-        const agent = getSafeAxiosConfig().httpsAgent;
-        https.get(url, {
-            agent,
-            headers: {
-                'User-Agent': 'Discord-OSINT-Assistant/2.0 (Image-Analyzer)'
-            }
-        }, (response) => {
-            // Check response status
-            if (response.statusCode !== 200) {
-                clearTimeout(timeout);
-                file.close();
-                fs.unlink(filePath, () => {});
-                reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
-                return;
-            }
-            
-            // Check content type if available
-            const contentType = response.headers['content-type'];
-            if (contentType && !contentType.startsWith('image/')) {
-                console.warn(`⚠️ [EXIF] Unexpected content type: ${contentType}`);
-            }
-            
-            // Check content length
-            const contentLength = parseInt(response.headers['content-length']);
-            if (contentLength && contentLength > 50 * 1024 * 1024) { // 50MB limit
-                clearTimeout(timeout);
-                file.close();
-                fs.unlink(filePath, () => {});
-                reject(new Error('Image file too large (max 50MB)'));
-                return;
-            }
-            
-            response.pipe(file);
-            
-            file.on('finish', () => {
-                clearTimeout(timeout);
-                file.close(() => {
-                    console.log(`✅ [EXIF] Successfully downloaded to: ${filePath}`);
-                    resolve(filePath);
-                });
-            });
-            
-            file.on('error', (err) => {
-                clearTimeout(timeout);
-                fs.unlink(filePath, () => {});
-                reject(err);
-            });
-            
-        }).on('error', (err) => {
-            clearTimeout(timeout);
-            fs.unlink(filePath, () => {});
-            reject(err);
-        });
+    const response = await axios.get(url, {
+        responseType: 'stream',
+        timeout: 30000,
+        maxRedirects: 5,
+        maxContentLength: 50 * 1024 * 1024,
+        maxBodyLength: 50 * 1024 * 1024,
+        ...getSafeAxiosConfig()
     });
+
+    // Defensive: check Content-Length before piping
+    const contentLength = parseInt(response.headers['content-length'] || '0', 10);
+    if (contentLength && contentLength > 50 * 1024 * 1024) {
+        throw new Error('Image file too large (max 50MB)');
+    }
+
+    // Check content type if available
+    const contentType = response.headers['content-type'] || '';
+    if (contentType && !contentType.startsWith('image/')) {
+        console.warn(`⚠️ [EXIF] Unexpected content type: ${contentType}`);
+    }
+
+    await new Promise((resolve, reject) => {
+        const writeStream = fs.createWriteStream(filePath);
+        response.data.pipe(writeStream);
+        writeStream.on('finish', resolve);
+        writeStream.on('error', reject);
+        response.data.on('error', reject);
+    });
+
+    console.log(`✅ [EXIF] Successfully downloaded to: ${filePath}`);
 }
 
 /**
@@ -633,15 +591,3 @@ function formatFileSize(bytes) {
     return `${size.toFixed(1)} ${units[unitIndex]}`;
 }
 
-/**
- * Clean up temporary file
- * @param {string} filePath - Path to file to delete
- */
-async function cleanupFile(filePath) {
-    try {
-        await fsPromises.unlink(filePath);
-        console.log(`🗑️ [EXIF] Cleaned up temporary file: ${path.basename(filePath)}`);
-    } catch (error) {
-        console.warn(`⚠️ [EXIF] Failed to cleanup file ${filePath}:`, error.message);
-    }
-}

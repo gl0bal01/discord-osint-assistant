@@ -24,7 +24,7 @@
  * Usage: /sherlock username:john_doe verbose:true timeout:300
  */
 
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
 const { safeSpawnToFile, getSafeEnv } = require('../utils/process');
 const fs = require('fs').promises;
 const path = require('path');
@@ -79,7 +79,7 @@ module.exports = {
                         '• Numbers (0-9)\n' +
                         '• Dots (.), underscores (_), hyphens (-)\n\n' +
                         '**Examples:** `john_doe`, `user123`, `test.user`',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
         

@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
     isValidDomain, isValidUrl, isValidEmail,
     isValidUsername, isValidIpAddress, isValidCryptoAddress,
-    sanitizeInput, containsMaliciousPatterns
+    sanitizeInput, sanitizeChatInput, isValidImageFile,
+    containsMaliciousPatterns
 } from '../../utils/validation.js';
 
 describe('isValidDomain', () => {
@@ -71,10 +72,17 @@ describe('isValidIpAddress', () => {
         expect(isValidIpAddress('192.168.1.1')).toBe(true);
         expect(isValidIpAddress('8.8.8.8')).toBe(true);
     });
+    it('accepts valid IPv6', () => {
+        expect(isValidIpAddress('::1')).toBe(true);
+        expect(isValidIpAddress('fe80::1')).toBe(true);
+        expect(isValidIpAddress('2001:db8::1')).toBe(true);
+        expect(isValidIpAddress('::ffff:192.168.1.1')).toBe(true);
+    });
     it('rejects invalid IPs', () => {
         expect(isValidIpAddress('999.999.999.999')).toBe(false);
         expect(isValidIpAddress('not-an-ip')).toBe(false);
         expect(isValidIpAddress(null)).toBe(false);
+        expect(isValidIpAddress('gggg::1')).toBe(false);
     });
 });
 
@@ -82,9 +90,21 @@ describe('isValidCryptoAddress', () => {
     it('accepts valid Ethereum addresses', () => {
         expect(isValidCryptoAddress('0x742d35Cc6634C0532925a3b844Bc9e7595f2bD38')).toBe(true);
     });
+    it('accepts valid legacy Bitcoin (P2PKH/P2SH)', () => {
+        expect(isValidCryptoAddress('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')).toBe(true);
+        expect(isValidCryptoAddress('3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy')).toBe(true);
+    });
+    it('accepts valid bech32 Bitcoin', () => {
+        expect(isValidCryptoAddress('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4')).toBe(true);
+    });
+    it('accepts valid Litecoin', () => {
+        expect(isValidCryptoAddress('LcHKmF2HsTLM2bp8jxNXEsh4q9CKbA75XK')).toBe(true);
+        expect(isValidCryptoAddress('MQMcJhpWHYVeQArcZR3sBgyPZxxRtnH441')).toBe(true);
+    });
     it('rejects invalid addresses', () => {
         expect(isValidCryptoAddress('not-a-crypto-address')).toBe(false);
         expect(isValidCryptoAddress(null)).toBe(false);
+        expect(isValidCryptoAddress('0xdeadbeef')).toBe(false);
     });
 });
 
@@ -102,6 +122,13 @@ describe('sanitizeInput', () => {
     it('strips fullwidth unicode characters', () => {
         expect(sanitizeInput('hello\uFF1Bworld')).toBe('helloworld');
     });
+    it('strips path traversal sequences', () => {
+        expect(sanitizeInput('foo..bar')).toBe('foobar');
+        expect(sanitizeInput('a..../b')).toBe('a/b');
+    });
+    it('NFKC-normalizes unicode lookalikes', () => {
+        expect(sanitizeInput('hello\uFF1Cscript\uFF1Eworld')).toBe('helloscriptworld');
+    });
     it('truncates to 1000 chars', () => {
         expect(sanitizeInput('a'.repeat(2000)).length).toBe(1000);
     });
@@ -109,6 +136,41 @@ describe('sanitizeInput', () => {
         expect(sanitizeInput(null)).toBe('');
         expect(sanitizeInput(undefined)).toBe('');
         expect(sanitizeInput(42)).toBe('');
+    });
+});
+
+describe('sanitizeChatInput', () => {
+    it('preserves brackets, parens, quotes for natural chat', () => {
+        expect(sanitizeChatInput('what does arr[0] do?')).toBe('what does arr[0] do?');
+        expect(sanitizeChatInput("it's foo(bar)")).toBe("it's foo(bar)");
+    });
+    it('collapses newlines and null bytes to spaces', () => {
+        expect(sanitizeChatInput('a\nb\rc\0d')).toBe('a b c d');
+    });
+    it('caps length at 4000 chars', () => {
+        expect(sanitizeChatInput('x'.repeat(5000)).length).toBe(4000);
+    });
+    it('returns empty string for non-strings', () => {
+        expect(sanitizeChatInput(null)).toBe('');
+        expect(sanitizeChatInput(undefined)).toBe('');
+        expect(sanitizeChatInput(123)).toBe('');
+    });
+});
+
+describe('isValidImageFile', () => {
+    it('accepts common image extensions', () => {
+        expect(isValidImageFile('photo.jpg')).toBe(true);
+        expect(isValidImageFile('PHOTO.JPEG')).toBe(true);
+        expect(isValidImageFile('icon.png')).toBe(true);
+        expect(isValidImageFile('anim.gif')).toBe(true);
+        expect(isValidImageFile('scan.bmp')).toBe(true);
+        expect(isValidImageFile('raw.tiff')).toBe(true);
+        expect(isValidImageFile('web.webp')).toBe(true);
+    });
+    it('rejects non-image extensions', () => {
+        expect(isValidImageFile('doc.pdf')).toBe(false);
+        expect(isValidImageFile('script.exe')).toBe(false);
+        expect(isValidImageFile('archive.zip')).toBe(false);
     });
 });
 

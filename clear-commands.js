@@ -13,8 +13,7 @@
  * node clear-commands.js --all              # Clear both guild and global commands
  */
 
-const { REST } = require('@discordjs/rest');
-const { Routes } = require('discord-api-types/v9');
+const { REST, Routes } = require('discord.js');
 require('dotenv').config();
 
 class CommandCleaner {
@@ -31,7 +30,7 @@ class CommandCleaner {
             process.exit(1);
         }
         
-        this.rest = new REST({ version: '9' }).setToken(this.token);
+        this.rest = new REST({ version: '10' }).setToken(this.token);
     }
     
     /**
@@ -197,10 +196,16 @@ class CommandCleaner {
         const clearGuild = !args.includes('--global') || args.includes('--all');
         const listOnly = args.includes('--list');
         const force = args.includes('--force');
-        
+
+        // Non-TTY safety check: require --force when stdin is not a terminal
+        if (!process.stdin.isTTY && !force) {
+            console.error('Non-TTY environment requires --force flag for safety.');
+            process.exit(1);
+        }
+
         console.log('🤖 Discord Command Cleaner v2.0');
         console.log('================================\n');
-        
+
         // List commands if requested
         if (listOnly) {
             await this.listCommands();
@@ -246,8 +251,8 @@ class CommandCleaner {
             console.log('🎉 Command clearing completed successfully!');
             console.log('');
             console.log('📝 Next Steps:');
-            console.log('   1. Run: npm run deploy (for guild commands)');
-            console.log('   2. Or run: npm run deploy:global (for global commands)');
+            console.log('   1. Run: bun run deploy (for guild commands)');
+            console.log('   2. Or run: bun run deploy:global (for global commands)');
             console.log('   3. Restart your bot if it\'s currently running');
             
         } catch (_error) {

@@ -23,7 +23,7 @@ const COMMAND_CATEGORIES = {
     'bob-linkook': 'heavy',
     'bob-jwt': 'heavy',
     'bob-exif': 'medium',
-    'bob-recon-web': 'medium',
+    'bob-web-recon': 'heavy',
     'bob-monitor': 'medium',
     'bob-redirect-check': 'medium',
     'bob-dns': 'medium',
@@ -34,7 +34,7 @@ const COMMAND_CATEGORIES = {
     'bob-rekognition': 'medium',
     'bob-chat': 'medium',
     'bob-blockchain': 'medium',
-    'bob-favicons': 'medium',
+    'bob-favicon': 'medium',
     'bob-extract-links': 'medium',
     'bob-nike': 'medium'
 };

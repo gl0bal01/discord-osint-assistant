@@ -19,10 +19,12 @@
  */
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const axios = require('axios');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
 const { safeSpawn } = require('../utils/process');
+const { getSafeAxiosConfig } = require('../utils/ssrf');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -56,7 +58,7 @@ module.exports = {
         
         try {
             // Gather all health information
-            const healthData = await gatherHealthData(detailed, checkApis, checkTools);
+            const healthData = await gatherHealthData(detailed, checkApis, checkTools, interaction.client);
             
             // Create formatted response
             const embed = createHealthEmbed(healthData, detailed);
@@ -83,13 +85,13 @@ module.exports = {
  * @param {boolean} checkTools - Check external tools
  * @returns {Promise<Object>} Health data object
  */
-async function gatherHealthData(detailed, checkApis, checkTools) {
+async function gatherHealthData(detailed, checkApis, checkTools, client) {
     const startTime = Date.now();
     
     // Basic system information
     const systemInfo = await getSystemInfo(detailed);
-    const botInfo = getBotInfo();
-    const discordInfo = getDiscordInfo();
+    const botInfo = getBotInfo(client);
+    const discordInfo = getDiscordInfo(client);
     
     // Optional checks
     let apiStatus = null;
@@ -104,7 +106,7 @@ async function gatherHealthData(detailed, checkApis, checkTools) {
     }
     
     // Determine overall health status
-    const overall = determineOverallHealth(systemInfo, botInfo, apiStatus, toolStatus);
+    const overall = determineOverallHealth(systemInfo, botInfo, apiStatus, toolStatus, client);
     
     const processingTime = Date.now() - startTime;
     
@@ -179,13 +181,13 @@ async function getSystemInfo(detailed) {
  * Get bot-specific information
  * @returns {Object} Bot information
  */
-function getBotInfo() {
+function getBotInfo(client) {
     return {
         version: require('../package.json').version || '2.0.0',
         environment: process.env.NODE_ENV || 'development',
         pid: process.pid,
         startTime: process.uptime(),
-        commandsLoaded: global.client?.commands?.size || 0
+        commandsLoaded: client?.commands?.size || 0
     };
 }
 
@@ -193,9 +195,7 @@ function getBotInfo() {
  * Get Discord connection information
  * @returns {Object} Discord connection info
  */
-function getDiscordInfo() {
-    const client = global.client;
-    
+function getDiscordInfo(client) {
     if (!client) {
         return {
             connected: false,
@@ -246,9 +246,13 @@ async function checkApiHealth() {
             
             if (hasKey) {
                 // Simple connectivity test (without using API key)
-                const axios = require('axios');
                 try {
-                    await axios.head(api.testUrl, { timeout: 5000 });
+                    await axios.head(api.testUrl, {
+                        timeout: 5000,
+                        maxContentLength: 1024 * 1024,
+                        maxBodyLength: 1024 * 1024,
+                        ...getSafeAxiosConfig()
+                    });
                     connectivity = 'reachable';
                 } catch {
                     connectivity = 'unreachable';
@@ -358,7 +362,7 @@ function extractVersion(output) {
  * @param {Object} toolStatus - Tool status (may be null)
  * @returns {Object} Overall health assessment
  */
-function determineOverallHealth(systemInfo, botInfo, apiStatus, toolStatus) {
+function determineOverallHealth(systemInfo, botInfo, apiStatus, toolStatus, client) {
     let status = 'healthy';
     const issues = [];
     
@@ -370,7 +374,6 @@ function determineOverallHealth(systemInfo, botInfo, apiStatus, toolStatus) {
     }
     
     // Check if Discord is connected
-    const client = global.client;
     if (!client || !client.isReady()) {
         status = 'unhealthy';
         issues.push('Discord not connected');

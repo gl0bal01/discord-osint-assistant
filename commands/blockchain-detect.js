@@ -25,7 +25,7 @@
  *        /bob-blockchain-detect address:0x742d35Cc6634C0532925a3b8D3Ac0C4ad5d0B78a
  */
 
-const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
 const { sanitizeInput } = require('../utils/validation');
 
 // Comprehensive blockchain address patterns
@@ -331,7 +331,7 @@ module.exports = {
                 content: '❌ **Address Too Long**\n' +
                         'The provided string is too long to be a valid cryptocurrency address.\n' +
                         'Maximum length: 200 characters',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
         

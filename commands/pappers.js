@@ -12,6 +12,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { getSafeAxiosConfig } = require('../utils/ssrf');
 // Definitions of available fields for company endpoint
 const AVAILABLE_FIELD_GROUPS = {
     'officers': 'Company officers and directors',
@@ -193,7 +194,10 @@ module.exports = {
                             company_number: companyNumber,
                             fields: fieldsValue
                         },
-                        timeout: 30000 // 30-second timeout
+                        timeout: 30000, // 30-second timeout
+                        maxContentLength: 10 * 1024 * 1024,
+                        maxBodyLength: 10 * 1024 * 1024,
+                        ...getSafeAxiosConfig()
                     });
                     
                     apiResponse = response.data;
@@ -224,7 +228,10 @@ module.exports = {
                             page: page,
                             per_page: perPage
                         },
-                        timeout: 30000 // 30-second timeout
+                        timeout: 30000, // 30-second timeout
+                        maxContentLength: 10 * 1024 * 1024,
+                        maxBodyLength: 10 * 1024 * 1024,
+                        ...getSafeAxiosConfig()
                     });
                     
                     apiResponse = response.data;
@@ -255,7 +262,10 @@ module.exports = {
                             page: page,
                             per_page: perPage
                         },
-                        timeout: 30000 // 30-second timeout
+                        timeout: 30000, // 30-second timeout
+                        maxContentLength: 10 * 1024 * 1024,
+                        maxBodyLength: 10 * 1024 * 1024,
+                        ...getSafeAxiosConfig()
                     });
                     
                     apiResponse = response.data;
@@ -334,7 +344,7 @@ module.exports = {
             // Stop the progress updates
             clearInterval(progressInterval);
             
-            console.error('Unexpected error in pappers command:', error);
+            console.error('Unexpected error in pappers command:', { status: error.response?.status, message: error.message });
             
             let errorMessage = 'An unexpected error occurred while processing your request.';
             
@@ -352,7 +362,7 @@ module.exports = {
 function handleApiError(error, interaction, interval) {
     clearInterval(interval);
     
-    console.error('Error with Pappers API:', error);
+    console.error('Error with Pappers API:', { status: error.response?.status, message: error.message });
     
     let errorMessage;
 

@@ -40,7 +40,7 @@ coverage/
 
 # Grunt intermediate storage
 .grunt
-
+.omc
 # Bower dependency directory
 bower_components
 

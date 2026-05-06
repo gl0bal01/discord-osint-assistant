@@ -17,7 +17,7 @@
  * Usage: /generate-usernames firstname:John lastname:Doe separators:.,_,- suffix:123
  */
 
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
 const { sanitizeInput } = require('../utils/validation');
 
 module.exports = {
@@ -84,7 +84,7 @@ module.exports = {
                 content: '❌ **Invalid Input**\n' +
                         'First name and last name must contain valid characters.\n' +
                         'Allowed: letters, numbers, spaces (spaces will be removed)',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
         
@@ -96,7 +96,7 @@ module.exports = {
             return interaction.reply({
                 content: '❌ **Invalid Names**\n' +
                         'Names must contain at least one valid character after cleaning.',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
         
@@ -123,7 +123,7 @@ module.exports = {
             await interaction.reply({
                 content: response,
                 files: [attachment],
-                ephemeral: true // Keep results private for OSINT work
+                flags: MessageFlags.Ephemeral // Keep results private for OSINT work
             });
             
             console.log(`✅ [USERNAME-GEN] Generated ${usernames.length} username variations`);
@@ -133,7 +133,7 @@ module.exports = {
             await interaction.reply({
                 content: '❌ **Generation Failed**\n' +
                         'An error occurred while generating username variations.',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
     },

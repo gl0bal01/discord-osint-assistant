@@ -11,14 +11,14 @@
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
-const { isValidUrl } = require('../utils/validation');
+const { isValidUrl, sanitizeFilename } = require('../utils/validation');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { URL } = require('url');
 // Import AWS SDK v3 modules
-const { RekognitionClient, DetectLabelsCommand, DetectTextCommand, 
-  DetectFacesCommand, DetectModerationLabelsCommand, 
+const { RekognitionClient, DetectLabelsCommand, DetectTextCommand,
+  DetectFacesCommand, DetectModerationLabelsCommand,
   RecognizeCelebritiesCommand, CompareFacesCommand } = require('@aws-sdk/client-rekognition');
 // Lazy-initialized AWS Rekognition client (v3)
 let _rekognitionClient = null;
@@ -205,13 +205,19 @@ async function handleAnalyze(interaction, tempDir) {
                 const response = await axios.get(uploadedImage.url, {
                     responseType: 'arraybuffer',
                     timeout: 10000, // 10 second timeout
+                    maxContentLength: 25 * 1024 * 1024,
                     ...getSafeAxiosConfig()
                 });
-                
+
                 imageBuffer = Buffer.from(response.data);
-                
+
                 // Save the image locally so we can attach it to our response
-                const imagePath = path.join(tempDir, `original_${uploadedImage.name}`);
+                const finalPath = path.join(tempDir, `original_${sanitizeFilename(uploadedImage.name)}`);
+                const normalizedPath = path.resolve(finalPath);
+                if (!normalizedPath.startsWith(path.resolve(tempDir) + path.sep)) {
+                    throw new Error('Invalid file path');
+                }
+                const imagePath = finalPath;
                 fs.writeFileSync(imagePath, imageBuffer);
                 
                 // Create an attachment to send back
@@ -451,13 +457,19 @@ async function handleCompare(interaction, tempDir) {
                 const response = await axios.get(sourceAttachment.url, {
                     responseType: 'arraybuffer',
                     timeout: 10000,
+                    maxContentLength: 25 * 1024 * 1024,
                     ...getSafeAxiosConfig()
                 });
-                
+
                 sourceImageBuffer = Buffer.from(response.data);
-                
+
                 // Save the image locally to attach in response
-                const imagePath = path.join(tempDir, `original_source_${sourceAttachment.name}`);
+                const finalPath = path.join(tempDir, `original_source_${sanitizeFilename(sourceAttachment.name)}`);
+                const normalizedPath = path.resolve(finalPath);
+                if (!normalizedPath.startsWith(path.resolve(tempDir) + path.sep)) {
+                    throw new Error('Invalid file path');
+                }
+                const imagePath = finalPath;
                 fs.writeFileSync(imagePath, sourceImageBuffer);
                 
                 // Create an attachment
@@ -508,13 +520,19 @@ async function handleCompare(interaction, tempDir) {
                 const response = await axios.get(targetAttachment.url, {
                     responseType: 'arraybuffer',
                     timeout: 10000,
+                    maxContentLength: 25 * 1024 * 1024,
                     ...getSafeAxiosConfig()
                 });
-                
+
                 targetImageBuffer = Buffer.from(response.data);
-                
+
                 // Save the image locally to attach in response
-                const imagePath = path.join(tempDir, `original_target_${targetAttachment.name}`);
+                const finalPath = path.join(tempDir, `original_target_${sanitizeFilename(targetAttachment.name)}`);
+                const normalizedPath = path.resolve(finalPath);
+                if (!normalizedPath.startsWith(path.resolve(tempDir) + path.sep)) {
+                    throw new Error('Invalid file path');
+                }
+                const imagePath = finalPath;
                 fs.writeFileSync(imagePath, targetImageBuffer);
                 
                 // Create an attachment
@@ -665,6 +683,7 @@ async function downloadImage(url, tempDir, prefix = '') {
         const response = await axios.get(url, {
             responseType: 'arraybuffer',
             timeout: 10000, // 10 second timeout
+            maxContentLength: 25 * 1024 * 1024,
             ...getSafeAxiosConfig()
         });
         
