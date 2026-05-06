@@ -125,11 +125,48 @@ function sanitizeInput(input) {
         return '';
     }
     return input
+        .normalize('NFKC')
         .replace(/[\r\n\0]/g, '')
         .replace(/[<>"';&|`$(){}[\]\\]/g, '')
         .replace(/[\u{FF00}-\u{FFEF}]/gu, '')
+        .replace(/\.\.+/g, '')
         .trim()
         .slice(0, 1000);
+}
+
+/**
+ * Sanitizes free-form chat input for LLM queries
+ * Preserves brackets, parens, quotes (legitimate in code questions),
+ * strips only newlines/null bytes, normalizes unicode, caps at 4000 chars.
+ * @param {string} input - Input to sanitize
+ * @returns {string} Sanitized input
+ */
+function sanitizeChatInput(input) {
+    if (!input || typeof input !== 'string') {
+        return '';
+    }
+    return input
+        .normalize('NFKC')
+        .replace(/[\r\n\0]/g, ' ')
+        .trim()
+        .slice(0, 4000);
+}
+
+/**
+ * Sanitize a filename component derived from user input (Discord attachment
+ * names, downloaded URLs). Strips path separators and unsafe chars,
+ * collapses '..' sequences, and caps length so filesystem paths stay bounded.
+ *
+ * @param {string} name - User-supplied filename or component
+ * @param {number} [maxLen=100] - Maximum length cap
+ * @returns {string} Safe filename component
+ */
+function sanitizeFilename(name, maxLen = 100) {
+    const result = String(name || 'file')
+        .replace(/[^a-zA-Z0-9._-]/g, '_')
+        .replace(/\.\.+/g, '_')
+        .slice(0, maxLen);
+    return /^\.+$/.test(result) ? 'file' : result;
 }
 
 /**
@@ -173,6 +210,8 @@ module.exports = {
     isValidIpAddress,
     isValidCryptoAddress,
     sanitizeInput,
+    sanitizeChatInput,
+    sanitizeFilename,
     isValidImageFile,
     containsMaliciousPatterns
 };
