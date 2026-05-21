@@ -10,9 +10,8 @@
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
+const { reportFilePath, cleanupFile } = require('../utils/temp');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -134,15 +133,8 @@ async function handleVinDecode(interaction, returnRaw) {
                 extended: extendedData
             };
             
-            // Create a temp directory for the file
-            const tempDir = path.join(__dirname, '..', 'temp');
-            if (!fs.existsSync(tempDir)) {
-                fs.mkdirSync(tempDir, { recursive: true });
-            }
-            
-            // Create unique filename with random ID
-            const randomId = crypto.randomBytes(4).toString('hex');
-            const filePath = path.join(tempDir, `vin_${vin}_${randomId}.json`);
+            // Create unique filename under temp/reports/
+            const filePath = reportFilePath('vpic', 'json');
             
             // Write the data to a JSON file
             fs.writeFileSync(filePath, JSON.stringify(combinedData, null, 2));
@@ -159,13 +151,7 @@ async function handleVinDecode(interaction, returnRaw) {
             });
             
             // Clean up the temporary file after a delay
-            setTimeout(() => {
-                try {
-                    fs.unlinkSync(filePath);
-                } catch (error) {
-                    console.error('Error cleaning up temporary file:', error);
-                }
-            }, 5000);
+            cleanupFile(filePath, 5000);
             
             return;
         }
@@ -271,15 +257,8 @@ async function handleGetMakes(interaction, returnRaw) {
         
         // If raw data requested, return the full JSON data
         if (returnRaw) {
-            // Create a temp directory for the file
-            const tempDir = path.join(__dirname, '..', 'temp');
-            if (!fs.existsSync(tempDir)) {
-                fs.mkdirSync(tempDir, { recursive: true });
-            }
-            
-            // Create unique filename with random ID
-            const randomId = crypto.randomBytes(4).toString('hex');
-            const filePath = path.join(tempDir, `vehicle_makes_${year || 'all'}_${randomId}.json`);
+            // Create unique filename under temp/reports/
+            const filePath = reportFilePath('vpic', 'json');
             
             // Write the data to a JSON file
             fs.writeFileSync(filePath, JSON.stringify(response.data, null, 2));
@@ -296,13 +275,7 @@ async function handleGetMakes(interaction, returnRaw) {
             });
             
             // Clean up the temporary file after a delay
-            setTimeout(() => {
-                try {
-                    fs.unlinkSync(filePath);
-                } catch (error) {
-                    console.error('Error cleaning up temporary file:', error);
-                }
-            }, 5000);
+            cleanupFile(filePath, 5000);
             
             return;
         }
@@ -400,14 +373,8 @@ async function handleGetModels(interaction, returnRaw) {
         // If raw data requested, return the full JSON data
         if (returnRaw) {
             // Create a temp directory for the file
-            const tempDir = path.join(__dirname, '..', 'temp');
-            if (!fs.existsSync(tempDir)) {
-                fs.mkdirSync(tempDir, { recursive: true });
-            }
-            
-            // Create unique filename with random ID
-            const randomId = crypto.randomBytes(4).toString('hex');
-            const filePath = path.join(tempDir, `vehicle_models_${make.replace(/\s+/g, '_')}_${year || 'all'}_${randomId}.json`);
+            // Create unique filename under temp/reports/
+            const filePath = reportFilePath('vpic', 'json');
             
             // Write the data to a JSON file
             fs.writeFileSync(filePath, JSON.stringify(response.data, null, 2));
@@ -424,13 +391,7 @@ async function handleGetModels(interaction, returnRaw) {
             });
             
             // Clean up the temporary file after a delay
-            setTimeout(() => {
-                try {
-                    fs.unlinkSync(filePath);
-                } catch (error) {
-                    console.error('Error cleaning up temporary file:', error);
-                }
-            }, 5000);
+            cleanupFile(filePath, 5000);
             
             return;
         }

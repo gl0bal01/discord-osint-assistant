@@ -17,28 +17,14 @@
 // Core Dependencies
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 
 // Discord.js and Web Scraping Dependencies
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
-
-/**
- * Escapes special HTML characters in a string to prevent Cross-Site Scripting (XSS).
- * @param {string} unsafeText - The raw string to escape.
- * @returns {string} The HTML-escaped string.
- */
-function escapeHtml(unsafeText) {
-    if (typeof unsafeText !== 'string') return '';
-    return unsafeText
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
+const { reportDirPath, cleanupDir } = require('../utils/temp');
+const { escapeHtml } = require('../utils/embed');
 
 /**
  * Analyzes a list of links to count the number of unique domains.
@@ -159,7 +145,7 @@ module.exports = {
             }
 
             // 4. Create Temporary Files
-            tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'discord-links-'));
+            tempDir = reportDirPath('extract-links');
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             
             // --- Text File Content ---
@@ -312,8 +298,8 @@ module.exports = {
         } finally {
             // 6. Clean up temporary files
             if (tempDir) {
-                fs.rm(tempDir, { recursive: true, force: true }, (err) => {
-                    if (err) console.error(`Failed to clean up temporary directory ${tempDir}:`, err);
+                cleanupDir(tempDir, 0).catch((err) => {
+                    console.error(`Failed to clean up temporary directory ${tempDir}:`, err);
                 });
             }
         }

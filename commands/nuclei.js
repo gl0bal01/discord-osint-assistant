@@ -80,8 +80,7 @@ const { safeSpawn } = require('../utils/process');
 const { splitIntoChunks, chunkArray } = require('../utils/chunks');
 const { isValidUsername } = require('../utils/validation');
 const fs = require('fs').promises;
-const path = require('path');
-const crypto = require('crypto');
+const { reportFilePath, cleanupFile } = require('../utils/temp');
 
 /**
  * Discord slash command definition for Nuclei OSINT scanner
@@ -136,13 +135,9 @@ module.exports = {
         
         // Generate cryptographically secure random identifier for temporary files
         // Prevents file conflicts and enhances security
-        const randomId = crypto.randomBytes(8).toString('hex');
-        const outputDir = path.join(__dirname, '../temp');
-        const outputFile = path.join(outputDir, `nuclei_osint_${username}_${randomId}.txt`);
+        const outputFile = reportFilePath('nuclei', 'txt');
         
         try {
-            // Ensure temporary directory exists with recursive creation
-            await fs.mkdir(outputDir, { recursive: true });
             
             // Build and validate tags list for targeted scanning
             let tagsList = ['osint']; // Base OSINT tag always included
@@ -326,7 +321,7 @@ module.exports = {
         } finally {
             // Comprehensive cleanup to prevent data leakage and resource exhaustion
             try {
-                await fs.unlink(outputFile).catch(() => {}); // Ignore errors if file doesn't exist
+                await cleanupFile(outputFile);
                 console.info(`[Nuclei] Cleanup completed for ${username} scan`);
             } catch (cleanupError) {
                 console.error(`[Nuclei] Cleanup error: ${cleanupError.message}`);

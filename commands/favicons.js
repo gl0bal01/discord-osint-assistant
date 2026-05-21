@@ -49,12 +49,11 @@ const axios = require('axios');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const cheerio = require('cheerio');
 const fs = require('fs').promises;
-const fsSync = require('fs');
 const path = require('path');
-const os = require('os');
 const { URL } = require('url');
 const crypto = require('crypto');
 const murmurhash = require('murmurhash');
+const { reportDirPath, cleanupDir } = require('../utils/temp');
 
 // Configuration constants
 const CONFIG = {
@@ -131,10 +130,7 @@ const validateUrl = (urlString) => {
  * @returns {Promise<string>} - Path to temporary directory
  */
 const createTempDirectory = async () => {
-    const randomId = crypto.randomBytes(12).toString('hex');
-    const tempDir = path.join(os.tmpdir(), `${CONFIG.TEMP_PREFIX}-${randomId}`);
-    await fs.mkdir(tempDir, { recursive: true });
-    return tempDir;
+    return reportDirPath('favicon');
 };
 
 /**
@@ -142,14 +138,9 @@ const createTempDirectory = async () => {
  * @param {string} tempDir - Path to temporary directory
  */
 const cleanupTempDirectory = async (tempDir) => {
-    if (!tempDir || !fsSync.existsSync(tempDir)) return;
-    
+    if (!tempDir) return;
     try {
-        const files = await fs.readdir(tempDir);
-        for (const file of files) {
-            await fs.unlink(path.join(tempDir, file));
-        }
-        await fs.rmdir(tempDir);
+        await cleanupDir(tempDir);
         console.log(`Cleaned up temporary directory: ${tempDir}`);
     } catch (error) {
         console.error(`Error cleaning up temp directory ${tempDir}:`, error);

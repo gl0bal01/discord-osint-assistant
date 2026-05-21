@@ -9,8 +9,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { safeSpawnToFile } = require('../utils/process');
 const { isValidUsername } = require('../utils/validation');
 const fs = require('fs').promises;
-const path = require('path');
-const crypto = require('crypto');
+const { reportFilePath, cleanupFile } = require('../utils/temp');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -45,13 +44,9 @@ module.exports = {
         }
         
         // Generate random filename to prevent conflicts and increase security
-        const randomId = crypto.randomBytes(8).toString('hex');
-        const outputDir = path.join(__dirname, '../temp');
-        const outputFile = path.join(outputDir, `maigret_${username}_${randomId}.txt`);
+        const outputFile = reportFilePath('maigret', 'txt');
         
         try {
-            // Ensure temp directory exists
-            await fs.mkdir(outputDir, { recursive: true });
             
             const maigretPath = process.env.MAIGRET_PATH || 'maigret';
             const args = [username, '-a', '--no-progressbar', '--txt'];
@@ -134,7 +129,7 @@ module.exports = {
         } finally {
             // Clean up the output file
             try {
-                await fs.unlink(outputFile).catch(() => {}); // Ignore errors if file doesn't exist
+                await cleanupFile(outputFile);
             } catch (cleanupError) {
                 console.error(`Error cleaning up file: ${cleanupError.message}`);
             }

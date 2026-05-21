@@ -10,10 +10,8 @@
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
 const { getSafeAxiosConfig, SIZE_10MB } = require('../utils/ssrf');
-const { cleanupFile } = require('../utils/temp');
+const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { capField, safeAscii } = require('../utils/embed');
 
 const MAX_CONTENT = SIZE_10MB;
@@ -95,28 +93,17 @@ module.exports = {
             const fullData = interaction.options.getBoolean('full') ?? false;
             const subcommand = interaction.options.getSubcommand();
 
-            // Create a temp directory if it doesn't exist
-            const tempDir = path.join(__dirname, '..', 'temp');
-            if (!fs.existsSync(tempDir)) {
-                fs.mkdirSync(tempDir, { recursive: true });
-            }
-
-            // Generate unique ID for this request
-            const requestId = crypto.randomBytes(4).toString('hex');
-
-            // Get blockchain details
             const blockchainInfo = BLOCKCHAINS.find(b => b.value === blockchain);
             if (!blockchainInfo) {
                 return interaction.editReply(`Error: Unsupported blockchain '${blockchain}'.`);
             }
 
-            // Handle different subcommands
             if (subcommand === 'address') {
-                await handleAddressLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId);
+                await handleAddressLookup(interaction, blockchain, blockchainInfo, fullData);
             } else if (subcommand === 'transaction') {
-                await handleTransactionLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId);
+                await handleTransactionLookup(interaction, blockchain, blockchainInfo, fullData);
             } else if (subcommand === 'block') {
-                await handleBlockLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId);
+                await handleBlockLookup(interaction, blockchain, blockchainInfo, fullData);
             }
 
         } catch (error) {
@@ -132,47 +119,29 @@ module.exports = {
  * @param {string} blockchain - Blockchain identifier
  * @param {Object} blockchainInfo - Blockchain details
  * @param {boolean} fullData - Whether to return full raw data
- * @param {string} tempDir - Temporary directory path
- * @param {string} requestId - Unique request ID
  */
-async function handleAddressLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId) {
+async function handleAddressLookup(interaction, blockchain, blockchainInfo, fullData) {
     const address = interaction.options.getString('address');
 
-    // Basic address validation
     if (!validateBlockchainAddress(blockchain, address)) {
         return interaction.editReply(`Invalid ${blockchainInfo.name} address format. Please check your input.`);
     }
 
+
     try {
-        // Fetch address data using appropriate API for the blockchain
         const data = await fetchAddressData(blockchain, address);
 
         if (!data) {
             return interaction.editReply(`No data found for ${blockchainInfo.name} address: ${address}`);
         }
 
-        // If full data is requested, return JSON file
         if (fullData) {
-            const filePath = path.join(tempDir, `${blockchain}_address_${requestId}.json`);
-            fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-
-            const attachment = new AttachmentBuilder(filePath, {
-                name: `${blockchain}_address_${address.substring(0, 8)}.json`
-            });
-
-            await interaction.editReply({
-                content: `Full data for ${blockchainInfo.name} address: ${address}`,
-                files: [attachment]
-            });
-
-            cleanupFile(filePath, 5000);
+            await sendFullDataAttachment(interaction, data, `${blockchain}_address_${address.substring(0, 8)}`, `Full data for ${blockchainInfo.name} address: ${address}`);
             return;
         }
 
-        // Extract useful data based on blockchain
         const summary = extractAddressSummary(blockchain, data, blockchainInfo);
 
-        // Create embed for address information
         const embed = new EmbedBuilder()
             .setTitle(`${blockchainInfo.name} Address Information`)
             .setDescription(capField(`Address: \`${address}\``))
@@ -209,10 +178,8 @@ async function handleAddressLookup(interaction, blockchain, blockchainInfo, full
  * @param {string} blockchain - Blockchain identifier
  * @param {Object} blockchainInfo - Blockchain details
  * @param {boolean} fullData - Whether to return full raw data
- * @param {string} tempDir - Temporary directory path
- * @param {string} requestId - Unique request ID
  */
-async function handleTransactionLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId) {
+async function handleTransactionLookup(interaction, blockchain, blockchainInfo, fullData) {
     const txid = interaction.options.getString('txid');
 
     // Basic transaction ID validation
@@ -221,74 +188,32 @@ async function handleTransactionLookup(interaction, blockchain, blockchainInfo, 
     }
 
     try {
-        // Fetch transaction data using appropriate API for the blockchain
         const data = await fetchTransactionData(blockchain, txid);
 
         if (!data) {
             return interaction.editReply(`No data found for ${blockchainInfo.name} transaction: ${txid}`);
         }
 
-        // If full data is requested, return JSON file
         if (fullData) {
-            const filePath = path.join(tempDir, `${blockchain}_tx_${requestId}.json`);
-            fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-
-            const attachment = new AttachmentBuilder(filePath, {
-                name: `${blockchain}_tx_${txid.substring(0, 8)}.json`
-            });
-
-            await interaction.editReply({
-                content: `Full data for ${blockchainInfo.name} transaction: ${txid}`,
-                files: [attachment]
-            });
-
-            cleanupFile(filePath, 5000);
+            await sendFullDataAttachment(interaction, data, `${blockchain}_tx_${txid.substring(0, 8)}`, `Full data for ${blockchainInfo.name} transaction: ${txid}`);
             return;
         }
 
-        // Extract useful data based on blockchain
-        const summary = extractTransactionSummary(blockchain, data, blockchainInfo);
-
-        // Create embed for transaction information
-        const embed = new EmbedBuilder()
-            .setTitle(`${blockchainInfo.name} Transaction Information`)
-            .setDescription(capField(`Transaction ID: \`${txid}\``))
-            .setColor(0x2196F3)
-            .addFields(
-                { name: 'Status', value: capField(summary.status), inline: true },
-                { name: 'Block', value: capField(summary.block), inline: true },
-                { name: 'Timestamp', value: capField(summary.timestamp), inline: true },
-                { name: 'Amount', value: capField(summary.amount), inline: true },
-                { name: 'Fee', value: capField(summary.fee), inline: true }
-            )
-            .setFooter({ text: capField(`Data from ${summary.dataSource}`) })
-            .setTimestamp();
-
-        // Add sender/recipient fields
-        embed.addFields(
-            { name: 'From', value: capField(summary.from || 'Unknown'), inline: false },
-            { name: 'To', value: capField(summary.to || 'Unknown'), inline: false }
-        );
-
-        // Add additional fields based on blockchain-specific data
-        if (summary.additionalFields) {
-            for (const field of summary.additionalFields) {
-                embed.addFields({ name: field.name, value: capField(field.value), inline: field.inline || false });
-            }
-        }
-
-        // Set explorer URL for transaction
-        if (summary.explorerUrl) {
-            embed.setURL(summary.explorerUrl);
-        }
-
-        // Send the response
+        const embed = formatTransactionEmbed(data, blockchainInfo);
         await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
-        console.error(`Error fetching ${blockchainInfo.name} transaction:`, error.message);
+        console.error(`Transaction lookup error:`, error);
         await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
+}
+
+async function sendFullDataAttachment(interaction, data, baseName, content) {
+    const filePath = reportFilePath('blockchain', 'json');
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    const attachment = new AttachmentBuilder(filePath, { name: `${baseName}.json` });
+    await interaction.editReply({ content, files: [attachment] });
+    cleanupFile(filePath, 5000);
 }
 
 /**
@@ -297,81 +222,127 @@ async function handleTransactionLookup(interaction, blockchain, blockchainInfo, 
  * @param {string} blockchain - Blockchain identifier
  * @param {Object} blockchainInfo - Blockchain details
  * @param {boolean} fullData - Whether to return full raw data
- * @param {string} tempDir - Temporary directory path
- * @param {string} requestId - Unique request ID
  */
-async function handleBlockLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId) {
+async function handleBlockLookup(interaction, blockchain, blockchainInfo, fullData) {
     const block = interaction.options.getString('block');
 
-    // Determine if block is a height or hash
-    const isHeight = /^\d+$/.test(block);
-    const blockIdentifier = isHeight ? 'height' : 'hash';
+    // Basic block validation
+    if (!validateBlock(blockchain, block)) {
+        return interaction.editReply(`Invalid ${blockchainInfo.name} block identifier. Please check your input.`);
+    }
 
     try {
-        // Fetch block data using appropriate API for the blockchain
+        const isHeight = /^\d+$/.test(block);
         const data = await fetchBlockData(blockchain, block, isHeight);
 
         if (!data) {
-            return interaction.editReply(`No data found for ${blockchainInfo.name} block ${blockIdentifier}: ${block}`);
+            return interaction.editReply(`No data found for ${blockchainInfo.name} block: ${block}`);
         }
 
-        // If full data is requested, return JSON file
         if (fullData) {
-            const filePath = path.join(tempDir, `${blockchain}_block_${requestId}.json`);
-            fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-
-            const attachment = new AttachmentBuilder(filePath, {
-                name: `${blockchain}_block_${block.substring(0, 8)}.json`
-            });
-
-            await interaction.editReply({
-                content: `Full data for ${blockchainInfo.name} block ${blockIdentifier}: ${block}`,
-                files: [attachment]
-            });
-
-            cleanupFile(filePath, 5000);
+            await sendFullDataAttachment(interaction, data, `${blockchain}_block_${block}`, `Full data for ${blockchainInfo.name} block: ${block}`);
             return;
         }
 
-        // Extract useful data based on blockchain
-        const summary = extractBlockSummary(blockchain, data, blockchainInfo);
-
-        // Create embed for block information
-        const embed = new EmbedBuilder()
-            .setTitle(`${blockchainInfo.name} Block Information`)
-            .setDescription(capField(`Block ${blockIdentifier}: \`${block}\``))
-            .setColor(0xFF9800)
-            .addFields(
-                { name: 'Height', value: capField(summary.height), inline: true },
-                { name: 'Hash', value: capField(summary.hash), inline: false },
-                { name: 'Timestamp', value: capField(summary.timestamp), inline: true },
-                { name: 'Transactions', value: capField(summary.txCount), inline: true },
-                { name: 'Size', value: capField(summary.size), inline: true },
-                { name: 'Difficulty', value: capField(summary.difficulty), inline: true },
-                { name: 'Miner', value: safeAscii(summary.miner || 'Unknown'), inline: false }
-            )
-            .setFooter({ text: capField(`Data from ${summary.dataSource}`) })
-            .setTimestamp();
-
-        // Add additional fields based on blockchain-specific data
-        if (summary.additionalFields) {
-            for (const field of summary.additionalFields) {
-                embed.addFields({ name: field.name, value: capField(field.value), inline: field.inline || false });
-            }
-        }
-
-        // Set explorer URL for block
-        if (summary.explorerUrl) {
-            embed.setURL(summary.explorerUrl);
-        }
-
-        // Send the response
+        const embed = formatBlockEmbed(data, blockchainInfo);
         await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
-        console.error(`Error fetching ${blockchainInfo.name} block:`, error.message);
+        console.error(`Block lookup error:`, error);
         await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
+}
+
+/**
+ * Format transaction data into a Discord embed
+ * @param {Object} data - Raw transaction data
+ * @param {Object} blockchainInfo - Blockchain details
+ * @returns {EmbedBuilder} - Discord embed
+ */
+function formatTransactionEmbed(data, blockchainInfo) {
+    const summary = extractTransactionSummary(blockchainInfo.value, data, blockchainInfo);
+    const embed = new EmbedBuilder()
+        .setTitle(`${blockchainInfo.name} Transaction Information`)
+        .setDescription(capField(`Transaction ID: \`${summary.txid || 'N/A'}\``))
+        .setColor(0x2196F3)
+        .addFields(
+            { name: 'Status', value: capField(summary.status), inline: true },
+            { name: 'Block', value: capField(summary.block), inline: true },
+            { name: 'Timestamp', value: capField(summary.timestamp), inline: true },
+            { name: 'Amount', value: capField(summary.amount), inline: true },
+            { name: 'Fee', value: capField(summary.fee), inline: true }
+        )
+        .setFooter({ text: capField(`Data from ${summary.dataSource}`) })
+        .setTimestamp();
+
+    embed.addFields(
+        { name: 'From', value: capField(summary.from || 'Unknown'), inline: false },
+        { name: 'To', value: capField(summary.to || 'Unknown'), inline: false }
+    );
+
+    if (summary.additionalFields) {
+        for (const field of summary.additionalFields) {
+            embed.addFields({ name: field.name, value: capField(field.value), inline: field.inline || false });
+        }
+    }
+
+    if (summary.explorerUrl) {
+        embed.setURL(summary.explorerUrl);
+    }
+
+    return embed;
+}
+
+/**
+ * Format block data into a Discord embed
+ * @param {Object} data - Raw block data
+ * @param {Object} blockchainInfo - Blockchain details
+ * @returns {EmbedBuilder} - Discord embed
+ */
+function formatBlockEmbed(data, blockchainInfo) {
+    const summary = extractBlockSummary(blockchainInfo.value, data, blockchainInfo);
+    const embed = new EmbedBuilder()
+        .setTitle(`${blockchainInfo.name} Block Information`)
+        .setDescription(capField(`Block: \`${summary.hash || summary.height}\``))
+        .setColor(0xFF9800)
+        .addFields(
+            { name: 'Height', value: capField(summary.height), inline: true },
+            { name: 'Hash', value: capField(summary.hash), inline: false },
+            { name: 'Timestamp', value: capField(summary.timestamp), inline: true },
+            { name: 'Transactions', value: capField(summary.txCount), inline: true },
+            { name: 'Size', value: capField(summary.size), inline: true },
+            { name: 'Difficulty', value: capField(summary.difficulty), inline: true },
+            { name: 'Miner', value: safeAscii(summary.miner || 'Unknown'), inline: false }
+        )
+        .setFooter({ text: capField(`Data from ${summary.dataSource}`) })
+        .setTimestamp();
+
+    if (summary.additionalFields) {
+        for (const field of summary.additionalFields) {
+            embed.addFields({ name: field.name, value: capField(field.value), inline: field.inline || false });
+        }
+    }
+
+    if (summary.explorerUrl) {
+        embed.setURL(summary.explorerUrl);
+    }
+
+    return embed;
+}
+
+/**
+ * Validate blockchain block identifier
+ * @param {string} blockchain - Blockchain identifier
+ * @param {string} block - Block hash or height
+ * @returns {boolean} - Whether the block identifier is valid
+ */
+function validateBlock(_blockchain, block) {
+    if (!block || typeof block !== 'string') return false;
+    // Block hash: hex string of reasonable length
+    if (/^[0-9a-fA-F]{64}$/.test(block)) return true;
+    // Block height: positive integer
+    if (/^\d+$/.test(block) && parseInt(block, 10) >= 0) return true;
+    return false;
 }
 
 /**
@@ -413,14 +384,7 @@ function validateBlockchainAddress(blockchain, address) {
     }
 }
 
-/**
- * Validate transaction ID format
- * @param {string} blockchain - Blockchain identifier
- * @param {string} txid - Transaction ID to validate
- * @returns {boolean} - Whether the transaction ID is valid
- */
-function validateTransactionId(blockchain, txid) {
-    // Most transaction IDs are 64-character hex strings
+function validateTransactionId(_blockchain, txid) {
     return /^[a-fA-F0-9]{64}$/.test(txid);
 }
 

@@ -36,11 +36,12 @@ const COMMAND_CATEGORIES = {
     'bob-blockchain': 'medium',
     'bob-favicon': 'medium',
     'bob-extract-links': 'medium',
-    'bob-nike': 'medium'
+    'bob-nike': 'medium',
+    'bob-upload': 'medium'
 };
 
 // Global per-user daily limits
-const DAILY_LIMIT = parseInt(process.env.RATE_LIMIT_DAILY) || 200;
+const DAILY_LIMIT = parseInt(process.env.RATE_LIMIT_DAILY, 10) || 200;
 
 // Storage: userId -> { commandName -> lastUsed timestamp }
 const cooldowns = new Map();
@@ -105,4 +106,39 @@ function checkRateLimit(userId, commandName) {
     return { limited: false };
 }
 
-module.exports = { checkRateLimit, COOLDOWNS, COMMAND_CATEGORIES };
+// Prune state — additive. Lives on a timer, NEVER invoked from inside checkRateLimit.
+let pruneTimer = null;
+
+function pruneNow() {
+    const now = Date.now();
+    const today = new Date().toISOString().split('T')[0];
+    const cooldownMax = Math.max(...Object.values(COOLDOWNS)) + 1000;
+
+    for (const [userId, userMap] of cooldowns) {
+        let allStale = true;
+        for (const [, ts] of userMap) {
+            if (now - ts < cooldownMax) { allStale = false; break; }
+        }
+        if (allStale) cooldowns.delete(userId);
+    }
+
+    for (const [userId, daily] of dailyCounts) {
+        if (daily.date !== today) dailyCounts.delete(userId);
+    }
+}
+
+function startRateLimitPrune({ intervalMs = 60_000 } = {}) {
+    if (pruneTimer) return pruneTimer;
+    pruneTimer = setInterval(() => module.exports.pruneNow(), intervalMs);
+    pruneTimer.unref?.();
+    return pruneTimer;
+}
+
+function stopRateLimitPrune() {
+    if (pruneTimer) {
+        clearInterval(pruneTimer);
+        pruneTimer = null;
+    }
+}
+
+module.exports = { checkRateLimit, COOLDOWNS, COMMAND_CATEGORIES, startRateLimitPrune, stopRateLimitPrune, pruneNow };

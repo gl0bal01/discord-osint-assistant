@@ -27,9 +27,19 @@ function safeAscii(value, limit = FIELD_VALUE_LIMIT) {
     return String(value ?? '').replace(/[^\x20-\x7E]/g, '?').slice(0, limit);
 }
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 module.exports = {
     capField,
     safeAscii,
+    escapeHtml,
     FIELD_VALUE_LIMIT,
     TITLE_LIMIT,
     DESCRIPTION_LIMIT,

@@ -14,11 +14,10 @@ const axios = require('axios');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { isValidUrl } = require('../utils/validation');
 const fsp = require('fs').promises;
-const path = require('path');
 const crypto = require('crypto');
 const dns = require('dns').promises;
 const tls = require('tls');
-const { cleanupFile } = require('../utils/temp');
+const { reportFilePath, cleanupFile } = require('../utils/temp');
 
 // Cache for historical comparison
 const redirectCache = new Map();
@@ -103,20 +102,16 @@ module.exports = {
             
             // Handle export formats
             if (exportFormat) {
-                const tempDir = path.join(__dirname, '..', 'temp');
-                await fsp.mkdir(tempDir, { recursive: true });
-
-                const randomId = crypto.randomBytes(4).toString('hex');
                 let filePath, content, fileName;
 
                 if (exportFormat === 'csv') {
                     content = generateCSVReport(result);
                     fileName = 'redirect_analysis.csv';
-                    filePath = path.join(tempDir, `redirects_${randomId}.csv`);
+                    filePath = reportFilePath('redirect', 'csv');
                 } else if (exportFormat === 'mermaid') {
                     content = generateMermaidDiagram(result);
                     fileName = 'redirect_diagram.mmd';
-                    filePath = path.join(tempDir, `redirects_${randomId}.mmd`);
+                    filePath = reportFilePath('redirect', 'mmd');
                 }
 
                 await fsp.writeFile(filePath, content);
@@ -141,11 +136,7 @@ module.exports = {
                     timestamp: new Date().toISOString()
                 };
 
-                const tempDir = path.join(__dirname, '..', 'temp');
-                await fsp.mkdir(tempDir, { recursive: true });
-
-                const randomId = crypto.randomBytes(4).toString('hex');
-                const filePath = path.join(tempDir, `redirects_${randomId}.json`);
+                const filePath = reportFilePath('redirect', 'json');
 
                 await fsp.writeFile(filePath, JSON.stringify(fullResult, null, 2));
 

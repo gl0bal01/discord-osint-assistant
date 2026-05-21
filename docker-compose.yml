@@ -17,3 +17,9 @@ services:
     mem_limit: 512m
     memswap_limit: 512m
     pids_limit: 50
+    healthcheck:
+      test: ["CMD", "bun", "run", "scripts/healthcheck.js"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3

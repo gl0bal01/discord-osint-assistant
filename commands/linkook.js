@@ -13,7 +13,7 @@ const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+const { reportDirPath, cleanupDir } = require('../utils/temp');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -46,18 +46,8 @@ module.exports = {
                 return interaction.editReply('Username contains invalid characters. Please use only letters, numbers, dots, underscores, and hyphens.');
             }
             
-            // Create temp directory for output
-            const tempDir = path.join(__dirname, '..', 'temp');
-            if (!fs.existsSync(tempDir)) {
-                fs.mkdirSync(tempDir, { recursive: true });
-            }
-            
-            // Create a unique output directory for this run
-            const randomId = crypto.randomBytes(4).toString('hex');
-            const outputDir = path.join(tempDir, `linkook_${sanitizedUsername}_${randomId}`);
-            if (!fs.existsSync(outputDir)) {
-                fs.mkdirSync(outputDir, { recursive: true });
-            }
+            // Create a unique output directory for this run under temp/reports/
+            const outputDir = reportDirPath('linkook');
             
             // Build command arguments
             const args = [
@@ -183,15 +173,9 @@ async function runLinkook(args, interaction, outputDir, username, rawMode) {
     } finally {
         // Clean up temporary directory after a delay
         setTimeout(() => {
-            try {
-                const files = fs.readdirSync(outputDir);
-                for (const file of files) {
-                    fs.unlinkSync(path.join(outputDir, file));
-                }
-                fs.rmdirSync(outputDir);
-            } catch (error) {
+            cleanupDir(outputDir, 0).catch((error) => {
                 console.error('Error cleaning up output directory:', error);
-            }
+            });
         }, 5000);
     }
 }

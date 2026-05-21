@@ -28,8 +28,8 @@ const { SlashCommandBuilder, AttachmentBuilder, MessageFlags } = require('discor
 const { safeSpawnToFile, getSafeEnv } = require('../utils/process');
 const fs = require('fs').promises;
 const path = require('path');
-const crypto = require('crypto');
 const { isValidUsername, sanitizeInput, isValidUrl } = require('../utils/validation');
+const { reportFilePath, cleanupFile } = require('../utils/temp');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -84,16 +84,11 @@ module.exports = {
         }
         
         // Generate unique output filename to prevent conflicts
-        const randomId = crypto.randomBytes(8).toString('hex');
-        const timestamp = Date.now();
-        const outputDir = path.join(__dirname, '../temp');
-        const outputFile = path.join(outputDir, `sherlock_${username}_${timestamp}_${randomId}.txt`);
+        const outputFile = reportFilePath('sherlock', 'txt');
         
         console.log(`🕵️ [SHERLOCK] Starting username search for: ${username}`);
         
         try {
-            // Ensure temp directory exists
-            await fs.mkdir(outputDir, { recursive: true });
             
             // Build Sherlock command
             const sherlockPath = process.env.SHERLOCK_PATH || 'sherlock';
@@ -334,7 +329,7 @@ async function handleSherlockError(interaction, error, username) {
  */
 async function cleanupOutputFile(outputFile) {
     try {
-        await fs.unlink(outputFile);
+        await cleanupFile(outputFile);
         console.log(`🗑️ [SHERLOCK] Cleaned up output file: ${path.basename(outputFile)}`);
     } catch (error) {
         console.warn(`⚠️ [SHERLOCK] Failed to cleanup file ${outputFile}:`, error.message);

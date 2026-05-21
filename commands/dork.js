@@ -9,8 +9,7 @@
 
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+const { reportFilePath, cleanupFile } = require('../utils/temp');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -57,16 +56,9 @@ module.exports = {
             // Generate dorks and URLs
             const { urls, dorks } = generateDorkUrls(firstname, lastname, engine, advanced);
             
-            // Create temp directory for output file
-            const tempDir = path.join(__dirname, '..', 'temp');
-            if (!fs.existsSync(tempDir)) {
-                fs.mkdirSync(tempDir, { recursive: true });
-            }
-            
-            // Generate unique filename
-            const randomId = crypto.randomBytes(4).toString('hex');
+            // Generate unique filename under temp/reports/
             const safeFn = (s) => s.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
-            const outputFile = path.join(tempDir, `dorks_${safeFn(firstname)}_${safeFn(lastname)}_${randomId}.txt`);
+            const outputFile = reportFilePath(`dork_${safeFn(firstname)}_${safeFn(lastname)}`, 'txt');
             
             // Write URLs to file
             let fileContent = `# OSINT Search URLs for ${firstname} ${lastname}\n`;
@@ -101,13 +93,7 @@ Use these URLs with browser extensions like "Open Multiple URLs" to open them al
             });
             
             // Clean up temp file after a delay
-            setTimeout(() => {
-                try {
-                    fs.unlinkSync(outputFile);
-                } catch (error) {
-                    console.error('Error cleaning up temp file:', error);
-                }
-            }, 5000);
+            cleanupFile(outputFile, 5000);
             
         } catch (error) {
             console.error('Error in dork command:', error);

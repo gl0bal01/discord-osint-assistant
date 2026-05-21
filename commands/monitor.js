@@ -1,32 +1,18 @@
 /**
  * Discord Slash Command: /bob-monitor
  *
- * Description:
- * A Discord bot command that enables monitoring of website content and login functionality.
- * It detects changes to web pages by hashing their content and optionally tests login flows
- * using Playwright's headless browser. All notifications are sent to a designated monitoring channel.
+ * Polls user-supplied URLs at fixed intervals and posts a Discord
+ * notification to MONITOR_CHANNEL_ID when the page body hash changes.
  *
- * Features:
- * - Monitor web pages for content changes at user-defined intervals.
- * - Simulate and validate login workflows via Playwright.
- * - Commands to start, stop, list, and stop all monitoring sessions.
- * - Sends real-time updates and errors to a configured Discord channel.
- *
- * Dependencies:
- * - `axios` for fetching page content
- * - `crypto` for hashing page data
- * - `discord.js` for constructing slash commands
- *
- * Environment Variables:
- * - `MONITOR_CHANNEL_ID`: The Discord channel ID where updates and alerts will be posted
+ * Subcommands: start, stop, stopall, list.
  *
  * Author: gl0bal01
  */
 
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const axios = require('axios');
 const crypto = require('crypto');
-const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
+const { validateUrlNotInternal, getSafeAxiosConfig, SIZE_5MB } = require('../utils/ssrf');
 
 const MONITOR_CHANNEL_ID = process.env.MONITOR_CHANNEL_ID;
 
@@ -36,7 +22,10 @@ const MAX_MONITORS = 20;
 const MAX_MONITORS_PER_USER = 3;
 
 function hashContent(content) {
-    return crypto.createHash('md5').update(content).digest('hex');
+    const buf = typeof content === 'string' || Buffer.isBuffer(content)
+        ? content
+        : JSON.stringify(content);
+    return crypto.createHash('md5').update(buf).digest('hex');
 }
 
 async function checkWebsite(url, client) {
@@ -44,15 +33,17 @@ async function checkWebsite(url, client) {
         await validateUrlNotInternal(url);
         const response = await axios.get(url, {
             ...getSafeAxiosConfig(),
-            maxContentLength: 5 * 1024 * 1024,
-            maxBodyLength: 5 * 1024 * 1024,
+            responseType: 'text',
+            transformResponse: [(data) => data],
+            maxContentLength: SIZE_5MB,
+            maxBodyLength: SIZE_5MB,
         });
         const entry = monitors.get(url);
         if (!entry) return;
         const newHash = hashContent(response.data);
         if (entry.hash !== null && entry.hash !== newHash) {
             const channel = await client.channels.fetch(MONITOR_CHANNEL_ID);
-            if (channel && channel.permissionsFor(client.user).has('SendMessages')) {
+            if (channel && channel.permissionsFor(client.user).has(PermissionFlagsBits.SendMessages)) {
                 await channel.send(`Changes detected on ${url}`);
             } else {
                 console.error('Missing permissions to send messages in monitoring channel');
@@ -100,32 +91,27 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+        if (!MONITOR_CHANNEL_ID) {
+            return interaction.editReply({ content: 'Monitoring is not configured: MONITOR_CHANNEL_ID is unset.' });
+        }
+
         const subcommand = interaction.options.getSubcommand();
 
         switch (subcommand) {
             case 'start': {
                 const url = interaction.options.getString('url');
                 const interval = interaction.options.getInteger('interval');
+                const userId = interaction.user.id;
 
-                try {
-                    await validateUrlNotInternal(url);
-                } catch (_err) {
-                    return interaction.editReply({ content: 'The provided URL is not allowed.' });
-                }
-
+                // All gating checks must be synchronous and complete BEFORE
+                // any await, so two concurrent invocations cannot both pass
+                // the same check and double-claim a slot.
                 if (monitors.has(url)) {
-                    await interaction.editReply(`Already monitoring ${url}`);
-                    return;
+                    return interaction.editReply(`Already monitoring ${url}`);
                 }
-
                 if (monitors.size >= MAX_MONITORS) {
                     return interaction.editReply({ content: `Maximum monitoring limit (${MAX_MONITORS}) reached. Stop some monitors first.` });
                 }
-                if (interval < 1) {
-                    return interaction.editReply({ content: 'Interval must be at least 1 minute.' });
-                }
-
-                const userId = interaction.user.id;
                 let userMonitorCount = 0;
                 for (const m of monitors.values()) {
                     if (m.userId === userId) userMonitorCount++;
@@ -134,19 +120,27 @@ module.exports = {
                     return interaction.editReply({ content: `You have reached the per-user monitor limit (${MAX_MONITORS_PER_USER}). Stop one of your monitors first.` });
                 }
 
-                const monitorChannel = await interaction.client.channels.fetch(MONITOR_CHANNEL_ID);
-                if (!monitorChannel || !monitorChannel.permissionsFor(interaction.client.user).has('SendMessages')) {
-                    await interaction.editReply({ content: "I don't have permission to send messages in the monitoring channel." });
-                    return;
-                }
-
-                // Insert the entry BEFORE starting the timer so the first
-                // tick can find it and ownership tracking is never racy.
                 const entry = { hash: null, userId, timer: null };
                 monitors.set(url, entry);
-                entry.timer = setInterval(() => checkWebsite(url, interaction.client), interval * 60000);
-                await checkWebsite(url, interaction.client);
-                await interaction.editReply(`Started monitoring ${url} every ${interval} minutes. Results will be posted in <#${MONITOR_CHANNEL_ID}>`);
+
+                try {
+                    await validateUrlNotInternal(url);
+
+                    const monitorChannel = await interaction.client.channels.fetch(MONITOR_CHANNEL_ID);
+                    if (!monitorChannel || !monitorChannel.permissionsFor(interaction.client.user).has(PermissionFlagsBits.SendMessages)) {
+                        monitors.delete(url);
+                        return interaction.editReply({ content: "I don't have permission to send messages in the monitoring channel." });
+                    }
+
+                    entry.timer = setInterval(() => checkWebsite(url, interaction.client), interval * 60000);
+                    await checkWebsite(url, interaction.client);
+                    await interaction.editReply(`Started monitoring ${url} every ${interval} minutes. Results will be posted in <#${MONITOR_CHANNEL_ID}>`);
+                } catch (err) {
+                    if (entry.timer) clearInterval(entry.timer);
+                    monitors.delete(url);
+                    console.error('Failed to start monitor:', { url, message: err.message });
+                    return interaction.editReply({ content: 'The provided URL is not allowed or the monitor could not be started.' });
+                }
                 break;
             }
 
@@ -178,9 +172,6 @@ module.exports = {
                 }
                 break;
             }
-
-            case 'login':
-                return interaction.editReply({ content: 'The login monitoring feature has been removed for security reasons.' });
         }
     },
     shutdown() {

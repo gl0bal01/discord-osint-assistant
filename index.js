@@ -1,262 +1,130 @@
-/**
- * File: index.js
- * Description: Main Discord bot entry point for OSINT Assistant
- * Author: gl0bal01
- * 
- * This is the central file that initializes the Discord bot, loads all command modules,
- * and handles the primary event listeners for interactions. The bot is designed for
- * Open Source Intelligence (OSINT) gathering and analysis operations.
- */
-
-// Load environment variables from .env file
+// Main Discord bot entry point for OSINT Assistant — gl0bal01
 require('dotenv').config();
 
-// Import required Discord.js components
-const { Client, Collection, GatewayIntentBits, Events, MessageFlags } = require('discord.js');
-const fs = require('node:fs');
+const { Client, GatewayIntentBits, Events, MessageFlags } = require('discord.js');
 const path = require('node:path');
 const { checkPermission } = require('./utils/permissions');
-const { checkRateLimit } = require('./utils/ratelimit');
+const { checkRateLimit, startRateLimitPrune, stopRateLimitPrune } = require('./utils/ratelimit');
+const bootstrap = require('./utils/bootstrap');
+const logger = require('./utils/logger');
+const { startHealthWriter, stopHealthWriter, markReady, markShuttingDown, writeStartingState } = require('./utils/health');
+const { startMetricsServer, stopMetricsServer, commandDuration, commandErrors, ratelimitBlocks, discordEvents } = require('./utils/metrics');
+const { startHourlySweep, stopHourlySweep } = require('./utils/temp-sweep');
 
-// Validate environment variables via centralized config (singleton).
-// Importing the module triggers validation; missing required vars exit(1).
-require('./utils/config');
+require('./utils/config'); // validates env; exits(1) on missing required vars
 
-// Clean up orphaned temp files from previous runs
 const tempDir = path.join(__dirname, 'temp');
-if (fs.existsSync(tempDir)) {
-    const files = fs.readdirSync(tempDir);
-    const now = Date.now();
-    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-    for (const file of files) {
-        try {
-            const filePath = path.join(tempDir, file);
-            const stat = fs.statSync(filePath);
-            if (now - stat.mtimeMs > maxAge) {
-                if (stat.isDirectory()) {
-                    fs.rmSync(filePath, { recursive: true, force: true });
-                } else {
-                    fs.unlinkSync(filePath);
-                }
-            }
-        } catch { /* ignore cleanup errors */ }
-    }
+bootstrap.sweepBootTemp(tempDir);
+startHourlySweep(tempDir);
+
+const HEALTH_FILE = process.env.HEALTH_FILE || './temp/.health/health.json';
+writeStartingState(HEALTH_FILE);
+startHealthWriter({ path: HEALTH_FILE, intervalMs: 5000 });
+startRateLimitPrune();
+
+let metricsServer = null;
+if (process.env.METRICS_ENABLED === 'true') {
+    metricsServer = startMetricsServer({ port: parseInt(process.env.METRICS_PORT || '9090', 10), host: process.env.METRICS_HOST || '127.0.0.1' });
+    metricsServer.catch(err => logger.error({ err }, 'metrics server failed to start'));
 }
 
-// Parse the guild whitelist once at startup (empty = allow all)
-const ALLOWED_GUILDS = (process.env.ALLOWED_GUILD_IDS || '')
-    .split(',')
-    .map(id => id.trim())
-    .filter(Boolean);
+const ALLOWED_GUILDS = bootstrap.parseAllowedGuilds(process.env.ALLOWED_GUILD_IDS);
 
-// Initialize Discord client with required intents.
-// allowedMentions blocks @everyone/@here/role pings injected via third-party
-// data (WHOIS, blockchain, AI chat output, link extraction, etc.).
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages
-    ],
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
     allowedMentions: { parse: ['users'], repliedUser: false }
 });
 
-// Create a collection to store commands
-client.commands = new Collection();
+const { commands, stats } = bootstrap.loadCommands(path.join(__dirname, 'commands'));
+client.commands = commands;
+logger.info({ loaded: stats.loaded, skipped: stats.skipped, failed: stats.failed }, 'Commands loaded');
 
-/**
- * Load all command modules from the commands directory
- * Each command file should export an object with 'data' and 'execute' properties
- */
-const commandsPath = path.join(__dirname, 'commands');
+const shutdownHandler = bootstrap.createShutdownHandler(client, {
+    onSignal: (signal) => { logger.info({ signal }, 'shutdown signal received'); markShuttingDown(); },
+    onDrain: async () => { stopRateLimitPrune(); stopHealthWriter(); stopHourlySweep(); if (metricsServer) await stopMetricsServer(); }
+});
+process.on('SIGINT', () => shutdownHandler('SIGINT'));
+process.on('SIGTERM', () => shutdownHandler('SIGTERM'));
 
-try {
-    // Read all JavaScript files from the commands directory
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-    
-    console.log(`📁 Loading ${commandFiles.length} command files...`);
-    
-    for (const file of commandFiles) {
-        const filePath = path.join(commandsPath, file);
-        
-        try {
-            const command = require(filePath);
-            
-            // Validate command structure
-            if ('data' in command && 'execute' in command) {
-                // Store command in collection using command name as key
-                client.commands.set(command.data.name, command);
-                console.log(`   ✅ Loaded command: ${command.data.name}`);
-            } else {
-                console.warn(`   ⚠️  Command at ${file} is missing required 'data' or 'execute' property. Skipping.`);
-            }
-        } catch (error) {
-            console.error(`   ❌ Error loading command from ${file}:`, error.message);
-        }
+function leaveUnauthorized(guild) {
+    if (ALLOWED_GUILDS.length > 0 && !ALLOWED_GUILDS.includes(guild.id)) {
+        logger.info({ guildName: guild.name, guildId: guild.id }, 'Leaving unauthorized guild');
+        guild.leave().catch(err => logger.error({ guildId: guild.id, err }, 'Failed to leave guild'));
     }
-    
-    console.log(`✅ Successfully loaded ${client.commands.size} commands\n`);
-} catch (error) {
-    console.error('❌ Error reading commands directory:', error.message);
-    process.exit(1);
 }
 
-/**
- * Event: Bot Ready
- * Triggered when the bot successfully connects to Discord
- */
 client.once(Events.ClientReady, (readyClient) => {
-    console.log(`🤖 Discord OSINT Assistant is online!`);
-    console.log(`   Logged in as: ${readyClient.user.tag}`);
-    console.log(`   Bot ID: ${readyClient.user.id}`);
-    console.log(`   Serving ${readyClient.guilds.cache.size} guild(s)`);
-    console.log(`   Commands available: ${client.commands.size}`);
-    console.log(`⭐ Bot ready for OSINT operations!\n`);
-    
-    // Set bot activity status
+    logger.info({ tag: readyClient.user.tag, guilds: readyClient.guilds.cache.size, commands: client.commands.size }, 'OSINT Assistant online');
     client.user.setActivity('OSINT operations', { type: 'WATCHING' });
-
-    // Guild whitelist: auto-leave unauthorized servers
-    if (ALLOWED_GUILDS.length > 0) {
-        for (const guild of readyClient.guilds.cache.values()) {
-            if (!ALLOWED_GUILDS.includes(guild.id)) {
-                console.log(`🚫 Leaving unauthorized guild: ${guild.name} (${guild.id})`);
-                guild.leave().catch(err => console.error(`Failed to leave guild ${guild.id}:`, err));
-            }
-        }
-    }
+    if (ALLOWED_GUILDS.length > 0) readyClient.guilds.cache.forEach(leaveUnauthorized);
+    markReady();
+    discordEvents.inc({ event: 'ready' });
 });
 
-/**
- * Event: Guild Create
- * Auto-leave unauthorized servers when bot is added
- */
-client.on(Events.GuildCreate, (guild) => {
-    if (ALLOWED_GUILDS.length > 0 && !ALLOWED_GUILDS.includes(guild.id)) {
-        console.log(`🚫 Leaving unauthorized guild: ${guild.name} (${guild.id})`);
-        guild.leave().catch(err => console.error(`Failed to leave guild ${guild.id}:`, err));
-    }
-});
+client.on(Events.GuildCreate, leaveUnauthorized);
 
-/**
- * Event: Interaction Create
- * Handles all incoming interactions (slash commands, buttons, etc.)
- */
 client.on(Events.InteractionCreate, async interaction => {
-    // Hard-fail unauthorized guilds and DMs (when whitelist is set) before
-    // any routing, so component handlers added later inherit the same gate.
     if (ALLOWED_GUILDS.length > 0) {
         if (!interaction.guild || !ALLOWED_GUILDS.includes(interaction.guild.id)) {
-            if (interaction.isRepliable && interaction.isRepliable()) {
-                try {
-                    await interaction.reply({
-                        content: 'This bot is not authorized in this context.',
-                        flags: MessageFlags.Ephemeral
-                    });
-                } catch { /* interaction already expired */ }
+            if (interaction.isRepliable?.()) {
+                try { await interaction.reply({ content: 'This bot is not authorized in this context.', flags: MessageFlags.Ephemeral }); }
+                catch { /* expired */ }
             }
             return;
         }
     }
 
-    // Only process slash command interactions
     if (!interaction.isChatInputCommand()) return;
 
-    // Retrieve the command from our collection
-    const command = client.commands.get(interaction.commandName);
-    
-    if (!command) {
-        console.error(`❌ No command matching ${interaction.commandName} was found.`);
-        return;
-    }
-    
-    // Check permissions for restricted commands
+    const cmdName = interaction.commandName;
+    const command = client.commands.get(cmdName);
+    if (!command) { logger.error({ commandName: cmdName }, 'No command matching name was found'); return; }
+
     const { allowed, reason } = checkPermission(interaction);
     if (!allowed) {
-        return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
-    }
-
-    // Check rate limiting
-    const { limited, reason: rateLimitReason } = checkRateLimit(interaction.user.id, interaction.commandName);
-    if (limited) {
-        return interaction.reply({ content: rateLimitReason, flags: MessageFlags.Ephemeral });
-    }
-
-    // Log command usage for audit purposes
-    const timestamp = new Date().toISOString();
-    const userInfo = `${interaction.user.tag} (${interaction.user.id})`;
-    const guildInfo = interaction.guild ? `${interaction.guild.name} (${interaction.guild.id})` : 'DM';
-    const commandInfo = `${interaction.commandName}`;
-    
-    console.log(`📝 [${timestamp}] Command executed: ${commandInfo} by ${userInfo} in ${guildInfo}`);
-    
-    try {
-        // Execute the command with error handling
-        await command.execute(interaction);
-
-        // Log successful execution
-        console.log(`   ✅ Command ${commandInfo} completed successfully`);
-        
-    } catch (error) {
-        // Log the error for debugging
-        console.error(`❌ Error executing command ${commandInfo}:`, error);
-        
-        // Prepare user-friendly error message
-        const errorMessage = 'There was an error while executing this command! Please try again later.';
-        
         try {
-            // Send error response to user
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ 
-                    content: errorMessage, 
-                    flags: MessageFlags.Ephemeral 
-                });
-            } else {
-                await interaction.reply({ 
-                    content: errorMessage, 
-                    flags: MessageFlags.Ephemeral 
-                });
-            }
-        } catch (replyError) {
-            console.error('❌ Failed to send error message to user:', replyError);
+            return await interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+        } catch {
+            return;
         }
+    }
+    const { limited, reason: rateLimitReason } = checkRateLimit(interaction.user.id, cmdName);
+    if (limited) {
+        ratelimitBlocks.inc({ command: cmdName });
+        try {
+            return await interaction.reply({ content: rateLimitReason, flags: MessageFlags.Ephemeral });
+        } catch {
+            return;
+        }
+    }
+
+    logger.info({
+        command: cmdName,
+        userId: interaction.user.id,
+        userTag: interaction.user.tag,
+        guildId: interaction.guild?.id,
+        guildName: interaction.guild?.name
+    }, 'Command invoked');
+
+    const endTimer = commandDuration.startTimer({ command: cmdName });
+    try {
+        await command.execute(interaction);
+        logger.info({ command: cmdName }, 'Command completed successfully');
+    } catch (error) {
+        commandErrors.inc({ command: cmdName, reason: error.name || 'Error' });
+        logger.error({ command: cmdName, err: error }, 'Error executing command');
+        const msg = 'There was an error while executing this command! Please try again later.';
+        try {
+            if (interaction.replied || interaction.deferred) await interaction.followUp({ content: msg, flags: MessageFlags.Ephemeral });
+            else await interaction.reply({ content: msg, flags: MessageFlags.Ephemeral });
+        } catch (e) { logger.error({ err: e }, 'Failed to send error message to user'); }
+    } finally {
+        endTimer();
     }
 });
 
-/**
- * Event: Error Handling
- * Global error handler for uncaught exceptions
- */
-process.on('uncaughtException', (error) => {
-    console.error('❌ Uncaught Exception:', error);
-    // Don't exit the process for uncaught exceptions in production
-    // process.exit(1);
-});
+process.on('uncaughtException', (err) => { logger.fatal({ err }, 'uncaughtException'); process.exit(1); });
+process.on('unhandledRejection', (reason) => { logger.fatal({ reason }, 'unhandledRejection'); process.exit(1); });
 
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-    // Don't exit the process for unhandled rejections in production
-});
-
-/**
- * Graceful shutdown handling
- */
-function shutdown(signal) {
-    console.log(`\n🛑 Received ${signal}. Gracefully shutting down...`);
-    // Allow command modules to clean up timers and intervals so the
-    // event loop can drain instead of being yanked by process.exit.
-    for (const cmd of client.commands.values()) {
-        if (typeof cmd.shutdown === 'function') {
-            try { cmd.shutdown(); } catch (e) { console.error('command shutdown error:', e); }
-        }
-    }
-    client.destroy();
-    // Give in-flight connections a moment to close before exit.
-    setTimeout(() => process.exit(0), 1000).unref();
-}
-
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-
-// Start the bot by logging in to Discord
-console.log('🚀 Starting Discord OSINT Assistant...');
+logger.info('Starting Discord OSINT Assistant...');
 client.login(process.env.DISCORD_TOKEN);

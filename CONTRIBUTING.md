@@ -23,9 +23,13 @@
 - Import `SlashCommandBuilder` from `discord.js`, not `@discordjs/builders`
 - Do not add `require('dotenv').config()` in command files (loaded by index.js)
 - Validate all user input using `utils/validation.js`
-- Never expose `error.message` to Discord users — log to console, show generic messages
+- Never expose `error.message` to Discord users — log via `utils/logger.js`, show generic messages
 - Clean up temporary files in `finally` blocks
 - Use `??` (nullish coalescing) for boolean defaults, not `||`
+- Boot orchestration (command loading, guild whitelist, shutdown handler, temp sweep) lives in `utils/bootstrap.js` — keep `index.js` under 120 lines
+- Per-command observability (duration timer, error counter) is wired in `index.js` routing layer, not inside `commands/*.js`. Do not import `utils/metrics.js` from a command file
+- `commands/*.js` may still use `console.*` for now — migration to `utils/logger.js` child loggers is tracked as a follow-up. New utility modules outside `commands/` should use the logger directly
+- When adding a secret-bearing env var, update BOTH `utils/config.js` OPTIONAL and the `redact.paths` list in `utils/logger.js`
 
 ## Testing
 

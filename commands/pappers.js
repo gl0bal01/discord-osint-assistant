@@ -10,9 +10,9 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
+const { reportFilePath, cleanupFile } = require('../utils/temp');
 // Definitions of available fields for company endpoint
 const AVAILABLE_FIELD_GROUPS = {
     'officers': 'Company officers and directors',
@@ -146,11 +146,7 @@ module.exports = {
         try {
             const subcommand = interaction.options.getSubcommand();
             
-            // Create temp directory for output files if it doesn't exist
-            const tempDir = path.join(__dirname, '..', 'temp');
-            if (!fs.existsSync(tempDir)) {
-                fs.mkdirSync(tempDir, { recursive: true });
-            }
+            // reportFilePath will be used for output files
             
             // Handle different subcommands
             let apiResponse = null;
@@ -301,7 +297,7 @@ module.exports = {
             }
             
             // Save the raw API response to a file
-            const filePath = path.join(tempDir, filename);
+            const filePath = reportFilePath('pappers', 'json');
             fs.writeFileSync(filePath, JSON.stringify(apiResponse, null, 2));
             
             // Create an attachment with the file
@@ -332,13 +328,7 @@ module.exports = {
             });
             
             // Clean up the temporary file after a delay
-            setTimeout(() => {
-                try {
-                    fs.unlinkSync(filePath);
-                } catch (error) {
-                    console.error('Error deleting temporary file:', error);
-                }
-            }, 5000);
+            cleanupFile(filePath, 5000);
             
         } catch (error) {
             // Stop the progress updates

@@ -10,10 +10,10 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const { isValidDomain } = require('../utils/validation');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
+const { reportFilePath, cleanupFile } = require('../utils/temp');
 
 // Available field types for search by field subcommand
 const FIELD_TYPES = [
@@ -84,11 +84,7 @@ module.exports = {
             // Send initial status message
             await interaction.editReply(`Processing request ID ${requestId}...`);
             
-            // Create temp directory for output files if needed
-            const tempDir = path.join(__dirname, '..', 'temp');
-            if (!fs.existsSync(tempDir)) {
-                fs.mkdirSync(tempDir, { recursive: true });
-            }
+            // reportFilePath will be used for output files
             
             const subcommand = interaction.options.getSubcommand();
             let apiResponse = null;
@@ -163,7 +159,7 @@ module.exports = {
             }
             
             // Save the API response to a file
-            const filePath = path.join(tempDir, filename);
+            const filePath = reportFilePath('hostio', 'json');
             fs.writeFileSync(filePath, JSON.stringify(apiResponse, null, 2));
             
             // Create an attachment
@@ -207,13 +203,7 @@ module.exports = {
             });
             
             // Clean up the temporary file after a delay
-            setTimeout(() => {
-                try {
-                    fs.unlinkSync(filePath);
-                } catch (error) {
-                    console.error('Error deleting temporary file:', error);
-                }
-            }, 5000);
+            cleanupFile(filePath, 5000);
             
         } catch (error) {
             console.error('Hostio command error:', { status: error.response?.status, message: error.message });

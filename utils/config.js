@@ -3,6 +3,8 @@
  * Validates required env vars at startup, provides defaults for optional ones.
  */
 
+const logger = require('./logger');
+
 const REQUIRED = {
     DISCORD_TOKEN: 'Discord bot token',
     CLIENT_ID: 'Discord application client ID'
@@ -15,6 +17,7 @@ const OPTIONAL = {
     NUCLEI_PATH: { desc: 'Path to nuclei binary', default: 'nuclei' },
     NUCLEI_TEMPLATE_PATH: { desc: 'Path to nuclei templates', default: '/opt/nuclei-templates/http/osint/user-enumeration' },
     EXIFTOOL_PATH: { desc: 'Path to exiftool binary', default: 'exiftool' },
+    GHUNT_CREDS_PATH: { desc: 'Path to GHunt credentials file (default: ~/.malfrats/ghunt/creds.m)', default: null },
     JWT_TOOL_PATH: { desc: 'Path to jwt_tool', default: '/opt/tools/jwt_tool' },
     OPENAI_API_KEY: { desc: 'OpenAI API key for chat', default: null },
     ANTHROPIC_API_KEY: { desc: 'Anthropic API key for chat', default: null },
@@ -32,6 +35,8 @@ const OPTIONAL = {
     NIKE_TOKEN: { desc: 'Nike API token', default: null },
     ALLOWED_GUILD_IDS: { desc: 'Comma-separated guild IDs the bot is allowed to operate in (empty = all)', default: '' },
     OSINT_ALLOWED_ROLES: { desc: 'Comma-separated Discord role IDs for OSINT access', default: '' },
+    // SECURITY_WEBHOOK_URL: consumed only by commands/redirect-chain.js notifyWebhook().
+    // Do not generalize without first adding webhook-fanout cooldown (follow-up #2).
     SECURITY_WEBHOOK_URL: { desc: 'Webhook URL for security alerts', default: null },
     AWS_ACCESS_KEY_ID: { desc: 'AWS access key for Rekognition', default: null },
     AWS_SECRET_ACCESS_KEY: { desc: 'AWS secret key for Rekognition', default: null },
@@ -51,8 +56,7 @@ function loadConfig() {
     }
 
     if (missing.length > 0) {
-        console.error('Missing required environment variables:');
-        missing.forEach(v => console.error(`  - ${v}`));
+        logger.error({ missing }, 'Missing required environment variables');
         process.exit(1);
     }
 

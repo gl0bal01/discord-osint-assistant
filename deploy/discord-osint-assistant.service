@@ -1,0 +1,44 @@
+[Unit]
+Description=Discord OSINT Assistant Bot
+Documentation=https://github.com/gl0bal01/discord-osint-assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botuser
+Group=botuser
+WorkingDirectory=/opt/discord-osint-assistant
+EnvironmentFile=/etc/discord-osint-assistant.env
+ExecStart=/usr/bin/bun run start
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=discord-osint
+
+# Resource limits (mirrors docker-compose)
+MemoryMax=512M
+TasksMax=50
+LimitNOFILE=1024
+
+# Sandboxing
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/opt/discord-osint-assistant/temp
+
+# Healthcheck (systemd 240+)
+WatchdogSec=60
+
+[Install]
+WantedBy=multi-user.target

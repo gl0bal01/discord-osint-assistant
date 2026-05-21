@@ -18,12 +18,10 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
-
-function escapeHtml(str) {
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-}
+const { reportFilePath, cleanupFile } = require('../utils/temp');
+const { escapeHtml } = require('../utils/embed');
+const { splitIntoChunks } = require('../utils/chunks');
 
 let cachedToken = null;
 let tokenExpiry = 0;
@@ -36,17 +34,6 @@ function getToken() {
 function setToken(token, expiresIn = 3600000) {
     cachedToken = token;
     tokenExpiry = Date.now() + expiresIn;
-}
-
-// Small helper to split a string into pieces at most 2000 chars each.
-function chunkString(str, size = 2000) {
-  const chunks = [];
-  let index = 0;
-  while (index < str.length) {
-    chunks.push(str.slice(index, index + size));
-    index += size;
-  }
-  return chunks;
 }
 
 // Generate an HTML report file from results
@@ -282,14 +269,7 @@ module.exports = {
       try {
         // Generate HTML report file by default
         const reportContent = generateHTMLReport(objects, searchString);
-        const reportFilename = `nike_lookup_${Date.now()}.html`;
-        const reportPath = path.join(__dirname, '..', 'temp', reportFilename);
-        
-        // Ensure temp directory exists
-        const tempDir = path.join(__dirname, '..', 'temp');
-        if (!fs.existsSync(tempDir)) {
-          fs.mkdirSync(tempDir, { recursive: true });
-        }
+        const reportPath = reportFilePath('nike', 'html');
         
         // Write report file
         fs.writeFileSync(reportPath, reportContent, 'utf8');
@@ -332,13 +312,7 @@ module.exports = {
         });
         
         // Clean up the file after it's been sent
-        setTimeout(() => {
-          try {
-            fs.unlinkSync(reportPath);
-          } catch (err) {
-            console.error('Failed to clean up report file:', err);
-          }
-        }, 10000); // Clean up after 10 seconds
+        cleanupFile(reportPath, 10000);
         
       } catch (err) {
         console.error('Error creating report file:', err);
@@ -380,7 +354,7 @@ module.exports = {
         });
         
         // Now break down the replyMessage if it's > 2000 chars
-        const messageChunks = chunkString(replyMessage);
+        const messageChunks = splitIntoChunks(replyMessage, 2000);
         
         // Edit our deferred reply with the first chunk and error message
         await interaction.editReply({

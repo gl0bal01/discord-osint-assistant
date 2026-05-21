@@ -40,12 +40,12 @@ const { safeSpawn, safeSpawnToFile } = require('../utils/process');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+const { reportFilePath, cleanupFile, REPORTS_DIR } = require('../utils/temp');
 
 // Configuration - adjust these paths according to your environment
 const CONFIG = {
     JWT_TOOL_PATH: process.env.JWT_TOOL_PATH || '/opt/tools/jwt_tool',
-    TEMP_FOLDER: process.env.JWT_TEMP_FOLDER || path.join(__dirname, '..', 'temp', 'jwt_analysis'),
+    TEMP_FOLDER: process.env.JWT_TEMP_FOLDER || REPORTS_DIR,
     DEFAULT_WORDLIST: process.env.JWT_WORDLIST || '/opt/rockyou.txt',
     COMMAND_TIMEOUT: parseInt(process.env.JWT_TIMEOUT) || 120000, // 2 minutes
     MAX_OUTPUT_SIZE: 10 * 1024 * 1024, // 10MB max output file size
@@ -55,13 +55,6 @@ const CONFIG = {
 
 // JWT token validation regex — rejects malformed tokens before invoking jwt_tool
 const JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
-
-// Utility functions
-const generateSecureFilename = (prefix) => {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const random = crypto.randomBytes(8).toString('hex');
-    return `${prefix}-${timestamp}-${random}.txt`;
-};
 
 const cleanupOldFiles = async () => {
     try {
@@ -232,7 +225,7 @@ module.exports = {
             const jwtToolCmd = await findJwtTool();
 
             // Create secure output file
-            outputFile = path.join(CONFIG.TEMP_FOLDER, generateSecureFilename(`jwt-${subcommand}`));
+            outputFile = reportFilePath(`jwt-${subcommand}`, 'txt');
 
             let jwtArgs = [];
             let embedTitle = '';
@@ -400,15 +393,8 @@ module.exports = {
             await interaction.editReply({ embeds: [errorEmbed] });
         } finally {
             // Cleanup output file after a delay to ensure Discord has processed the attachment
-            if (outputFile && fsSync.existsSync(outputFile)) {
-                setTimeout(async () => {
-                    try {
-                        await fs.unlink(outputFile);
-                        console.log(`Cleaned up output file: ${outputFile}`);
-                    } catch (cleanupError) {
-                        console.error(`Failed to cleanup file ${outputFile}:`, cleanupError.message);
-                    }
-                }, 30000); // 30 second delay
+            if (outputFile) {
+                cleanupFile(outputFile, 30000);
             }
         }
     },
