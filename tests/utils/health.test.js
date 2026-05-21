@@ -46,7 +46,7 @@ describe('health writer', () => {
         expect(payload).toHaveProperty('ts');
         expect(typeof payload.uptime).toBe('number');
         expect(payload.pid).toBe(process.pid);
-        expect(payload.version).toBe('2.0.0');
+        expect(payload.version).toBe(require('../../package.json').version);
     });
 
     it('mkdir -p creates missing parent directory', async () => {
