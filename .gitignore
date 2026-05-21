@@ -143,3 +143,9 @@ ghunt_results/
 # Backup files
 *.bak
 *.backup
+
+# Local agent / assistant config
+CLAUDE.md
+
+# Per-investigation OSINT reports
+reports/
