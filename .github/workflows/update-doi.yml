@@ -15,6 +15,9 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # A release event checks out the tag (detached HEAD); check out the
+          # default branch instead so the citation commit has a branch to push to.
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Wait for Zenodo processing
         run: sleep 300

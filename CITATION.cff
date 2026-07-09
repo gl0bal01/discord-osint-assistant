@@ -31,8 +31,8 @@ keywords:
   - "Image Analysis"
   - "Network Security"
 license: MIT
-version: "2.0.0"
-date-released: "2025-06-25"
+version: v2.3.0
+date-released: 2026-07-09
 doi: "10.5281/zenodo.15741850" # Will be assigned by Zenodo
 commit: "main"
 references:
