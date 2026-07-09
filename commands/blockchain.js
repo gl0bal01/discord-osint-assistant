@@ -10,9 +10,13 @@
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const { getSafeAxiosConfig, SIZE_10MB } = require('../utils/ssrf');
-const { reportFilePath, cleanupFile } = require('../utils/temp');
+const { cleanupFile } = require('../utils/temp');
 const { capField, safeAscii } = require('../utils/embed');
+const { archiveReport, saveReport } = require('../utils/reports');
+const ethtrace = require('../utils/ethtrace');
 
 const MAX_CONTENT = SIZE_10MB;
 
@@ -28,6 +32,46 @@ const BLOCKCHAINS = [
     { name: 'Binance Smart Chain', value: 'bsc', symbol: 'BNB', explorer: 'https://bscscan.com/address/' },
     { name: 'Polygon', value: 'matic', symbol: 'MATIC', explorer: 'https://polygonscan.com/address/' }
 ];
+
+// Network choices for the slash-command option.
+const NETWORKS = [
+    { name: 'Mainnet', value: 'mainnet' },
+    { name: 'Testnet', value: 'testnet' }
+];
+
+// EVM chain choices for the `trace` subcommand (Etherscan V2 multichain).
+const EVM_CHAIN_CHOICES = ethtrace.EVM_CHAINS.map(c => ({ name: `${c.name} (chainid ${c.id})`, value: String(c.id) }));
+
+// Per-chain testnet configuration. Chains absent here reject network:testnet.
+// EVM testnets share the mainnet Etherscan-family API shape (host swap only, same
+// JSON). BTC and the alt-coins route through Blockchair's {chain}/testnet
+// dashboards, which return the same JSON shape the mainnet Blockchair branches
+// already parse — so testnet extraction reuses that logic.
+const TESTNETS = {
+    eth:   { label: 'Sepolia',              provider: 'etherscan',  api: 'https://api-sepolia.etherscan.io/api',  keyEnv: 'ETHERSCAN_API_KEY',   explorer: 'https://sepolia.etherscan.io/' },
+    bsc:   { label: 'BSC Testnet',          provider: 'etherscan',  api: 'https://api-testnet.bscscan.com/api',   keyEnv: 'BSCSCAN_API_KEY',     explorer: 'https://testnet.bscscan.com/' },
+    matic: { label: 'Amoy',                 provider: 'etherscan',  api: 'https://api-amoy.polygonscan.com/api',  keyEnv: 'POLYGONSCAN_API_KEY', explorer: 'https://amoy.polygonscan.com/' },
+    btc:   { label: 'Bitcoin Testnet',      provider: 'blockchair', chair: 'bitcoin/testnet',      explorer: 'https://blockchair.com/bitcoin/testnet/' },
+    ltc:   { label: 'Litecoin Testnet',     provider: 'blockchair', chair: 'litecoin/testnet',     explorer: 'https://blockchair.com/litecoin/testnet/' },
+    bch:   { label: 'Bitcoin Cash Testnet', provider: 'blockchair', chair: 'bitcoin-cash/testnet', explorer: 'https://blockchair.com/bitcoin-cash/testnet/' },
+    dash:  { label: 'Dash Testnet',         provider: 'blockchair', chair: 'dash/testnet',         explorer: 'https://blockchair.com/dash/testnet/' },
+    doge:  { label: 'Dogecoin Testnet',     provider: 'blockchair', chair: 'dogecoin/testnet',     explorer: 'https://blockchair.com/dogecoin/testnet/' }
+};
+
+/**
+ * Build a testnet block-explorer URL for a given chain and resource kind.
+ * @param {string} blockchain - Blockchain identifier
+ * @param {'address'|'tx'|'block'} kind - Resource kind
+ * @param {string} id - Address / txid / block id
+ * @returns {string} Fully-qualified explorer URL
+ */
+function testnetExplorerUrl(blockchain, kind, id) {
+    const cfg = TESTNETS[blockchain];
+    const seg = cfg.provider === 'etherscan'
+        ? { address: 'address', tx: 'tx', block: 'block' }[kind]
+        : { address: 'address', tx: 'transaction', block: 'block' }[kind];
+    return `${cfg.explorer}${seg}/${id}`;
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -49,7 +93,12 @@ module.exports = {
                 .addBooleanOption(option =>
                     option.setName('full')
                         .setDescription('Return full raw data as JSON')
-                        .setRequired(false)))
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option.setName('network')
+                        .setDescription('Network to query (default: mainnet)')
+                        .setRequired(false)
+                        .addChoices(...NETWORKS)))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('transaction')
@@ -66,7 +115,12 @@ module.exports = {
                 .addBooleanOption(option =>
                     option.setName('full')
                         .setDescription('Return full raw data as JSON')
-                        .setRequired(false)))
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option.setName('network')
+                        .setDescription('Network to query (default: mainnet)')
+                        .setRequired(false)
+                        .addChoices(...NETWORKS)))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('block')
@@ -83,27 +137,105 @@ module.exports = {
                 .addBooleanOption(option =>
                     option.setName('full')
                         .setDescription('Return full raw data as JSON')
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option.setName('network')
+                        .setDescription('Network to query (default: mainnet)')
+                        .setRequired(false)
+                        .addChoices(...NETWORKS)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('trace')
+                .setDescription('Follow the money: trace EVM transaction-flow paths from an address')
+                .addStringOption(option =>
+                    option.setName('address')
+                        .setDescription('Start address to trace (0x...)')
+                        .setRequired(true))
+                .addStringOption(option =>
+                    option.setName('chain')
+                        .setDescription('EVM chain to trace')
+                        .setRequired(true)
+                        .addChoices(...EVM_CHAIN_CHOICES))
+                .addIntegerOption(option =>
+                    option.setName('depth')
+                        .setDescription('Recursion depth 1-3 (default: 2)')
+                        .setMinValue(1)
+                        .setMaxValue(3)
+                        .setRequired(false))
+                .addIntegerOption(option =>
+                    option.setName('max-tx')
+                        .setDescription('Max transactions per address per type (default: 25, max 100)')
+                        .setMinValue(1)
+                        .setMaxValue(100)
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option.setName('direction')
+                        .setDescription('Which flows to follow (default: both)')
+                        .setRequired(false)
+                        .addChoices(
+                            { name: 'Both (in + out)', value: 'both' },
+                            { name: 'Outflows (follow spend)', value: 'out' },
+                            { name: 'Inflows (find source)', value: 'in' }
+                        ))
+                .addStringOption(option =>
+                    option.setName('types')
+                        .setDescription('Transaction types to include (default: all)')
+                        .setRequired(false)
+                        .addChoices(
+                            { name: 'All', value: 'all' },
+                            { name: 'Normal only', value: 'normal' },
+                            { name: 'Internal only', value: 'internal' },
+                            { name: 'Token only', value: 'token' }
+                        ))
+                .addStringOption(option =>
+                    option.setName('focus')
+                        .setDescription('Spotlight one address (0x...) — shows its direct in/out flows in the result')
                         .setRequired(false))),
 
     async execute(interaction) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         try {
-            const blockchain = interaction.options.getString('blockchain');
-            const fullData = interaction.options.getBoolean('full') ?? false;
             const subcommand = interaction.options.getSubcommand();
 
+            // `trace` is EVM-only and has no blockchain/network options — handle it
+            // before the address/transaction/block plumbing below.
+            if (subcommand === 'trace') {
+                return await handleTrace(interaction);
+            }
+
+            const blockchain = interaction.options.getString('blockchain');
+            const fullData = interaction.options.getBoolean('full') ?? false;
+            const network = interaction.options.getString('network') || 'mainnet';
+
+            // Create a temp directory if it doesn't exist
+            const tempDir = path.join(__dirname, '..', 'temp');
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+
+            // Generate unique ID for this request
+            const requestId = crypto.randomBytes(4).toString('hex');
+
+            // Get blockchain details
             const blockchainInfo = BLOCKCHAINS.find(b => b.value === blockchain);
             if (!blockchainInfo) {
                 return interaction.editReply(`Error: Unsupported blockchain '${blockchain}'.`);
             }
 
+            // Gate testnet on chains we actually have a testnet endpoint for.
+            if (network === 'testnet' && !TESTNETS[blockchain]) {
+                const supported = [...new Set(Object.keys(TESTNETS).map(k => BLOCKCHAINS.find(b => b.value === k)?.name).filter(Boolean))].join(', ');
+                return interaction.editReply(`Testnet is not available for ${blockchainInfo.name}. Supported testnets: ${supported}.`);
+            }
+
+            // Handle different subcommands
             if (subcommand === 'address') {
-                await handleAddressLookup(interaction, blockchain, blockchainInfo, fullData);
+                await handleAddressLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId, network);
             } else if (subcommand === 'transaction') {
-                await handleTransactionLookup(interaction, blockchain, blockchainInfo, fullData);
+                await handleTransactionLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId, network);
             } else if (subcommand === 'block') {
-                await handleBlockLookup(interaction, blockchain, blockchainInfo, fullData);
+                await handleBlockLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId, network);
             }
 
         } catch (error) {
@@ -119,41 +251,64 @@ module.exports = {
  * @param {string} blockchain - Blockchain identifier
  * @param {Object} blockchainInfo - Blockchain details
  * @param {boolean} fullData - Whether to return full raw data
+ * @param {string} tempDir - Temporary directory path
+ * @param {string} requestId - Unique request ID
  */
-async function handleAddressLookup(interaction, blockchain, blockchainInfo, fullData) {
+async function handleAddressLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId, network = 'mainnet') {
     const address = interaction.options.getString('address');
+    const netLabel = network === 'testnet' ? ` (${TESTNETS[blockchain].label})` : '';
+    const explorerBase = network === 'testnet' ? `${TESTNETS[blockchain].explorer}address/` : blockchainInfo.explorer;
 
-    if (!validateBlockchainAddress(blockchain, address)) {
-        return interaction.editReply(`Invalid ${blockchainInfo.name} address format. Please check your input.`);
+    // Basic address validation
+    if (!validateBlockchainAddress(blockchain, address, network)) {
+        return interaction.editReply(`Invalid ${blockchainInfo.name}${netLabel} address format. Please check your input.`);
     }
 
-
     try {
-        const data = await fetchAddressData(blockchain, address);
+        // Fetch address data using appropriate API for the blockchain
+        const data = await fetchAddressData(blockchain, address, network);
 
         if (!data) {
-            return interaction.editReply(`No data found for ${blockchainInfo.name} address: ${address}`);
+            return interaction.editReply(`No data found for ${blockchainInfo.name}${netLabel} address: ${address}`);
         }
 
+        // If full data is requested, return JSON file
         if (fullData) {
-            await sendFullDataAttachment(interaction, data, `${blockchain}_address_${address.substring(0, 8)}`, `Full data for ${blockchainInfo.name} address: ${address}`);
+            const filePath = path.join(tempDir, `${blockchain}_${network}_address_${requestId}.json`);
+            fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+
+            // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+            await archiveReport(filePath, `blockchain_${network}_${address}`, 'json');
+
+            const attachment = new AttachmentBuilder(filePath, {
+                name: `${blockchain}_${network}_address_${address.substring(0, 8)}.json`
+            });
+
+            await interaction.editReply({
+                content: `Full data for ${blockchainInfo.name}${netLabel} address: ${address}`,
+                files: [attachment]
+            });
+
+            cleanupFile(filePath, 5000);
             return;
         }
 
-        const summary = extractAddressSummary(blockchain, data, blockchainInfo);
+        // Extract useful data based on blockchain
+        const summary = extractAddressSummary(blockchain, data, blockchainInfo, network);
 
+        // Create embed for address information
         const embed = new EmbedBuilder()
-            .setTitle(`${blockchainInfo.name} Address Information`)
+            .setTitle(`${blockchainInfo.name}${netLabel} Address Information`)
             .setDescription(capField(`Address: \`${address}\``))
             .setColor(0x4CAF50)
-            .setURL(`${blockchainInfo.explorer}${address}`)
+            .setURL(`${explorerBase}${address}`)
             .addFields(
                 { name: 'Balance', value: capField(summary.balance), inline: true },
                 { name: 'Total Received', value: capField(summary.totalReceived), inline: true },
                 { name: 'Total Sent', value: capField(summary.totalSent), inline: true },
                 { name: 'Transaction Count', value: capField(summary.txCount), inline: true }
             )
-            .setFooter({ text: capField(`Data from ${summary.dataSource} • Block Explorer: ${blockchainInfo.explorer}${address}`) })
+            .setFooter({ text: capField(`Data from ${summary.dataSource} • Block Explorer: ${explorerBase}${address}`) })
             .setTimestamp();
 
         // Add additional fields based on blockchain-specific data
@@ -178,42 +333,90 @@ async function handleAddressLookup(interaction, blockchain, blockchainInfo, full
  * @param {string} blockchain - Blockchain identifier
  * @param {Object} blockchainInfo - Blockchain details
  * @param {boolean} fullData - Whether to return full raw data
+ * @param {string} tempDir - Temporary directory path
+ * @param {string} requestId - Unique request ID
  */
-async function handleTransactionLookup(interaction, blockchain, blockchainInfo, fullData) {
+async function handleTransactionLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId, network = 'mainnet') {
     const txid = interaction.options.getString('txid');
+    const netLabel = network === 'testnet' ? ` (${TESTNETS[blockchain].label})` : '';
 
     // Basic transaction ID validation
     if (!validateTransactionId(blockchain, txid)) {
-        return interaction.editReply(`Invalid ${blockchainInfo.name} transaction ID format. Please check your input.`);
+        return interaction.editReply(`Invalid ${blockchainInfo.name}${netLabel} transaction ID format. Please check your input.`);
     }
 
     try {
-        const data = await fetchTransactionData(blockchain, txid);
+        // Fetch transaction data using appropriate API for the blockchain
+        const data = await fetchTransactionData(blockchain, txid, network);
 
         if (!data) {
-            return interaction.editReply(`No data found for ${blockchainInfo.name} transaction: ${txid}`);
+            return interaction.editReply(`No data found for ${blockchainInfo.name}${netLabel} transaction: ${txid}`);
         }
 
+        // If full data is requested, return JSON file
         if (fullData) {
-            await sendFullDataAttachment(interaction, data, `${blockchain}_tx_${txid.substring(0, 8)}`, `Full data for ${blockchainInfo.name} transaction: ${txid}`);
+            const filePath = path.join(tempDir, `${blockchain}_${network}_tx_${requestId}.json`);
+            fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+
+            // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+            await archiveReport(filePath, `blockchain_${network}_${txid}`, 'json');
+
+            const attachment = new AttachmentBuilder(filePath, {
+                name: `${blockchain}_${network}_tx_${txid.substring(0, 8)}.json`
+            });
+
+            await interaction.editReply({
+                content: `Full data for ${blockchainInfo.name}${netLabel} transaction: ${txid}`,
+                files: [attachment]
+            });
+
+            cleanupFile(filePath, 5000);
             return;
         }
 
-        const embed = formatTransactionEmbed(data, blockchainInfo);
+        // Extract useful data based on blockchain
+        const summary = extractTransactionSummary(blockchain, data, blockchainInfo, network);
+
+        // Create embed for transaction information
+        const embed = new EmbedBuilder()
+            .setTitle(`${blockchainInfo.name}${netLabel} Transaction Information`)
+            .setDescription(capField(`Transaction ID: \`${txid}\``))
+            .setColor(0x2196F3)
+            .addFields(
+                { name: 'Status', value: capField(summary.status), inline: true },
+                { name: 'Block', value: capField(summary.block), inline: true },
+                { name: 'Timestamp', value: capField(summary.timestamp), inline: true },
+                { name: 'Amount', value: capField(summary.amount), inline: true },
+                { name: 'Fee', value: capField(summary.fee), inline: true }
+            )
+            .setFooter({ text: capField(`Data from ${summary.dataSource}`) })
+            .setTimestamp();
+
+        // Add sender/recipient fields
+        embed.addFields(
+            { name: 'From', value: capField(summary.from || 'Unknown'), inline: false },
+            { name: 'To', value: capField(summary.to || 'Unknown'), inline: false }
+        );
+
+        // Add additional fields based on blockchain-specific data
+        if (summary.additionalFields) {
+            for (const field of summary.additionalFields) {
+                embed.addFields({ name: field.name, value: capField(field.value), inline: field.inline || false });
+            }
+        }
+
+        // Set explorer URL for transaction
+        if (summary.explorerUrl) {
+            embed.setURL(summary.explorerUrl);
+        }
+
+        // Send the response
         await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
-        console.error(`Transaction lookup error:`, error);
+        console.error(`Error fetching ${blockchainInfo.name} transaction:`, error.message);
         await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
-}
-
-async function sendFullDataAttachment(interaction, data, baseName, content) {
-    const filePath = reportFilePath('blockchain', 'json');
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-    const attachment = new AttachmentBuilder(filePath, { name: `${baseName}.json` });
-    await interaction.editReply({ content, files: [attachment] });
-    cleanupFile(filePath, 5000);
 }
 
 /**
@@ -222,127 +425,227 @@ async function sendFullDataAttachment(interaction, data, baseName, content) {
  * @param {string} blockchain - Blockchain identifier
  * @param {Object} blockchainInfo - Blockchain details
  * @param {boolean} fullData - Whether to return full raw data
+ * @param {string} tempDir - Temporary directory path
+ * @param {string} requestId - Unique request ID
  */
-async function handleBlockLookup(interaction, blockchain, blockchainInfo, fullData) {
+async function handleBlockLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId, network = 'mainnet') {
     const block = interaction.options.getString('block');
+    const netLabel = network === 'testnet' ? ` (${TESTNETS[blockchain].label})` : '';
 
-    // Basic block validation
-    if (!validateBlock(blockchain, block)) {
-        return interaction.editReply(`Invalid ${blockchainInfo.name} block identifier. Please check your input.`);
-    }
+    // Determine if block is a height or hash
+    const isHeight = /^\d+$/.test(block);
+    const blockIdentifier = isHeight ? 'height' : 'hash';
 
     try {
-        const isHeight = /^\d+$/.test(block);
-        const data = await fetchBlockData(blockchain, block, isHeight);
+        // Fetch block data using appropriate API for the blockchain
+        const data = await fetchBlockData(blockchain, block, isHeight, network);
 
         if (!data) {
-            return interaction.editReply(`No data found for ${blockchainInfo.name} block: ${block}`);
+            return interaction.editReply(`No data found for ${blockchainInfo.name}${netLabel} block ${blockIdentifier}: ${block}`);
         }
 
+        // If full data is requested, return JSON file
         if (fullData) {
-            await sendFullDataAttachment(interaction, data, `${blockchain}_block_${block}`, `Full data for ${blockchainInfo.name} block: ${block}`);
+            const filePath = path.join(tempDir, `${blockchain}_${network}_block_${requestId}.json`);
+            fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+
+            // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+            await archiveReport(filePath, `blockchain_${network}_${block}`, 'json');
+
+            const attachment = new AttachmentBuilder(filePath, {
+                name: `${blockchain}_${network}_block_${block.substring(0, 8)}.json`
+            });
+
+            await interaction.editReply({
+                content: `Full data for ${blockchainInfo.name}${netLabel} block ${blockIdentifier}: ${block}`,
+                files: [attachment]
+            });
+
+            cleanupFile(filePath, 5000);
             return;
         }
 
-        const embed = formatBlockEmbed(data, blockchainInfo);
+        // Extract useful data based on blockchain
+        const summary = extractBlockSummary(blockchain, data, blockchainInfo, network);
+
+        // Create embed for block information
+        const embed = new EmbedBuilder()
+            .setTitle(`${blockchainInfo.name}${netLabel} Block Information`)
+            .setDescription(capField(`Block ${blockIdentifier}: \`${block}\``))
+            .setColor(0xFF9800)
+            .addFields(
+                { name: 'Height', value: capField(summary.height), inline: true },
+                { name: 'Hash', value: capField(summary.hash), inline: false },
+                { name: 'Timestamp', value: capField(summary.timestamp), inline: true },
+                { name: 'Transactions', value: capField(summary.txCount), inline: true },
+                { name: 'Size', value: capField(summary.size), inline: true },
+                { name: 'Difficulty', value: capField(summary.difficulty), inline: true },
+                { name: 'Miner', value: safeAscii(summary.miner || 'Unknown'), inline: false }
+            )
+            .setFooter({ text: capField(`Data from ${summary.dataSource}`) })
+            .setTimestamp();
+
+        // Add additional fields based on blockchain-specific data
+        if (summary.additionalFields) {
+            for (const field of summary.additionalFields) {
+                embed.addFields({ name: field.name, value: capField(field.value), inline: field.inline || false });
+            }
+        }
+
+        // Set explorer URL for block
+        if (summary.explorerUrl) {
+            embed.setURL(summary.explorerUrl);
+        }
+
+        // Send the response
         await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
-        console.error(`Block lookup error:`, error);
+        console.error(`Error fetching ${blockchainInfo.name} block:`, error.message);
         await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
 }
 
 /**
- * Format transaction data into a Discord embed
- * @param {Object} data - Raw transaction data
- * @param {Object} blockchainInfo - Blockchain details
- * @returns {EmbedBuilder} - Discord embed
+ * Handle the `trace` subcommand: crawl EVM transaction flows from a start
+ * address and return a follow-the-money report — an embed (dominant ETH path,
+ * top sinks, hubs to ignore) plus CSV / JSON / Mermaid attachments, all
+ * archived durably to reports/.
+ * @param {Object} interaction - Discord interaction
  */
-function formatTransactionEmbed(data, blockchainInfo) {
-    const summary = extractTransactionSummary(blockchainInfo.value, data, blockchainInfo);
-    const embed = new EmbedBuilder()
-        .setTitle(`${blockchainInfo.name} Transaction Information`)
-        .setDescription(capField(`Transaction ID: \`${summary.txid || 'N/A'}\``))
-        .setColor(0x2196F3)
-        .addFields(
-            { name: 'Status', value: capField(summary.status), inline: true },
-            { name: 'Block', value: capField(summary.block), inline: true },
-            { name: 'Timestamp', value: capField(summary.timestamp), inline: true },
-            { name: 'Amount', value: capField(summary.amount), inline: true },
-            { name: 'Fee', value: capField(summary.fee), inline: true }
-        )
-        .setFooter({ text: capField(`Data from ${summary.dataSource}`) })
-        .setTimestamp();
+async function handleTrace(interaction) {
+    const address = interaction.options.getString('address').toLowerCase();
+    const chainId = interaction.options.getString('chain');
+    const depth = interaction.options.getInteger('depth') ?? 2;
+    const maxTx = interaction.options.getInteger('max-tx') ?? 25;
+    const direction = interaction.options.getString('direction') || 'both';
+    const types = interaction.options.getString('types') || 'all';
 
-    embed.addFields(
-        { name: 'From', value: capField(summary.from || 'Unknown'), inline: false },
-        { name: 'To', value: capField(summary.to || 'Unknown'), inline: false }
+    if (!ethtrace.isAddress(address)) {
+        return interaction.editReply('Invalid EVM address. Expected `0x` + 40 hex characters.');
+    }
+    const apiKey = process.env.ETHERSCAN_API_KEY;
+    if (!apiKey) {
+        return interaction.editReply('Trace needs an Etherscan API key. Ask the administrator to set `ETHERSCAN_API_KEY`.');
+    }
+    const chain = ethtrace.chainById(chainId);
+    if (!chain) {
+        return interaction.editReply('Unsupported chain for trace.');
+    }
+
+    await interaction.editReply(
+        `🔎 Tracing \`${address}\` on **${chain.name}** — depth ${depth}, ${direction} flows, ${types} types.\n` +
+        `⏳ Crawling transactions… this can take up to a minute.`
     );
 
-    if (summary.additionalFields) {
-        for (const field of summary.additionalFields) {
-            embed.addFields({ name: field.name, value: capField(field.value), inline: field.inline || false });
+    let graph;
+    try {
+        graph = await ethtrace.crawl({ apiKey, chainId, address, depth, maxTx, direction, types });
+    } catch (error) {
+        console.error('blockchain trace error:', error.message);
+        return interaction.editReply('Trace failed while querying Etherscan. Verify the address, chain, and that the API key is valid.');
+    }
+
+    if (!graph.edges.length) {
+        if (graph.stats.errors) {
+            return interaction.editReply(
+                `Trace returned no data for \`${address}\` on ${chain.name}, and the API errored on ${graph.stats.errors} request(s) — ` +
+                `likely an invalid/exhausted \`ETHERSCAN_API_KEY\` or a rate limit. Check server logs for details.`
+            );
         }
+        return interaction.editReply(`No transactions found to trace for \`${address}\` on ${chain.name}.`);
     }
 
-    if (summary.explorerUrl) {
-        embed.setURL(summary.explorerUrl);
+    const analysis = ethtrace.analyze(graph);
+    const short = ethtrace.shortAddr;
+    const nativeSym = chain.native || 'ETH';
+    const tagOf = (a) => { const e = ethtrace.entityLabel(a); return e ? ` \`[${e.label}]\`` : ''; };
+    const addrLink = (a) => `[\`${short(a)}\`](https://${chain.explorer}/address/${a})${tagOf(a)}`;
+    const ago = (ts) => ts ? `<t:${ts}:R>` : '?';
+
+    // Enrich the root + top sinks with balance / nonce / last activity.
+    const enrichTargets = [...new Set([graph.root, ...analysis.sinks.slice(0, 3).map(s => s.address)])];
+    let enriched = new Map();
+    try {
+        enriched = await ethtrace.enrich(apiKey, chainId, enrichTargets);
+    } catch (error) {
+        console.error('blockchain trace enrich error:', error.message);
     }
+    const enrichLine = (a) => {
+        const e = enriched.get(a);
+        if (!e) return '';
+        const parts = [];
+        if (e.balance !== null) parts.push(`bal ${e.balance} ${e.symbol}`);
+        if (e.nonce !== null) parts.push(`${e.nonce} tx sent`);
+        if (e.lastSeen) parts.push(`last ${ago(e.lastSeen)}`);
+        return parts.length ? `\n   ↳ ${parts.join(' · ')}` : '';
+    };
 
-    return embed;
-}
+    const pathText = analysis.path.length
+        ? analysis.path.map((p, i) => `${i + 1}. ${addrLink(p.from)} —${p.amount} ${safeAscii(p.symbol)}→ ${addrLink(p.to)}`).join('\n')
+        : `_No dominant native-${nativeSym} path (flows are token-only) — inspect the attached graph._`;
 
-/**
- * Format block data into a Discord embed
- * @param {Object} data - Raw block data
- * @param {Object} blockchainInfo - Blockchain details
- * @returns {EmbedBuilder} - Discord embed
- */
-function formatBlockEmbed(data, blockchainInfo) {
-    const summary = extractBlockSummary(blockchainInfo.value, data, blockchainInfo);
+    const sinkText = analysis.sinks.length
+        ? analysis.sinks.slice(0, 8).map(s => `${addrLink(s.address)} — net ${s.netNative.toFixed(4)} ${nativeSym} · deg ${s.degree}${enrichLine(s.address)}`).join('\n')
+        : `_No net-positive ${nativeSym} sink (token-only or balanced flows) — inspect the attached graph._`;
+
+    const hubText = analysis.hubs.length
+        ? analysis.hubs.slice(0, 10).map(h => `${addrLink(h.address)} — degree ${h.degree}`).join('\n')
+        : '_None detected._';
+
+    const rootDesc = `Root: [\`${address}\`](https://${chain.explorer}/address/${address})${tagOf(address)}${enrichLine(address)}`;
+
     const embed = new EmbedBuilder()
-        .setTitle(`${blockchainInfo.name} Block Information`)
-        .setDescription(capField(`Block: \`${summary.hash || summary.height}\``))
-        .setColor(0xFF9800)
+        .setTitle(`🧭 Transaction Trace — ${chain.name}`)
+        .setDescription(capField(rootDesc, 4096))
+        .setColor(0x9b59b6)
         .addFields(
-            { name: 'Height', value: capField(summary.height), inline: true },
-            { name: 'Hash', value: capField(summary.hash), inline: false },
-            { name: 'Timestamp', value: capField(summary.timestamp), inline: true },
-            { name: 'Transactions', value: capField(summary.txCount), inline: true },
-            { name: 'Size', value: capField(summary.size), inline: true },
-            { name: 'Difficulty', value: capField(summary.difficulty), inline: true },
-            { name: 'Miner', value: safeAscii(summary.miner || 'Unknown'), inline: false }
+            { name: 'Scan', value: capField(`${graph.stats.addresses} addresses discovered (${graph.stats.crawled} crawled) · ${graph.stats.edges} transfers · depth ${graph.stats.depth} · ${graph.stats.apiCalls} API calls${graph.stats.capHit ? ' · ⚠️ safety cap hit' : ''}`), inline: false },
+            { name: '💸 Follow the money (largest native path)', value: capField(pathText), inline: false },
+            { name: '🎯 Top sinks (where value accumulates)', value: capField(sinkText), inline: false },
+            { name: '🕸️ Hubs / known entities to ignore', value: capField(hubText), inline: false }
         )
-        .setFooter({ text: capField(`Data from ${summary.dataSource}`) })
+        .setFooter({ text: 'CSV + JSON + Mermaid attached · saved to reports/' })
         .setTimestamp();
 
-    if (summary.additionalFields) {
-        for (const field of summary.additionalFields) {
-            embed.addFields({ name: field.name, value: capField(field.value), inline: field.inline || false });
+    // Focus spotlight: direct in/out flows of one address the investigator picked.
+    const focus = (interaction.options.getString('focus') || '').toLowerCase();
+    if (focus) {
+        if (!ethtrace.isAddress(focus)) {
+            embed.addFields({ name: '🔦 Focus', value: 'Invalid focus address (ignored).', inline: false });
+        } else {
+            const ins = graph.edges.filter(e => e.to === focus);
+            const outs = graph.edges.filter(e => e.from === focus);
+            if (!ins.length && !outs.length) {
+                embed.addFields({ name: `🔦 Focus ${short(focus)}${tagOf(focus)}`, value: capField('Not reached in this trace — increase depth or trace this address directly.'), inline: false });
+            } else {
+                const inTxt = ins.slice(0, 5).map(e => `⬅️ from ${addrLink(e.from)} — ${e.amount} ${safeAscii(e.symbol)}`).join('\n');
+                const outTxt = outs.slice(0, 5).map(e => `➡️ to ${addrLink(e.to)} — ${e.amount} ${safeAscii(e.symbol)}`).join('\n');
+                const body = [inTxt, outTxt].filter(Boolean).join('\n');
+                embed.addFields({ name: `🔦 Focus ${short(focus)}${tagOf(focus)} — ${ins.length} in / ${outs.length} out`, value: capField(body), inline: false });
+            }
         }
     }
 
-    if (summary.explorerUrl) {
-        embed.setURL(summary.explorerUrl);
-    }
+    // Report files: built in memory, attached and archived durably to reports/.
+    const base = `trace_${chain.name.replace(/\W+/g, '')}_${address}`;
+    const csv = ethtrace.toCsv(graph);
+    const json = ethtrace.toJson(graph, analysis);
+    const mmd = ethtrace.toMermaid(graph);
+    await Promise.all([
+        saveReport(base, csv, 'csv'),
+        saveReport(base, json, 'json'),
+        saveReport(base, mmd, 'mmd')
+    ]);
 
-    return embed;
-}
+    const stub = `trace_${address.slice(0, 10)}`;
+    const files = [
+        new AttachmentBuilder(Buffer.from(csv, 'utf8'), { name: `${stub}.csv` }),
+        new AttachmentBuilder(Buffer.from(json, 'utf8'), { name: `${stub}.json` }),
+        new AttachmentBuilder(Buffer.from(mmd, 'utf8'), { name: `${stub}.mmd` })
+    ];
 
-/**
- * Validate blockchain block identifier
- * @param {string} blockchain - Blockchain identifier
- * @param {string} block - Block hash or height
- * @returns {boolean} - Whether the block identifier is valid
- */
-function validateBlock(_blockchain, block) {
-    if (!block || typeof block !== 'string') return false;
-    // Block hash: hex string of reasonable length
-    if (/^[0-9a-fA-F]{64}$/.test(block)) return true;
-    // Block height: positive integer
-    if (/^\d+$/.test(block) && parseInt(block, 10) >= 0) return true;
-    return false;
+    await interaction.editReply({ content: '', embeds: [embed], files });
 }
 
 /**
@@ -352,7 +655,10 @@ function validateBlock(_blockchain, block) {
  * @returns {boolean} - Whether the address is valid
  * @throws {Error} - If blockchain is unknown/not whitelisted
  */
-function validateBlockchainAddress(blockchain, address) {
+function validateBlockchainAddress(blockchain, address, network = 'mainnet') {
+    if (network === 'testnet') {
+        return validateTestnetAddress(blockchain, address);
+    }
     switch (blockchain) {
         case 'btc':
             // Bitcoin: legacy (P2PKH/P2SH) and native SegWit (bech32/bech32m)
@@ -384,7 +690,52 @@ function validateBlockchainAddress(blockchain, address) {
     }
 }
 
-function validateTransactionId(_blockchain, txid) {
+/**
+ * Validate a testnet address. Testnet address prefixes differ from mainnet:
+ * EVM chains keep the 0x40-hex format, while Bitcoin-family testnets use
+ * distinct human-readable prefixes (m/n/2, tb1, tltc1, y, etc.).
+ * @param {string} blockchain - Blockchain identifier
+ * @param {string} address - Address to validate
+ * @returns {boolean} - Whether the address is a valid testnet address
+ * @throws {Error} - If the chain has no configured testnet
+ */
+function validateTestnetAddress(blockchain, address) {
+    switch (blockchain) {
+        case 'eth':
+        case 'bsc':
+        case 'matic':
+            // EVM testnets reuse the mainnet 0x + 40 hex format.
+            return /^0x[a-fA-F0-9]{40}$/.test(address);
+        case 'btc':
+            // testnet3: P2PKH (m/n), P2SH (2), native SegWit (tb1).
+            return /^([mn2][a-km-zA-HJ-NP-Z1-9]{25,34}|tb1[a-z0-9]{6,87})$/.test(address);
+        case 'ltc':
+            // Litecoin testnet: P2PKH (m/n), P2SH (Q), native SegWit (tltc1).
+            return /^([mnQ][a-km-zA-HJ-NP-Z1-9]{25,34}|tltc1[a-z0-9]{6,87})$/.test(address);
+        case 'bch':
+            // Bitcoin Cash testnet: CashAddr REQUIRES the bchtest: prefix (without
+            // it the body is identical to a mainnet CashAddr), or legacy m/n/2.
+            return /^bchtest:[qp][a-z0-9]{41,111}$/.test(address) ||
+                   /^[mn2][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address);
+        case 'dash':
+            // Dash testnet addresses start with y.
+            return /^y[a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address);
+        case 'doge':
+            // Dogecoin testnet addresses start with n.
+            return /^n[a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address);
+        default:
+            throw new Error(`Testnet address validation not supported for '${blockchain}'.`);
+    }
+}
+
+/**
+ * Validate transaction ID format
+ * @param {string} blockchain - Blockchain identifier
+ * @param {string} txid - Transaction ID to validate
+ * @returns {boolean} - Whether the transaction ID is valid
+ */
+function validateTransactionId(blockchain, txid) {
+    // Most transaction IDs are 64-character hex strings
     return /^[a-fA-F0-9]{64}$/.test(txid);
 }
 
@@ -394,13 +745,17 @@ function validateTransactionId(_blockchain, txid) {
  * @param {string} address - Address to look up
  * @returns {Promise<Object>} - Address data
  */
-async function fetchAddressData(blockchain, address) {
+async function fetchAddressData(blockchain, address, network = 'mainnet') {
     const safeConfig = {
         ...getSafeAxiosConfig(),
         timeout: 10000,
         maxContentLength: MAX_CONTENT,
         maxBodyLength: MAX_CONTENT
     };
+
+    if (network === 'testnet') {
+        return fetchTestnetAddressData(blockchain, address, safeConfig);
+    }
 
     switch (blockchain) {
         case 'btc': {
@@ -480,13 +835,17 @@ async function fetchAddressData(blockchain, address) {
  * @param {string} txid - Transaction ID to look up
  * @returns {Promise<Object>} - Transaction data
  */
-async function fetchTransactionData(blockchain, txid) {
+async function fetchTransactionData(blockchain, txid, network = 'mainnet') {
     const safeConfig = {
         ...getSafeAxiosConfig(),
         timeout: 10000,
         maxContentLength: MAX_CONTENT,
         maxBodyLength: MAX_CONTENT
     };
+
+    if (network === 'testnet') {
+        return fetchTestnetTransactionData(blockchain, txid, safeConfig);
+    }
 
     switch (blockchain) {
         case 'btc': {
@@ -559,13 +918,17 @@ async function fetchTransactionData(blockchain, txid) {
  * @param {boolean} isHeight - Whether block is a height or hash
  * @returns {Promise<Object>} - Block data
  */
-async function fetchBlockData(blockchain, block, isHeight) {
+async function fetchBlockData(blockchain, block, isHeight, network = 'mainnet') {
     const safeConfig = {
         ...getSafeAxiosConfig(),
         timeout: 10000,
         maxContentLength: MAX_CONTENT,
         maxBodyLength: MAX_CONTENT
     };
+
+    if (network === 'testnet') {
+        return fetchTestnetBlockData(blockchain, block, isHeight, safeConfig);
+    }
 
     switch (blockchain) {
         case 'btc': {
@@ -636,13 +999,98 @@ function getBlockchairChain(blockchain) {
 }
 
 /**
+ * Fetch testnet address data. EVM testnets use the Etherscan-family balance
+ * endpoint; Blockchair-backed chains use the {chain}/testnet dashboard (same
+ * JSON shape as the mainnet Blockchair branches).
+ * @param {string} blockchain - Blockchain identifier
+ * @param {string} address - Address to look up
+ * @param {Object} safeConfig - SSRF-safe axios config
+ * @returns {Promise<Object>} - Raw API data
+ */
+async function fetchTestnetAddressData(blockchain, address, safeConfig) {
+    const cfg = TESTNETS[blockchain];
+    if (!cfg) throw new Error(`Testnet not supported for ${blockchain}`);
+
+    if (cfg.provider === 'etherscan') {
+        const response = await axios.get(cfg.api, {
+            params: { module: 'account', action: 'balance', address, tag: 'latest', apikey: process.env[cfg.keyEnv] || '' },
+            ...safeConfig
+        });
+        return response.data;
+    }
+
+    const response = await axios.get(
+        `https://api.blockchair.com/${cfg.chair}/dashboards/address/${address}`,
+        safeConfig
+    );
+    return response.data;
+}
+
+/**
+ * Fetch testnet transaction data.
+ * @param {string} blockchain - Blockchain identifier
+ * @param {string} txid - Transaction ID/hash
+ * @param {Object} safeConfig - SSRF-safe axios config
+ * @returns {Promise<Object>} - Raw API data
+ */
+async function fetchTestnetTransactionData(blockchain, txid, safeConfig) {
+    const cfg = TESTNETS[blockchain];
+    if (!cfg) throw new Error(`Testnet not supported for ${blockchain}`);
+
+    if (cfg.provider === 'etherscan') {
+        const response = await axios.get(cfg.api, {
+            params: { module: 'proxy', action: 'eth_getTransactionByHash', txhash: txid, apikey: process.env[cfg.keyEnv] || '' },
+            ...safeConfig
+        });
+        return response.data;
+    }
+
+    const response = await axios.get(
+        `https://api.blockchair.com/${cfg.chair}/dashboards/transaction/${txid}`,
+        safeConfig
+    );
+    return response.data;
+}
+
+/**
+ * Fetch testnet block data.
+ * @param {string} blockchain - Blockchain identifier
+ * @param {string} block - Block height or hash
+ * @param {boolean} isHeight - Whether block is a height or hash
+ * @param {Object} safeConfig - SSRF-safe axios config
+ * @returns {Promise<Object>} - Raw API data
+ */
+async function fetchTestnetBlockData(blockchain, block, isHeight, safeConfig) {
+    const cfg = TESTNETS[blockchain];
+    if (!cfg) throw new Error(`Testnet not supported for ${blockchain}`);
+
+    if (cfg.provider === 'etherscan') {
+        const params = isHeight
+            ? { module: 'proxy', action: 'eth_getBlockByNumber', tag: `0x${parseInt(block).toString(16)}`, boolean: 'true', apikey: process.env[cfg.keyEnv] || '' }
+            : { module: 'proxy', action: 'eth_getBlockByHash', hash: block, boolean: 'true', apikey: process.env[cfg.keyEnv] || '' };
+        const response = await axios.get(cfg.api, { params, ...safeConfig });
+        return response.data;
+    }
+
+    const blockParam = isHeight ? `height/${block}` : `hash/${block}`;
+    const response = await axios.get(
+        `https://api.blockchair.com/${cfg.chair}/dashboards/block/${blockParam}`,
+        safeConfig
+    );
+    return response.data;
+}
+
+/**
  * Extract summary data from address API response
  * @param {string} blockchain - Blockchain identifier
  * @param {Object} data - API response data
  * @param {Object} blockchainInfo - Blockchain details
  * @returns {Object} - Extracted summary data
  */
-function extractAddressSummary(blockchain, data, blockchainInfo) {
+function extractAddressSummary(blockchain, data, blockchainInfo, network = 'mainnet') {
+    if (network === 'testnet') {
+        return extractTestnetAddressSummary(blockchain, data, blockchainInfo);
+    }
     // Default summary structure
     const summary = {
         balance: '0 ' + blockchainInfo.symbol,
@@ -727,7 +1175,10 @@ function extractAddressSummary(blockchain, data, blockchainInfo) {
  * @param {Object} blockchainInfo - Blockchain details
  * @returns {Object} - Extracted summary data
  */
-function extractTransactionSummary(blockchain, data, blockchainInfo) {
+function extractTransactionSummary(blockchain, data, blockchainInfo, network = 'mainnet') {
+    if (network === 'testnet') {
+        return extractTestnetTransactionSummary(blockchain, data, blockchainInfo);
+    }
     // Default summary structure
     const summary = {
         status: 'Unknown',
@@ -898,7 +1349,10 @@ function extractTransactionSummary(blockchain, data, blockchainInfo) {
  * @param {Object} blockchainInfo - Blockchain details
  * @returns {Object} - Extracted summary data
  */
-function extractBlockSummary(blockchain, data, _blockchainInfo) {
+function extractBlockSummary(blockchain, data, blockchainInfo, network = 'mainnet') {
+    if (network === 'testnet') {
+        return extractTestnetBlockSummary(blockchain, data, blockchainInfo);
+    }
     // Default summary structure
     const summary = {
         height: 'Unknown',
@@ -1069,3 +1523,153 @@ function extractBlockSummary(blockchain, data, _blockchainInfo) {
 
     return summary;
 }
+
+/**
+ * Extract testnet address summary. Etherscan-family testnets return the same
+ * balance shape as mainnet ETH; Blockchair testnets return the same dashboard
+ * shape as mainnet LTC/BCH/DASH — so this mirrors those two mainnet branches.
+ * @param {string} blockchain - Blockchain identifier
+ * @param {Object} data - Raw API data
+ * @param {Object} blockchainInfo - Blockchain details (for symbol)
+ * @returns {Object} - Extracted summary
+ */
+function extractTestnetAddressSummary(blockchain, data, blockchainInfo) {
+    const cfg = TESTNETS[blockchain];
+    const sym = blockchainInfo.symbol;
+    const summary = {
+        balance: `0 ${sym}`,
+        totalReceived: `0 ${sym}`,
+        totalSent: `0 ${sym}`,
+        txCount: '0',
+        dataSource: cfg.label,
+        additionalFields: []
+    };
+
+    if (cfg.provider === 'etherscan') {
+        if (data && data.status === '1') {
+            summary.balance = `${(parseInt(data.result) / 1e18).toFixed(8)} ${sym}`;
+            summary.dataSource = `${cfg.label} (Etherscan family)`;
+        }
+    } else if (data && data.data && data.data[Object.keys(data.data)[0]]) {
+        const addressData = data.data[Object.keys(data.data)[0]];
+        summary.balance = `${addressData.address.balance / 1e8} ${sym}`;
+        summary.totalReceived = `${addressData.address.received / 1e8} ${sym}`;
+        summary.totalSent = `${addressData.address.spent / 1e8} ${sym}`;
+        summary.txCount = addressData.address.transaction_count.toString();
+        summary.dataSource = `${cfg.label} (Blockchair)`;
+    }
+
+    return summary;
+}
+
+/**
+ * Extract testnet transaction summary.
+ * @param {string} blockchain - Blockchain identifier
+ * @param {Object} data - Raw API data
+ * @param {Object} blockchainInfo - Blockchain details (for symbol)
+ * @returns {Object} - Extracted summary
+ */
+function extractTestnetTransactionSummary(blockchain, data, blockchainInfo) {
+    const cfg = TESTNETS[blockchain];
+    const sym = blockchainInfo.symbol;
+    const summary = {
+        status: 'Unknown',
+        block: 'Unknown',
+        timestamp: 'Unknown',
+        amount: `0 ${sym}`,
+        fee: `0 ${sym}`,
+        from: 'Unknown',
+        to: 'Unknown',
+        dataSource: cfg.label,
+        additionalFields: []
+    };
+
+    if (cfg.provider === 'etherscan') {
+        if (data && data.result) {
+            const tx = data.result;
+            summary.status = tx.blockNumber ? 'Confirmed' : 'Pending';
+            summary.block = tx.blockNumber ? parseInt(tx.blockNumber, 16).toString() : 'Pending';
+            summary.amount = `${(parseInt(tx.value, 16) / 1e18).toFixed(8)} ${sym}`;
+            summary.fee = tx.gas && tx.gasPrice
+                ? `${(parseInt(tx.gas, 16) * parseInt(tx.gasPrice, 16) / 1e18).toFixed(8)} ${sym}`
+                : 'Unknown';
+            summary.from = tx.from || 'Unknown';
+            summary.to = tx.to || 'Unknown';
+            summary.dataSource = `${cfg.label} (Etherscan family)`;
+            if (tx.hash) summary.explorerUrl = testnetExplorerUrl(blockchain, 'tx', tx.hash);
+        }
+    } else if (data && data.data && data.data[Object.keys(data.data)[0]]) {
+        const txHash = Object.keys(data.data)[0];
+        const txData = data.data[txHash];
+        summary.status = txData.transaction.block_id ? 'Confirmed' : 'Pending';
+        summary.block = txData.transaction.block_id ? txData.transaction.block_id.toString() : 'Pending';
+        summary.timestamp = txData.transaction.time ? new Date(txData.transaction.time * 1000).toUTCString() : 'Pending';
+        summary.amount = `${(txData.transaction.output_total / 1e8).toFixed(8)} ${sym}`;
+        summary.fee = `${(txData.transaction.fee / 1e8).toFixed(8)} ${sym}`;
+        if (txData.inputs && txData.inputs.length > 0) {
+            summary.from = txData.inputs.map(input => input.recipient || 'Unknown').join('\n');
+        }
+        if (txData.outputs && txData.outputs.length > 0) {
+            summary.to = txData.outputs.map(output => output.recipient || 'Unknown').join('\n');
+        }
+        summary.dataSource = `${cfg.label} (Blockchair)`;
+        summary.explorerUrl = testnetExplorerUrl(blockchain, 'tx', txHash);
+    }
+
+    return summary;
+}
+
+/**
+ * Extract testnet block summary.
+ * @param {string} blockchain - Blockchain identifier
+ * @param {Object} data - Raw API data
+ * @param {Object} blockchainInfo - Blockchain details (for symbol)
+ * @returns {Object} - Extracted summary
+ */
+function extractTestnetBlockSummary(blockchain, data, _blockchainInfo) {
+    const cfg = TESTNETS[blockchain];
+    const summary = {
+        height: 'Unknown',
+        hash: 'Unknown',
+        timestamp: 'Unknown',
+        txCount: '0',
+        size: '0 bytes',
+        difficulty: '0',
+        miner: 'Unknown',
+        dataSource: cfg.label,
+        additionalFields: []
+    };
+
+    if (cfg.provider === 'etherscan') {
+        if (data && data.result) {
+            const block = data.result;
+            summary.height = parseInt(block.number, 16).toString();
+            summary.hash = block.hash;
+            summary.timestamp = new Date(parseInt(block.timestamp, 16) * 1000).toUTCString();
+            summary.txCount = block.transactions ? block.transactions.length.toString() : '0';
+            summary.size = `${parseInt(block.size, 16).toLocaleString()} bytes`;
+            summary.difficulty = parseInt(block.difficulty, 16).toLocaleString();
+            summary.miner = block.miner || 'Unknown';
+            summary.dataSource = `${cfg.label} (Etherscan family)`;
+            summary.explorerUrl = testnetExplorerUrl(blockchain, 'block', summary.height);
+        }
+    } else if (data && data.data && data.data[Object.keys(data.data)[0]]) {
+        const blockData = data.data[Object.keys(data.data)[0]];
+        summary.height = blockData.block.id.toString();
+        summary.hash = blockData.block.hash;
+        summary.timestamp = new Date(blockData.block.time * 1000).toUTCString();
+        summary.txCount = blockData.block.transaction_count.toString();
+        summary.size = `${(blockData.block.size / 1024).toFixed(2)} KB`;
+        summary.difficulty = blockData.block.difficulty.toLocaleString();
+        if (blockData.transactions && blockData.transactions.length > 0 && blockData.transactions[0].output_address) {
+            summary.miner = blockData.transactions[0].output_address;
+        }
+        summary.dataSource = `${cfg.label} (Blockchair)`;
+        summary.explorerUrl = testnetExplorerUrl(blockchain, 'block', summary.height);
+    }
+
+    return summary;
+}
+
+// Exported for unit testing (pure, no network side effects).
+module.exports._internal = { TESTNETS, validateTestnetAddress, testnetExplorerUrl };

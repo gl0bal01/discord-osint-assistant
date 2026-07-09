@@ -54,6 +54,7 @@ const { URL } = require('url');
 const crypto = require('crypto');
 const murmurhash = require('murmurhash');
 const { reportDirPath, cleanupDir } = require('../utils/temp');
+const { archiveReport } = require('../utils/reports');
 
 // Configuration constants
 const CONFIG = {
@@ -482,7 +483,10 @@ module.exports = {
             const filename = `favicon-${domain.replace(/\./g, '_')}.${extension}`;
             const filePath = path.join(tempDir, filename);
             await fs.writeFile(filePath, faviconData.data);
-            
+
+            // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+            await archiveReport(filePath, `favicons_${domain}`, extension);
+
             // Calculate hashes
             const hashes = calculateHashes(faviconData.data);
             const searchUrls = generateSearchUrls(hashes);
@@ -521,8 +525,11 @@ module.exports = {
             if (returnRaw) {
                 const jsonPath = path.join(tempDir, `favicon-analysis-${domain.replace(/\./g, '_')}.json`);
                 await fs.writeFile(jsonPath, JSON.stringify(analysisData, null, 2));
-                
-                const jsonAttachment = new AttachmentBuilder(jsonPath, { 
+
+                // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+                await archiveReport(jsonPath, `favicons_${domain}`, 'json');
+
+                const jsonAttachment = new AttachmentBuilder(jsonPath, {
                     name: `favicon-analysis-${domain.replace(/\./g, '_')}.json`,
                     description: 'Complete favicon analysis data in JSON format'
                 });

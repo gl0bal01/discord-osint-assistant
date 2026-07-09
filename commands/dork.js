@@ -10,6 +10,7 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const fs = require('fs');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
+const { archiveReport } = require('../utils/reports');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -81,7 +82,10 @@ module.exports = {
             });
             
             fs.writeFileSync(outputFile, fileContent);
-            
+
+            // Persist a durable copy to reports/ (temp copy is deleted after a delay).
+            await archiveReport(outputFile, `dork_${firstname}_${lastname}`);
+
             // Create attachment
             const attachment = new AttachmentBuilder(outputFile, { name: `${safeFn(firstname)}_${safeFn(lastname)}_dorks.txt` });
             

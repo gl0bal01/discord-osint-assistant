@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { reportDirPath, cleanupDir } = require('../utils/temp');
+const { archiveReport } = require('../utils/reports');
 
 /* -------------------------------------------------------------------------- */
 /*                               Auth helpers                                 */
@@ -550,6 +551,10 @@ module.exports = {
                     embeds: [embed],
                     files: [attachment, htmlAttachment]
                 });
+
+                // Persist durable copies to reports/ (temp files are deleted in finally).
+                await archiveReport(outputFilePath, `ghunt_${searchType}_${query}`, 'json');
+                await archiveReport(htmlReportPath, `ghunt_${searchType}_${query}`, 'html');
             } else {
                 embed.addFields({ name: 'GHunt Results', value: 'GHunt executed but no results were found.' });
                 await interaction.editReply({ embeds: [embed] });

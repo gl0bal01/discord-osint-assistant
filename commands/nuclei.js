@@ -77,10 +77,12 @@
 
 const { SlashCommandBuilder } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
-const { splitIntoChunks, chunkArray } = require('../utils/chunks');
+const { splitIntoChunks } = require('../utils/chunks');
 const { isValidUsername } = require('../utils/validation');
+const { archiveReport } = require('../utils/reports');
 const fs = require('fs').promises;
-const { reportFilePath, cleanupFile } = require('../utils/temp');
+const path = require('path');
+const crypto = require('crypto');
 
 /**
  * Discord slash command definition for Nuclei OSINT scanner
@@ -135,9 +137,13 @@ module.exports = {
         
         // Generate cryptographically secure random identifier for temporary files
         // Prevents file conflicts and enhances security
-        const outputFile = reportFilePath('nuclei', 'txt');
+        const randomId = crypto.randomBytes(8).toString('hex');
+        const outputDir = path.join(__dirname, '../temp');
+        const outputFile = path.join(outputDir, `nuclei_osint_${username}_${randomId}.txt`);
         
         try {
+            // Ensure temporary directory exists with recursive creation
+            await fs.mkdir(outputDir, { recursive: true });
             
             // Build and validate tags list for targeted scanning
             let tagsList = ['osint']; // Base OSINT tag always included
@@ -159,14 +165,28 @@ module.exports = {
             // Construct Nuclei args array (no shell interpolation)
             const nucleiBinary = process.env.NUCLEI_PATH || 'nuclei';
             const templatesPath = process.env.NUCLEI_TEMPLATE_PATH || '/opt/nuclei-templates/http/osint/user-enumeration';
+
+            // Preflight: if the templates path is missing, nuclei silently scans
+            // nothing and the user just sees "No profiles found". Fail loudly instead.
+            try {
+                await fs.access(templatesPath);
+            } catch {
+                return await interaction.editReply({
+                    content: `❌ **Nuclei templates not found**\n\n` +
+                            `Expected templates at:\n\`${templatesPath}\`\n\n` +
+                            `Install the OSINT templates or set \`NUCLEI_TEMPLATE_PATH\` to the correct directory, then redeploy. Contact the administrator.`
+                });
+            }
+
             const args = [
                 '-t', templatesPath,
                 '-tags', tagsList.join(','),
                 '-var', `user=${username}`,
                 '-o', outputFile,
+                '-disable-update-check',
                 verbose ? '-v' : '-silent'
             ];
-            
+
             // Send initial status message with scan parameters
             await interaction.editReply({
                 content: `🔍 **Starting OSINT Username Enumeration**\n\n` +
@@ -178,8 +198,10 @@ module.exports = {
             });
             
             // Execute Nuclei scan using safe spawn (no shell interpolation)
-            await safeSpawn(nucleiBinary, args, { timeout: customTimeout * 1000 });
-            
+            const scanResult = await safeSpawn(nucleiBinary, args, { timeout: customTimeout * 1000 });
+            const scanStderr = (scanResult?.stderr || '').trim();
+            if (scanStderr) console.warn(`[Nuclei] stderr for ${username}: ${scanStderr.slice(0, 2000)}`);
+
             // Process scan results and prepare output
             let fileContent = '';
             let fileExists = false;
@@ -194,100 +216,81 @@ module.exports = {
             
             // Analyze and present results based on content availability
             if (fileExists && fileContent.trim()) {
+                // Persist a durable copy to reports/ (temp copy is deleted in finally).
+                await archiveReport(outputFile, `nuclei_${username}`);
+
                 // Process content to extract actionable intelligence
                 const processedContent = makeUrlsClickable(fileContent);
                 const discoveredUrls = extractUrls(fileContent);
-                const stats = await fs.stat(outputFile);
-                
-                // Determine optimal presentation format based on result size
-                if (stats.size > 2000 || discoveredUrls.length > 10) {
-                    // Large result set - provide file download and URL summary
-                    await interaction.editReply({
-                        content: `<@${interaction.user.id}> ✅ **OSINT Enumeration Complete**\n\n` +
-                                `🎯 **Target:** \`${username}\`\n` +
-                                `📊 **Results:** ${discoveredUrls.length} potential profiles found\n` +
-                                `📁 **File:** Complete results attached\n` +
-                                `🏷️ **Categories:** ${tagsList.join(', ')}\n\n` +
-                                `📄 Download the attached file for detailed analysis.`,
-                        files: [{ 
-                            attachment: outputFile, 
-                            name: `${username}_osint_results_${new Date().toISOString().split('T')[0]}.txt` 
-                        }]
+
+                // Always render an inline preview of the raw findings (Discord
+                // caps message content at 2000 chars) AND attach the full file.
+                // Large scans previously hit an attachment-only branch and never
+                // showed the actual output in-channel.
+                const chunks = splitIntoChunks(processedContent, 1200);
+                const fileName = `${username}_osint_results_${new Date().toISOString().split('T')[0]}.txt`;
+                // Bound the header so header + 1200-char preview stays under the
+                // 2000-char message cap even with a long `tags` list.
+                const tagsShown = tagsList.join(', ').slice(0, 300);
+
+                await interaction.editReply({
+                    content: `<@${interaction.user.id}> ✅ **OSINT Enumeration Complete**\n\n` +
+                            `🎯 **Target:** \`${username}\`\n` +
+                            `📊 **Results:** ${discoveredUrls.length} potential profiles found\n` +
+                            `🏷️ **Categories:** ${tagsShown}\n\n` +
+                            `**📋 Scan Results:**\n\`\`\`\n${chunks[0]}\n\`\`\`` +
+                            (chunks.length > 1 ? `\n📄 Full results attached below.` : ''),
+                    files: [{ attachment: outputFile, name: fileName }]
+                });
+
+                // Render additional raw-output chunks inline, capped to keep the
+                // channel readable; the complete set is always in the attachment.
+                const MAX_INLINE_CHUNKS = 4;
+                for (let i = 1; i < chunks.length && i < MAX_INLINE_CHUNKS; i++) {
+                    await interaction.followUp({
+                        content: `**📋 Results (cont. ${i + 1}):**\n\`\`\`\n${chunks[i]}\n\`\`\``
                     });
-                    
-                    // Send URLs in manageable chunks to avoid Discord limits
-                    if (discoveredUrls.length > 0) {
-                        const urlChunks = chunkArray(discoveredUrls, 8); // Reduced chunk size for better readability
-                        
-                        for (let i = 0; i < Math.min(urlChunks.length, 5); i++) { // Limit to 5 chunks max
-                            const chunkHeader = urlChunks.length > 1 ? 
-                                `**🔗 Discovered Profiles (${i + 1}/${Math.min(urlChunks.length, 5)}):**` : 
-                                `**🔗 Discovered Profiles:**`;
-                            
-                            const urlList = urlChunks[i].map((url, index) => 
-                                `${index + 1 + (i * 8)}. ${url}`
-                            ).join('\n');
-                            
-                            await interaction.followUp({
-                                content: `${chunkHeader}\n\`\`\`\n${urlList}\n\`\`\``
-                            });
-                        }
-                        
-                        // Notify if more results exist
-                        if (urlChunks.length > 5) {
-                            await interaction.followUp({
-                                content: `📄 **Additional Results Available**\n\n` +
-                                        `Found ${discoveredUrls.length - 40} more profiles in the attached file.\n` +
-                                        `Download for complete analysis.`
-                            });
-                        }
-                    }
-                } else {
-                    // Compact result set - display inline with URLs
-                    const chunks = splitIntoChunks(processedContent, 1200); // Conservative chunk size
-                    
-                    await interaction.editReply({
-                        content: `<@${interaction.user.id}> ✅ **OSINT Enumeration Complete**\n\n` +
-                                `🎯 **Target:** \`${username}\`\n` +
-                                `📊 **Results:** ${discoveredUrls.length} profiles found\n` +
-                                `🏷️ **Categories:** ${tagsList.join(', ')}\n\n` +
-                                `**📋 Scan Results:**\n\`\`\`\n${chunks[0]}\n\`\`\``,
-                        files: [{ 
-                            attachment: outputFile, 
-                            name: `${username}_osint_results_${new Date().toISOString().split('T')[0]}.txt` 
-                        }]
+                }
+                if (chunks.length > MAX_INLINE_CHUNKS) {
+                    await interaction.followUp({
+                        content: `📄 Output truncated in chat — see the attached file for all ${discoveredUrls.length} results.`
                     });
-                    
-                    // Send discovered URLs as clickable links
-                    if (discoveredUrls.length > 0) {
-                        const urlList = discoveredUrls.map((url, index) => 
-                            `${index + 1}. ${url}`
-                        ).join('\n');
-                        
-                        await interaction.followUp({
-                            content: `**🔗 Clickable Profile Links:**\n${urlList}`
-                        });
-                    }
-                    
-                    // Send additional content chunks if necessary
-                    for (let i = 1; i < chunks.length && i < 3; i++) { // Limit additional chunks
-                        await interaction.followUp({
-                            content: `**📋 Additional Results (${i + 1}):**\n\`\`\`\n${chunks[i]}\n\`\`\``
-                        });
+                }
+
+                // Send discovered profile URLs as a clickable summary (raw, not
+                // code-fenced, so Discord renders them as links). Byte-bounded with
+                // splitIntoChunks — a fixed URL count could overflow the 2000-char
+                // cap when profile URLs are long, throwing into the error path.
+                if (discoveredUrls.length > 0) {
+                    const urlListStr = discoveredUrls.map((url, idx) => `${idx + 1}. ${url}`).join('\n');
+                    const urlChunks = splitIntoChunks(urlListStr, 1800);
+                    for (let i = 0; i < Math.min(urlChunks.length, 5); i++) {
+                        const header = urlChunks.length > 1
+                            ? `**🔗 Discovered Profiles (${i + 1}/${Math.min(urlChunks.length, 5)}):**`
+                            : `**🔗 Discovered Profiles:**`;
+                        await interaction.followUp({ content: `${header}\n${urlChunks[i]}` });
                     }
                 }
             } else {
-                // No results found - provide helpful guidance
+                // No output file / empty. Distinguish "genuinely nothing found"
+                // from "the scan itself failed" by surfacing nuclei's stderr.
+                const looksBroken = /no templates|could not|error|no result|0 templates|fatal/i.test(scanStderr);
+                const diagnostic = scanStderr
+                    ? `\n\n⚠️ **Scanner output:**\n\`\`\`\n${scanStderr.slice(0, 600)}\n\`\`\``
+                    : '';
                 await interaction.editReply({
-                    content: `<@${interaction.user.id}> ✅ **OSINT Scan Complete**\n\n` +
+                    content: `<@${interaction.user.id}> ${looksBroken ? '⚠️' : '✅'} **OSINT Scan Complete**\n\n` +
                             `🎯 **Target:** \`${username}\`\n` +
                             `📊 **Results:** No profiles found\n` +
                             `🏷️ **Categories:** ${tagsList.join(', ')}\n\n` +
-                            `💡 **Suggestions:**\n` +
-                            `• Try different username variations\n` +
-                            `• Use additional tag categories\n` +
-                            `• Check for typos in the username\n` +
-                            `• Consider that the user may not be active on scanned platforms`
+                            (looksBroken
+                                ? `It looks like the scan did not run correctly (templates may be missing or not match the tags). Check \`NUCLEI_TEMPLATE_PATH\` and that the templates carry the \`osint\` tag.`
+                                : `💡 **Suggestions:**\n` +
+                                  `• Try different username variations\n` +
+                                  `• Use additional tag categories\n` +
+                                  `• Check for typos in the username\n` +
+                                  `• Consider that the user may not be active on scanned platforms`) +
+                            diagnostic
                 });
             }
         } catch (error) {
@@ -321,7 +324,7 @@ module.exports = {
         } finally {
             // Comprehensive cleanup to prevent data leakage and resource exhaustion
             try {
-                await cleanupFile(outputFile);
+                await fs.unlink(outputFile).catch(() => {}); // Ignore errors if file doesn't exist
                 console.info(`[Nuclei] Cleanup completed for ${username} scan`);
             } catch (cleanupError) {
                 console.error(`[Nuclei] Cleanup error: ${cleanupError.message}`);

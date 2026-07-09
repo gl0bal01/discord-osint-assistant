@@ -10,6 +10,7 @@ const { safeSpawnToFile } = require('../utils/process');
 const { isValidUsername } = require('../utils/validation');
 const fs = require('fs').promises;
 const { reportFilePath, cleanupFile } = require('../utils/temp');
+const { archiveReport } = require('../utils/reports');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -67,6 +68,9 @@ module.exports = {
             }
             
             if (fileContent.trim()) {
+                // Persist a durable copy to reports/ (temp copy is deleted in finally).
+                await archiveReport(outputFile, `maigret_${username}`);
+
                 // Create embed for results
                 const embed = new EmbedBuilder()
                     .setTitle(`OSINT Scan Results for ${username}`)

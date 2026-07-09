@@ -13,6 +13,10 @@ services:
     read_only: true
     tmpfs:
       - /app/temp:size=100M,uid=999,gid=999
+      # /app/reports holds durable command exports; under read_only it needs a
+      # writable mount or every archive silently no-ops. tmpfs makes it work
+      # (ephemeral); mount a named volume here instead to persist across restarts.
+      - /app/reports:size=100M,uid=999,gid=999
       - /tmp:size=50M
     mem_limit: 512m
     memswap_limit: 512m

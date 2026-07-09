@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const { isValidDomain } = require('../utils/validation');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
+const { archiveReport } = require('../utils/reports');
 
 // Available field types for search by field subcommand
 const FIELD_TYPES = [
@@ -161,7 +162,10 @@ module.exports = {
             // Save the API response to a file
             const filePath = reportFilePath('hostio', 'json');
             fs.writeFileSync(filePath, JSON.stringify(apiResponse, null, 2));
-            
+
+            // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+            await archiveReport(filePath, `hostio_${interaction.options.getString('domain') || interaction.options.getString('value') || subcommand}`, 'json');
+
             // Create an attachment
             const attachment = new AttachmentBuilder(filePath, { name: filename });
             

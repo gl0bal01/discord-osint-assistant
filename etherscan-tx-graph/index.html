@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Etherscan Tx Graph Explorer</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+</head>
+<body>
+<div id="app">
+
+  <header id="topbar">
+    <h1>Etherscan Tx Graph Explorer</h1>
+
+    <div class="row">
+      <label>
+        Clé API Etherscan
+        <input id="apiKey" type="password" placeholder="Votre clé API Etherscan" autocomplete="off">
+      </label>
+      <label>
+        Chaîne
+        <select id="chainSelect"></select>
+      </label>
+      <label>
+        Adresse à analyser
+        <input id="address" type="text" placeholder="0x..." spellcheck="false">
+      </label>
+      <label>
+        Affichage des adresses
+        <select id="addressFormat">
+          <option value="short">Abrégée (0x + 3 caractères + 4 derniers)</option>
+          <option value="full">Complète</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="row">
+      <label>
+        Profondeur récursive (X)
+        <input id="depth" type="number" min="1" max="6" value="2">
+      </label>
+      <label>
+        Tx max / adresse / niveau
+        <input id="maxTxPerAddress" type="number" min="1" max="1000" value="20">
+      </label>
+      <label>
+        Plafond total d'adresses (sécurité)
+        <input id="safetyCap" type="number" min="1" max="5000" value="300">
+      </label>
+      <label>
+        Requêtes / seconde
+        <input id="rps" type="number" min="1" max="30" value="3">
+      </label>
+    </div>
+
+    <div class="row">
+      <label class="checkbox"><input type="checkbox" id="typeNormal" checked> Transactions normales</label>
+      <label class="checkbox"><input type="checkbox" id="typeInternal" checked> Transactions internes</label>
+      <label class="checkbox"><input type="checkbox" id="typeToken" checked> Transferts de tokens (ERC20/721/1155)</label>
+    </div>
+
+    <div class="row">
+      <button id="startBtn">Lancer le scan</button>
+      <button id="stopBtn" disabled>Arrêter</button>
+      <button id="resetBtn">Effacer le graphe</button>
+      <button id="deleteNodesBtn" class="secondary">Supprimer sélection</button>
+      <button id="rotateLeftBtn" class="secondary" title="Rotation anti-horaire">⟲</button>
+      <button id="rotateRightBtn" class="secondary" title="Rotation horaire">⟳</button>
+      <span id="status" class="status"></span>
+    </div>
+
+    <div class="row">
+      <label>
+        Degré min. (faucets / hubs)
+        <input id="degreeThreshold" type="number" min="1" value="15">
+      </label>
+      <button id="selectHighDegreeBtn" class="secondary">Sélectionner nœuds à haut degré</button>
+    </div>
+
+    <div class="row">
+      <span class="row-title">Export :</span>
+      <button id="fitViewBtn" class="secondary" title="Recentre la vue sur tout le graphe (à l'écran uniquement)">Voir tout le graphe</button>
+      <label>
+        Résolution export image/PDF
+        <select id="exportResolution">
+          <option value="hd">1920×1080 (HD)</option>
+          <option value="qhd" selected>2560×1440 (QHD)</option>
+          <option value="uhd">3840×2160 (4K)</option>
+          <option value="auto">Auto (adaptée au nb de nœuds)</option>
+        </select>
+      </label>
+      <button id="exportPngBtn" class="secondary">Image (PNG)</button>
+      <button id="exportPdfBtn" class="secondary">PDF</button>
+      <button id="exportCsvBtn" class="secondary">Tableur (CSV)</button>
+    </div>
+
+    <div class="row hint">
+      Astuce : clic = sélectionner un nœud, ctrl/cmd+clic = ajouter à la sélection, maintenir Shift + glisser = sélection par rectangle. Touche Suppr/Retour arrière pour retirer la sélection du graphe. Double-clic sur un nœud pour lui donner un alias.
+      Les exports PNG/PDF capturent toujours le graphe entier (pas seulement ce qui est visible à l'écran), avec les adresses et alias affichés en entier et à une résolution choisie ci-dessus pour rester lisibles.
+    </div>
+  </header>
+
+  <main>
+    <div id="graph"></div>
+    <aside id="sidebar">
+      <div id="legend">
+        <h3>Légende</h3>
+        <div><span class="dot" style="background:#e63946"></span> Adresse recherchée</div>
+        <div><span class="dot" style="background:#457b9d"></span> Adresse découverte</div>
+        <div><span class="line" style="background:#4f8ef7"></span> Tx normale</div>
+        <div><span class="line" style="background:#f7a24f"></span> Tx interne</div>
+        <div><span class="line" style="background:#4fd67a"></span> Transfert token</div>
+      </div>
+      <div id="details">
+        <h3>Détails</h3>
+        <div id="detailsContent">Cliquez sur un nœud ou une flèche du graphe.</div>
+      </div>
+      <div id="log">
+        <h3>Journal</h3>
+        <div id="logContent"></div>
+      </div>
+    </aside>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

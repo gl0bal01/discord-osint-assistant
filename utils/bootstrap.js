@@ -45,18 +45,27 @@ function parseAllowedGuilds(envValue) {
         .filter(Boolean);
 }
 
-function sweepBootTemp(tempDir, exclude = SWEEP_EXCLUDE_DEFAULT) {
+function sweepBootTemp(tempDir, exclude = SWEEP_EXCLUDE_DEFAULT, maxAgeMs = TEMP_MAX_AGE_MS) {
     if (!fs.existsSync(tempDir)) return { swept: 0, kept: 0 };
     const excludeSet = new Set(exclude);
     const now = Date.now();
     let swept = 0, kept = 0;
 
-    for (const file of fs.readdirSync(tempDir)) {
+    // A boot sweep must never crash the process — if the dir is unreadable or
+    // not a directory (ENOTDIR/EACCES under hardened containers), bail quietly.
+    let entries;
+    try {
+        entries = fs.readdirSync(tempDir);
+    } catch {
+        return { swept, kept };
+    }
+
+    for (const file of entries) {
         if (excludeSet.has(file)) { kept++; continue; }
         const filePath = path.join(tempDir, file);
         try {
             const stat = fs.statSync(filePath);
-            if (now - stat.mtimeMs > TEMP_MAX_AGE_MS) {
+            if (now - stat.mtimeMs > maxAgeMs) {
                 if (stat.isDirectory()) {
                     fs.rmSync(filePath, { recursive: true, force: true });
                 } else {

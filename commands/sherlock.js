@@ -30,6 +30,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { isValidUsername, sanitizeInput, isValidUrl } = require('../utils/validation');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
+const { archiveReport } = require('../utils/reports');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -171,7 +172,10 @@ async function processSherlockResults(interaction, outputFile, username) {
                         `• All platforms were unreachable`
             });
         }
-        
+
+        // Persist a durable copy to reports/ (temp copy is deleted in finally).
+        await archiveReport(outputFile, `sherlock_${username}`);
+
         // Parse results to extract found profiles
         const foundProfiles = parseSherlockOutput(fileContent);
         

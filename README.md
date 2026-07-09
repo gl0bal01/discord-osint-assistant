@@ -66,6 +66,13 @@ The bot currently provides 32 commands across 8 functional areas. Run `/bob-help
 
 `/bob-blockchain`, `/bob-blockchain-detect`
 
+#### `/bob-blockchain` Subcommands
+
+- `address` / `transaction` / `block`: look up an address, transaction, or block across 9 chains (BTC, ETH, LTC, BCH, DOGE, DASH, ZEC, BSC, Polygon). A `network:mainnet|testnet` option is available; testnet is supported for ETH (Sepolia), BSC, Polygon (Amoy), and BTC/LTC/BCH/DASH/DOGE (via Blockchair).
+- `trace`: follow-the-money graph tracer for EVM chains via the Etherscan V2 multichain API. Recursively crawls transactions from a start address and returns the dominant native-value path, top sinks (where value accumulates), and known-entity / high-degree hubs to ignore, plus CSV / JSON / Mermaid exports. Key addresses are enriched with balance, tx count, and last activity, and known exchanges/mixers/bridges are labeled. Options: `address`, `chain`, `depth` (1-3), `max-tx`, `direction` (both/out/in), `types`, and `focus` (spotlight one address's direct in/out flows). Requires `ETHERSCAN_API_KEY`.
+
+`/bob-blockchain-detect` also recognizes testnet address formats (BTC/LTC/BCH/DOGE/DASH) and notes that EVM addresses are format-ambiguous between mainnet and testnet.
+
 ### Transportation
 
 `/bob-aviation`, `/bob-airport`, `/bob-flight-number`, `/bob-vessels`
@@ -285,7 +292,7 @@ Copy `.env.example` to `.env` and configure at minimum:
 
 Optional integrations unlock additional commands:
 
-- API services such as Whoxy, DNSDumpster, Host.io, AviationStack, and AWS Rekognition
+- API services such as Whoxy, DNSDumpster, Host.io, AviationStack, AWS Rekognition, and Etherscan (`ETHERSCAN_API_KEY`, required for `/bob-blockchain trace`)
 - External CLI tools such as Sherlock, Maigret, Nuclei, ExifTool, GHunt, xeuledoc, Linkook, and jwt_tool
 
 If an optional dependency is missing, the related command returns a descriptive runtime error.
@@ -301,6 +308,17 @@ The bot uses [pino](https://getpino.io/) for structured JSON logging.
 In development (non-production and interactive TTY) logs are pretty-printed via `pino-pretty`. In production, raw JSON is written to stdout for ingestion by log aggregators.
 
 Sensitive fields (`token`, `authorization`, `password`, `api_key`, `headers.authorization`, `headers.cookie`) are automatically redacted to `[REDACTED]` before output.
+
+## Reports Archive
+
+In addition to being attached in Discord, command exports (Sherlock, Maigret, Nuclei, Linkook, GHunt, blockchain, and others) are written to a durable `reports/` directory. Files auto-prune after `REPORTS_RETENTION_DAYS` (default 30). Set `REPORTS_DIR` to change the location.
+
+| Variable                 | Default     | Description                              |
+|--------------------------|-------------|------------------------------------------|
+| `REPORTS_DIR`            | `./reports` | Directory for durable command exports     |
+| `REPORTS_RETENTION_DAYS` | `30`        | Age (days) after which reports are pruned  |
+
+Under Docker, `/app/reports` is a tmpfs by default (ephemeral, wiped on restart). Mount a named volume there to persist reports across restarts. Reports may contain investigation subjects' data (usernames, addresses); `reports/` is gitignored.
 
 ## Security
 
@@ -353,7 +371,7 @@ make dhealth           # show healthcheck state
 make down              # stop and remove
 ```
 
-The container runs read-only with `cap_drop: ALL`, tmpfs for `/app/temp`, and a built-in healthcheck (`scripts/healthcheck.js`).
+The container runs read-only with `cap_drop: ALL`, tmpfs for `/app/temp` and `/app/reports`, and a built-in healthcheck (`scripts/healthcheck.js`).
 
 PM2 is not supported — it needs a writable `~/.pm2` which conflicts with the hardened `read_only` container and systemd `ProtectHome=true`.
 

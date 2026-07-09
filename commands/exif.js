@@ -31,6 +31,7 @@ const { URL } = require('url');
 const { isValidUrl, sanitizeInput } = require('../utils/validation');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { tempFilePath, cleanupFile } = require('../utils/temp');
+const { saveReport } = require('../utils/reports');
 const fsPromises = require('fs').promises;
 
 module.exports = {
@@ -139,7 +140,10 @@ module.exports = {
                 
                 // Create response with attachment
                 await sendExifResults(interaction, formattedData, imageUrl, fileStats, exifData);
-                
+
+                // Persist a durable copy to reports/ (report is built in memory, no temp file).
+                await saveReport(`exif_${imageUrl}`, formattedData);
+
                 // Clean up temporary file
                 await cleanupFile(imagePath);
                 

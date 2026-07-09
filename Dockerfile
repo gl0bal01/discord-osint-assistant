@@ -16,8 +16,8 @@ COPY utils/ ./utils/
 COPY scripts/ ./scripts/
 COPY addons/ ./addons/
 
-# Create temp directory
-RUN mkdir -p /app/temp
+# Create writable runtime dirs (mount points for tmpfs/volumes under read_only)
+RUN mkdir -p /app/temp /app/reports
 
 # Run as non-root user
 RUN groupadd -r botuser && useradd -r -g botuser botuser

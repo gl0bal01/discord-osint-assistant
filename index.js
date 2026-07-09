@@ -10,12 +10,15 @@ const logger = require('./utils/logger');
 const { startHealthWriter, stopHealthWriter, markReady, markShuttingDown, writeStartingState } = require('./utils/health');
 const { startMetricsServer, stopMetricsServer, commandDuration, commandErrors, ratelimitBlocks, discordEvents } = require('./utils/metrics');
 const { startHourlySweep, stopHourlySweep } = require('./utils/temp-sweep');
+const { pruneReports, startReportsSweep, stopReportsSweep } = require('./utils/reports');
 
 require('./utils/config'); // validates env; exits(1) on missing required vars
 
 const tempDir = path.join(__dirname, 'temp');
 bootstrap.sweepBootTemp(tempDir);
 startHourlySweep(tempDir);
+pruneReports();        // boot prune of the durable reports/ archive (long TTL)
+startReportsSweep();   // hourly reports/ prune
 
 const HEALTH_FILE = process.env.HEALTH_FILE || './temp/.health/health.json';
 writeStartingState(HEALTH_FILE);
@@ -41,7 +44,7 @@ logger.info({ loaded: stats.loaded, skipped: stats.skipped, failed: stats.failed
 
 const shutdownHandler = bootstrap.createShutdownHandler(client, {
     onSignal: (signal) => { logger.info({ signal }, 'shutdown signal received'); markShuttingDown(); },
-    onDrain: async () => { stopRateLimitPrune(); stopHealthWriter(); stopHourlySweep(); if (metricsServer) await stopMetricsServer(); }
+    onDrain: async () => { stopRateLimitPrune(); stopHealthWriter(); stopHourlySweep(); stopReportsSweep(); if (metricsServer) await stopMetricsServer(); }
 });
 process.on('SIGINT', () => shutdownHandler('SIGINT'));
 process.on('SIGTERM', () => shutdownHandler('SIGTERM'));

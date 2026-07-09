@@ -12,6 +12,7 @@ const axios = require('axios');
 const fs = require('fs');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
+const { archiveReport } = require('../utils/reports');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -138,6 +139,9 @@ async function handleVinDecode(interaction, returnRaw) {
             
             // Write the data to a JSON file
             fs.writeFileSync(filePath, JSON.stringify(combinedData, null, 2));
+
+            // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+            await archiveReport(filePath, `vpic_${vin}`, 'json');
             
             // Create an attachment for the JSON file
             const attachment = new AttachmentBuilder(filePath, { 
@@ -262,10 +266,13 @@ async function handleGetMakes(interaction, returnRaw) {
             
             // Write the data to a JSON file
             fs.writeFileSync(filePath, JSON.stringify(response.data, null, 2));
-            
+
+            // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+            await archiveReport(filePath, `vpic_makes_${year || 'all'}`, 'json');
+
             // Create an attachment for the JSON file
-            const attachment = new AttachmentBuilder(filePath, { 
-                name: `vehicle_makes_${year || 'all'}.json` 
+            const attachment = new AttachmentBuilder(filePath, {
+                name: `vehicle_makes_${year || 'all'}.json`
             });
             
             // Send the response with the attachment
@@ -378,10 +385,13 @@ async function handleGetModels(interaction, returnRaw) {
             
             // Write the data to a JSON file
             fs.writeFileSync(filePath, JSON.stringify(response.data, null, 2));
-            
+
+            // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+            await archiveReport(filePath, `vpic_${make}`, 'json');
+
             // Create an attachment for the JSON file
-            const attachment = new AttachmentBuilder(filePath, { 
-                name: `vehicle_models_${make.replace(/\s+/g, '_')}_${year || 'all'}.json` 
+            const attachment = new AttachmentBuilder(filePath, {
+                name: `vehicle_models_${make.replace(/\s+/g, '_')}_${year || 'all'}.json`
             });
             
             // Send the response with the attachment

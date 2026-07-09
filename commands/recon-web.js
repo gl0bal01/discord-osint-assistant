@@ -23,6 +23,7 @@ const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Butt
 const axios = require('axios');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { isValidDomain, sanitizeFilename } = require('../utils/validation');
+const { archiveReport } = require('../utils/reports');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
@@ -362,7 +363,10 @@ module.exports = {
 
                                 // Save the file
                                 fs.writeFileSync(filePath, Buffer.from(faviconResponse.data));
-                                
+
+                                // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+                                await archiveReport(filePath, `recon_${domain}`, extension);
+
                                 // Update favicon data
                                 faviconData.contentType = contentType;
                                 faviconData.extension = extension;

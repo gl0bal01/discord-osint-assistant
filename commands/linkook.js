@@ -14,6 +14,7 @@ const { safeSpawn } = require('../utils/process');
 const fs = require('fs');
 const path = require('path');
 const { reportDirPath, cleanupDir } = require('../utils/temp');
+const { archiveReport } = require('../utils/reports');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -123,6 +124,8 @@ async function runLinkook(args, interaction, outputDir, username, rawMode) {
                 const filePath = path.join(outputDir, file);
                 const attachment = new AttachmentBuilder(filePath, { name: file });
                 attachments.push(attachment);
+                // Persist a durable copy to reports/ (temp dir is deleted after a delay).
+                await archiveReport(filePath, `linkook_${username}_${file}`);
             }
 
             let message = `Found results for username "${username}" on ${foundSites.length} platforms.`;
@@ -160,6 +163,9 @@ async function runLinkook(args, interaction, outputDir, username, rawMode) {
             }
 
             fs.writeFileSync(summaryPath, summaryContent);
+
+            // Persist a durable copy to reports/ (temp dir is deleted after a delay).
+            await archiveReport(summaryPath, `linkook_${username}`);
 
             const attachment = new AttachmentBuilder(summaryPath, {
                 name: `linkook_${username}_results.txt`

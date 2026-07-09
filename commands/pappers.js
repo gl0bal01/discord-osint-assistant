@@ -13,6 +13,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
+const { archiveReport } = require('../utils/reports');
 // Definitions of available fields for company endpoint
 const AVAILABLE_FIELD_GROUPS = {
     'officers': 'Company officers and directors',
@@ -299,7 +300,10 @@ module.exports = {
             // Save the raw API response to a file
             const filePath = reportFilePath('pappers', 'json');
             fs.writeFileSync(filePath, JSON.stringify(apiResponse, null, 2));
-            
+
+            // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+            await archiveReport(filePath, `pappers_${interaction.options.getString('query') || interaction.options.getString('name') || interaction.options.getString('company_number') || subcommand}`, 'json');
+
             // Create an attachment with the file
             const attachment = new AttachmentBuilder(filePath, { name: filename });
             

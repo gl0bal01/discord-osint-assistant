@@ -20,6 +20,7 @@ const axios = require('axios');
 const fs = require('fs');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
+const { archiveReport } = require('../utils/reports');
 const { escapeHtml } = require('../utils/embed');
 const { splitIntoChunks } = require('../utils/chunks');
 
@@ -273,7 +274,10 @@ module.exports = {
         
         // Write report file
         fs.writeFileSync(reportPath, reportContent, 'utf8');
-        
+
+        // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+        await archiveReport(reportPath, `nike_${searchString}`, 'html');
+
         // Send the report file as an attachment
         await interaction.editReply({
           content: `Found ${objects.length} results for "${searchString}".`,

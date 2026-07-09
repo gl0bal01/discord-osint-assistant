@@ -27,6 +27,7 @@
 
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
 const { sanitizeInput } = require('../utils/validation');
+const { saveReport } = require('../utils/reports');
 
 // Comprehensive blockchain address patterns
 const BLOCKCHAIN_PATTERNS = [
@@ -54,10 +55,10 @@ const BLOCKCHAIN_PATTERNS = [
         explorer: 'https://etherscan.io/address/',
         color: 0x627eea,
         patterns: [
-            { 
-                regex: /^0x[a-fA-F0-9]{40}$/, 
+            {
+                regex: /^0x[a-fA-F0-9]{40}$/,
                 description: 'Ethereum address',
-                details: 'Hexadecimal format, 42 characters total including 0x prefix'
+                details: 'Hexadecimal format, 42 characters total including 0x prefix. Testnet note: identical on all EVM testnets (Sepolia, Holesky) — format alone cannot distinguish mainnet from testnet.'
             }
         ]
     },
@@ -67,10 +68,10 @@ const BLOCKCHAIN_PATTERNS = [
         explorer: 'https://bscscan.com/address/',
         color: 0xf3ba2f,
         patterns: [
-            { 
-                regex: /^0x[a-fA-F0-9]{40}$/, 
+            {
+                regex: /^0x[a-fA-F0-9]{40}$/,
                 description: 'BSC address (EVM compatible)',
-                details: 'Same format as Ethereum, requires blockchain context for distinction'
+                details: 'Same format as Ethereum, requires blockchain context for distinction. Testnet note: BSC Testnet uses the identical format — indistinguishable by format alone.'
             }
         ]
     },
@@ -80,10 +81,10 @@ const BLOCKCHAIN_PATTERNS = [
         explorer: 'https://polygonscan.com/address/',
         color: 0x8247e5,
         patterns: [
-            { 
-                regex: /^0x[a-fA-F0-9]{40}$/, 
+            {
+                regex: /^0x[a-fA-F0-9]{40}$/,
                 description: 'Polygon address (EVM compatible)',
-                details: 'Identical to Ethereum format, network determined by usage context'
+                details: 'Identical to Ethereum format, network determined by usage context. Testnet note: Polygon Amoy testnet uses the identical format — indistinguishable by format alone.'
             }
         ]
     },
@@ -269,10 +270,95 @@ const BLOCKCHAIN_PATTERNS = [
         explorer: 'https://blockchair.com/dash/address/',
         color: 0x008de4,
         patterns: [
-            { 
-                regex: /^X[1-9A-HJ-NP-Za-km-z]{33}$/, 
+            {
+                regex: /^X[1-9A-HJ-NP-Za-km-z]{33}$/,
                 description: 'Dash address',
                 details: 'Base58 encoded, starts with X, 34 characters total'
+            }
+        ]
+    },
+    // ── Testnets ─────────────────────────────────────────────────────────────
+    // Only chains whose testnet addresses are DISTINGUISHABLE from mainnet by
+    // format are listed. EVM testnets (Sepolia/Holesky/BSC-testnet/Amoy) reuse
+    // the mainnet 0x40-hex format and cannot be told apart here — see the
+    // "Testnet note" on the Ethereum/BSC/Polygon patterns above.
+    {
+        name: 'Bitcoin (Testnet)',
+        symbol: 'tBTC',
+        explorer: 'https://blockstream.info/testnet/address/',
+        color: 0xf7931a,
+        patterns: [
+            {
+                regex: /^[mn][a-km-zA-HJ-NP-Z1-9]{25,34}$/,
+                description: 'Testnet legacy P2PKH',
+                details: 'Base58, starts with m or n (testnet3)'
+            },
+            {
+                regex: /^2[a-km-zA-HJ-NP-Z1-9]{25,34}$/,
+                description: 'Testnet P2SH',
+                details: 'Base58, starts with 2 (testnet3)'
+            },
+            {
+                regex: /^tb1[ac-hj-np-z02-9]{6,87}$/,
+                description: 'Testnet Bech32 (P2WPKH/P2WSH)',
+                details: 'Native SegWit testnet, lowercase, starts with tb1'
+            }
+        ]
+    },
+    {
+        name: 'Litecoin (Testnet)',
+        symbol: 'tLTC',
+        explorer: 'https://blockchair.com/litecoin/testnet/address/',
+        color: 0xbfbbbb,
+        patterns: [
+            {
+                regex: /^Q[a-km-zA-HJ-NP-Z1-9]{25,34}$/,
+                description: 'Testnet P2SH',
+                details: 'Base58, starts with Q (Litecoin testnet)'
+            },
+            {
+                regex: /^tltc1[ac-hj-np-z02-9]{6,87}$/,
+                description: 'Testnet Bech32',
+                details: 'Native SegWit testnet, lowercase, starts with tltc1'
+            }
+        ]
+    },
+    {
+        name: 'Bitcoin Cash (Testnet)',
+        symbol: 'tBCH',
+        explorer: 'https://blockchair.com/bitcoin-cash/testnet/address/',
+        color: 0x8dc351,
+        patterns: [
+            {
+                regex: /^bchtest:[qp][a-z0-9]{41}$/,
+                description: 'Testnet CashAddr',
+                details: 'BCH testnet, requires bchtest: prefix, starts with q or p'
+            }
+        ]
+    },
+    {
+        name: 'Dogecoin (Testnet)',
+        symbol: 'tDOGE',
+        explorer: 'https://blockchair.com/dogecoin/testnet/address/',
+        color: 0xc2a633,
+        patterns: [
+            {
+                regex: /^n[a-km-zA-HJ-NP-Z1-9]{25,34}$/,
+                description: 'Testnet address',
+                details: 'Base58, starts with n (Dogecoin testnet). Shares the n-prefix with Bitcoin testnet — expect a multi-match.'
+            }
+        ]
+    },
+    {
+        name: 'Dash (Testnet)',
+        symbol: 'tDASH',
+        explorer: 'https://blockchair.com/dash/testnet/address/',
+        color: 0x008de4,
+        patterns: [
+            {
+                regex: /^y[a-km-zA-HJ-NP-Z1-9]{25,34}$/,
+                description: 'Testnet address',
+                details: 'Base58, starts with y (Dash testnet)'
             }
         ]
     }
@@ -725,7 +811,10 @@ async function createDetectionReport(results, address) {
     report += `This analysis is based on address format patterns only.\n`;
     report += `For definitive blockchain identification, check transaction history.\n`;
     report += `Generated by Discord OSINT Assistant v2.0\n`;
-    
+
+    // Persist a durable copy to reports/ (report is built in memory, no temp file).
+    await saveReport(`blockchain-detect_${address}`, report);
+
     return new AttachmentBuilder(
         Buffer.from(report, 'utf8'),
         { name: `blockchain_detection_${address.substring(0, 10)}_${Date.now()}.txt` }

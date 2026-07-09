@@ -18,6 +18,7 @@ const crypto = require('crypto');
 const dns = require('dns').promises;
 const tls = require('tls');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
+const { archiveReport } = require('../utils/reports');
 
 // Cache for historical comparison
 const redirectCache = new Map();
@@ -115,6 +116,10 @@ module.exports = {
                 }
 
                 await fsp.writeFile(filePath, content);
+
+                // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+                await archiveReport(filePath, `redirect_${url}`);
+
                 const attachment = new AttachmentBuilder(filePath, { name: fileName });
 
                 await interaction.editReply({
@@ -139,6 +144,9 @@ module.exports = {
                 const filePath = reportFilePath('redirect', 'json');
 
                 await fsp.writeFile(filePath, JSON.stringify(fullResult, null, 2));
+
+                // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
+                await archiveReport(filePath, `redirect_${url}`, 'json');
 
                 const attachment = new AttachmentBuilder(filePath, {
                     name: 'redirect_analysis.json'
