@@ -1,6 +1,6 @@
 {
   "name": "discord-osint-assistant",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "A powerful Discord bot for Open Source Intelligence (OSINT) gathering and analysis",
   "main": "index.js",
   "scripts": {
