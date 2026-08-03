@@ -1,6 +1,8 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
+  # "bun" keeps bun.lock in sync (npm ecosystem broke `bun install --frozen-lockfile`).
+  # Caveat: bun ecosystem has no security-only updates; CI's npm audit covers that gap.
+  - package-ecosystem: "bun"
     directory: "/"
     schedule:
       interval: "weekly"
