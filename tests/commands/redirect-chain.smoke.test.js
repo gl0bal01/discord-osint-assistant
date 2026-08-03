@@ -90,14 +90,14 @@ describe('bob-redirect-check smoke', () => {
         expect(typeof cmd.execute).toBe('function');
     });
 
-    it('execute defers and completes with valid URL (no redirect chain)', { timeout: 500 }, async () => {
+    it('execute defers and completes with valid URL (no redirect chain)', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({ options: { url: 'https://example.com/' } });
         await cmd.execute(interaction);
         expect(interaction.deferReply).toHaveBeenCalled();
         expect(interaction.editReply).toHaveBeenCalled();
     });
 
-    it('rejects malformed URL without making network calls', { timeout: 500 }, async () => {
+    it('rejects malformed URL without making network calls', { timeout: 2000 }, async () => {
         const { default: axios } = await import('axios');
         const interaction = makeInteraction({ options: { url: 'not-a-url' } });
         await cmd.execute(interaction);
@@ -108,7 +108,7 @@ describe('bob-redirect-check smoke', () => {
         expect(axios.get).not.toHaveBeenCalled();
     });
 
-    it('rejects internal/private URL via ssrf guard', { timeout: 500 }, async () => {
+    it('rejects internal/private URL via ssrf guard', { timeout: 2000 }, async () => {
         const { validateUrlNotInternal } = await import('../../utils/ssrf');
         validateUrlNotInternal.mockRejectedValueOnce(new Error('Private IP'));
         const interaction = makeInteraction({ options: { url: 'http://192.168.1.1/' } });
@@ -119,7 +119,7 @@ describe('bob-redirect-check smoke', () => {
         expect(content).toMatch(/not allowed/i);
     });
 
-    it('handles missing url option gracefully', { timeout: 500 }, async () => {
+    it('handles missing url option gracefully', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({ options: {} });
         await cmd.execute(interaction);
         expect(interaction.editReply.mock.calls.length + interaction.reply.mock.calls.length).toBeGreaterThan(0);

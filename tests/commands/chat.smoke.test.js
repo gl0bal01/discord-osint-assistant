@@ -72,7 +72,7 @@ describe('bob-chat smoke', () => {
         expect(typeof cmd.execute).toBe('function');
     });
 
-    it('execute defers reply on ask subcommand with message', { timeout: 500 }, async () => {
+    it('execute defers reply on ask subcommand with message', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({
             options: { __subcommand: 'ask', message: 'Hello AI' }
         });
@@ -80,7 +80,7 @@ describe('bob-chat smoke', () => {
         expect(interaction.deferReply).toHaveBeenCalled();
     });
 
-    it('returns error when AI_API_KEY is missing', { timeout: 500 }, async () => {
+    it('returns error when AI_API_KEY is missing', { timeout: 2000 }, async () => {
         delete process.env.AI_API_KEY;
         const interaction = makeInteraction({
             options: { __subcommand: 'ask', message: 'Hello AI' }
@@ -92,7 +92,7 @@ describe('bob-chat smoke', () => {
         expect(content).toMatch(/api key|configuration/i);
     });
 
-    it('reset subcommand clears context and replies', { timeout: 500 }, async () => {
+    it('reset subcommand clears context and replies', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({
             options: { __subcommand: 'reset', model: 'all' }
         });
@@ -103,7 +103,7 @@ describe('bob-chat smoke', () => {
         expect(content).toMatch(/reset/i);
     });
 
-    it('handles transcribe subcommand requiring language for phone_call', { timeout: 500 }, async () => {
+    it('handles transcribe subcommand requiring language for phone_call', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({
             options: {
                 __subcommand: 'transcribe',

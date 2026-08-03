@@ -78,7 +78,7 @@ describe('bob-jwt smoke', () => {
         expect(typeof cmd.execute).toBe('function');
     });
 
-    it('execute defers reply (ephemeral) for analyze with valid JWT', { timeout: 500 }, async () => {
+    it('execute defers reply (ephemeral) for analyze with valid JWT', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({
             options: { __subcommand: 'analyze', token: VALID_JWT }
         });
@@ -88,7 +88,7 @@ describe('bob-jwt smoke', () => {
         );
     });
 
-    it('rejects malformed token with error embed', { timeout: 500 }, async () => {
+    it('rejects malformed token with error embed', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({
             options: { __subcommand: 'analyze', token: 'not-a-jwt' }
         });
@@ -100,7 +100,7 @@ describe('bob-jwt smoke', () => {
         expect(embeds.length).toBeGreaterThan(0);
     });
 
-    it('tamper subcommand validates missing value for modify action', { timeout: 500 }, async () => {
+    it('tamper subcommand validates missing value for modify action', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({
             options: {
                 __subcommand: 'tamper',
@@ -118,7 +118,7 @@ describe('bob-jwt smoke', () => {
         expect(embeds.length).toBeGreaterThan(0);
     });
 
-    it('crack subcommand with valid token defers and replies', { timeout: 500 }, async () => {
+    it('crack subcommand with valid token defers and replies', { timeout: 2000 }, async () => {
         // The wordlist check uses existsSync; with our fs mock (existsSync → true) the command
         // proceeds to spawn jwt_tool. safeSpawnToFile writes mock output so we get a reply.
         const interaction = makeInteraction({

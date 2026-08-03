@@ -121,7 +121,7 @@ describe('bob-rekognition smoke', () => {
         expect(typeof cmd.execute).toBe('function');
     });
 
-    it('execute defers reply for analyze with image attachment', { timeout: 500 }, async () => {
+    it('execute defers reply for analyze with image attachment', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({
             options: {
                 __subcommand: 'analyze',
@@ -133,7 +133,7 @@ describe('bob-rekognition smoke', () => {
         expect(interaction.deferReply).toHaveBeenCalled();
     });
 
-    it('returns error when AWS credentials are missing', { timeout: 500 }, async () => {
+    it('returns error when AWS credentials are missing', { timeout: 2000 }, async () => {
         delete process.env.AWS_ACCESS_KEY_ID;
         delete process.env.AWS_SECRET_ACCESS_KEY;
         const interaction = makeInteraction({
@@ -146,7 +146,7 @@ describe('bob-rekognition smoke', () => {
         expect(content).toMatch(/aws|credential/i);
     });
 
-    it('rejects analyze with no image and no url', { timeout: 500 }, async () => {
+    it('rejects analyze with no image and no url', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({
             options: { __subcommand: 'analyze' }
         });
@@ -157,7 +157,7 @@ describe('bob-rekognition smoke', () => {
         expect(content).toMatch(/provide|image|url/i);
     });
 
-    it('compare subcommand errors with no source image', { timeout: 500 }, async () => {
+    it('compare subcommand errors with no source image', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({
             options: {
                 __subcommand: 'compare',

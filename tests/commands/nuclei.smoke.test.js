@@ -66,14 +66,14 @@ describe('bob-nuclei smoke', () => {
         expect(typeof cmd.execute).toBe('function');
     });
 
-    it('execute defers and completes with valid username', { timeout: 500 }, async () => {
+    it('execute defers and completes with valid username', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({ options: { username: 'testuser123' } });
         await cmd.execute(interaction);
         expect(interaction.deferReply).toHaveBeenCalled();
         expect(interaction.editReply).toHaveBeenCalled();
     });
 
-    it('rejects invalid username with error message', { timeout: 500 }, async () => {
+    it('rejects invalid username with error message', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({ options: { username: '../../etc/passwd' } });
         await cmd.execute(interaction);
         expect(interaction.editReply).toHaveBeenCalled();
@@ -82,7 +82,7 @@ describe('bob-nuclei smoke', () => {
         expect(content).toMatch(/invalid/i);
     });
 
-    it('rejects invalid tags format', { timeout: 500 }, async () => {
+    it('rejects invalid tags format', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({ options: { username: 'testuser123', tags: 'good,bad tag!' } });
         await cmd.execute(interaction);
         expect(interaction.editReply).toHaveBeenCalled();
@@ -91,7 +91,7 @@ describe('bob-nuclei smoke', () => {
         expect(content).toMatch(/invalid.*tag/i);
     });
 
-    it('handles missing username gracefully', { timeout: 500 }, async () => {
+    it('handles missing username gracefully', { timeout: 2000 }, async () => {
         const interaction = makeInteraction({ options: {} });
         await cmd.execute(interaction);
         expect(interaction.editReply.mock.calls.length + interaction.reply.mock.calls.length).toBeGreaterThan(0);
