@@ -55,7 +55,7 @@
     "discord-api-types": "^0.38.47",
     "discord.js": "^14.26.4",
     "dotenv": "^17.4.2",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "murmurhash": "^2.0.1",
     "pino": "^10.3.1",
     "prom-client": "^15.1.3"
