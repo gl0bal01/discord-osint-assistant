@@ -48,7 +48,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@aws-sdk/client-rekognition": "^3.1105.0",
+    "@aws-sdk/client-rekognition": "^3.1110.0",
     "@discordjs/rest": "^2.6.1",
     "axios": "^1.16.0",
     "cheerio": "^1.2.0",
