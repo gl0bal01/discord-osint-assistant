@@ -48,11 +48,11 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@aws-sdk/client-rekognition": "^3.1120.0",
+    "@aws-sdk/client-rekognition": "^3.1126.0",
     "@discordjs/rest": "^2.6.1",
     "axios": "^1.20.0",
     "cheerio": "^1.2.0",
-    "discord-api-types": "^0.38.53",
+    "discord-api-types": "^0.38.55",
     "discord.js": "^14.26.4",
     "dotenv": "^17.4.2",
     "murmurhash": "^2.0.1",
