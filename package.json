@@ -54,7 +54,7 @@
     "cheerio": "^1.2.0",
     "discord-api-types": "^0.38.55",
     "discord.js": "^14.26.4",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.0",
     "murmurhash": "^2.0.1",
     "pino": "^10.3.1",
     "prom-client": "^15.1.3"
