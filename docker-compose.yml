@@ -1,8 +1,9 @@
-version: '3.8'
-
 services:
   bot:
-    build: .
+    build:
+      context: .
+      # slim: no CLI tools (tool commands hidden) | full: Sherlock, Nuclei, GHunt, ...
+      target: ${BOT_TARGET:-slim}
     restart: unless-stopped
     env_file:
       - .env
@@ -18,6 +19,9 @@ services:
       # (ephemeral); mount a named volume here instead to persist across restarts.
       - /app/reports:size=100M,uid=999,gid=999
       - /tmp:size=50M
+    volumes:
+      # $HOME: GHunt login and tool configs (full image); survives restarts
+      - bot-home:/home/botuser
     mem_limit: 512m
     memswap_limit: 512m
     pids_limit: 50
@@ -27,3 +31,6 @@ services:
       timeout: 5s
       start_period: 15s
       retries: 3
+
+volumes:
+  bot-home:

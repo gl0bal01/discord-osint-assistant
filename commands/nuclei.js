@@ -89,6 +89,7 @@ const crypto = require('crypto');
  * Configures command parameters and validation rules for username enumeration
  */
 module.exports = {
+    requiresTool: [process.env.NUCLEI_PATH || 'nuclei'],
     data: new SlashCommandBuilder()
         .setName('bob-nuclei')
         .setDescription('🔍 Advanced OSINT username enumeration using Nuclei vulnerability scanner')

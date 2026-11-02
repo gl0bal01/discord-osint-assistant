@@ -62,7 +62,7 @@ The `docker-compose.yml` enforces:
 - `security_opt: no-new-privileges` — prevents privilege escalation
 - `cap_drop: ALL` — drops all Linux capabilities
 - `read_only: true` — read-only root filesystem (preserved through all production-readiness work)
-- `tmpfs` mounts with size limits for `/app/temp` and `/tmp` — these are the only writable paths
+- `tmpfs` mounts with size limits for `/app/temp`, `/app/reports` and `/tmp`, plus the `/home/botuser` volume — these are the only writable paths
 - Memory limit (512MB) and PID limit (50)
 - Non-root `botuser` in the Dockerfile
 - `HEALTHCHECK` runs `bun run scripts/healthcheck.js` every 30s — not just `kill -0 1`

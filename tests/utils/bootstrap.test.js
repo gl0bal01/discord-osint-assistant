@@ -50,6 +50,22 @@ describe('loadCommands', () => {
         expect(stats.failed).toBe(0);
     });
 
+    it('hides a command whose required tool is not installed, keeps one whose tool is', () => {
+        const { loadCommands } = loadBootstrap();
+        const missing = path.join(tmpDir, 'needs-missing.js');
+        const present = path.join(tmpDir, 'needs-sh.js');
+        fs.writeFileSync(missing, `module.exports = { requiresTool: ['no-such-tool-xyz'], data: { name: 'hidden' }, execute: () => {} };`);
+        fs.writeFileSync(present, `module.exports = { requiresTool: ['no-such-tool-xyz', 'sh'], data: { name: 'shown' }, execute: () => {} };`);
+        delete require.cache[missing];
+        delete require.cache[present];
+
+        const { commands, stats } = loadCommands(tmpDir);
+        expect(commands.has('hidden')).toBe(false);
+        expect(commands.has('shown')).toBe(true);
+        expect(stats.missingTool).toEqual(['hidden']);
+        expect(stats.loaded).toBe(1);
+    });
+
     it('increments skipped for module missing execute', () => {
         const { loadCommands } = loadBootstrap();
         const cmdFile = path.join(tmpDir, 'bad-no-execute.js');

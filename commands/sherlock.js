@@ -33,6 +33,7 @@ const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
 
 module.exports = {
+    requiresTool: [process.env.SHERLOCK_PATH || 'sherlock'],
     data: new SlashCommandBuilder()
         .setName('bob-sherlock')
         .setDescription('Search for username across multiple social media platforms')

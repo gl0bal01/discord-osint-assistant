@@ -13,6 +13,7 @@ const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
 
 module.exports = {
+    requiresTool: [process.env.MAIGRET_PATH || 'maigret'],
     data: new SlashCommandBuilder()
         .setName('bob-maigret')
         .setDescription('Run a Maigret OSINT scan')

@@ -35,6 +35,7 @@ const { saveReport } = require('../utils/reports');
 const fsPromises = require('fs').promises;
 
 module.exports = {
+    requiresTool: [process.env.EXIFTOOL_PATH || 'exiftool'],
     data: new SlashCommandBuilder()
         .setName('bob-exif')
         .setDescription('Extract comprehensive EXIF metadata from an image URL')

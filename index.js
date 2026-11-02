@@ -40,7 +40,7 @@ const client = new Client({
 
 const { commands, stats } = bootstrap.loadCommands(path.join(__dirname, 'commands'));
 client.commands = commands;
-logger.info({ loaded: stats.loaded, skipped: stats.skipped, failed: stats.failed }, 'Commands loaded');
+logger.info({ loaded: stats.loaded, skipped: stats.skipped, failed: stats.failed, missingTool: stats.missingTool }, 'Commands loaded');
 
 const shutdownHandler = bootstrap.createShutdownHandler(client, {
     onSignal: (signal) => { logger.info({ signal }, 'shutdown signal received'); markShuttingDown(); },
@@ -81,7 +81,12 @@ client.on(Events.InteractionCreate, async interaction => {
 
     const cmdName = interaction.commandName;
     const command = client.commands.get(cmdName);
-    if (!command) { logger.error({ commandName: cmdName }, 'No command matching name was found'); return; }
+    if (!command) {
+        // e.g. a CLI-backed command still registered after switching to the slim image
+        logger.error({ commandName: cmdName }, 'No command matching name was found');
+        try { await interaction.reply({ content: 'This command is not available on this deployment.', flags: MessageFlags.Ephemeral }); } catch { /* interaction expired */ }
+        return;
+    }
 
     const { allowed, reason } = checkPermission(interaction);
     if (!allowed) {

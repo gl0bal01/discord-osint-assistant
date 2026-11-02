@@ -64,11 +64,11 @@ Copy `.env.example` to `.env` and fill in your values. Here's what each variable
 | `DNSDUMPSTER_TOKEN` | [DNSDumpster](https://dnsdumpster.com/) | `/bob-dns` |
 | `WHOXY_API_KEY` | [Whoxy](https://www.whoxy.com/) | `/bob-whoxy` |
 | `HOSTIO_API_KEY` | [Host.io](https://host.io/) | `/bob-hostio` |
-| `AVIATIONSTACK_API_KEY` | [AviationStack](https://aviationstack.com/) | `/bob-aviation`, `/bob-flight-number` |
+| `AVIATIONSTACK_API_KEY` | [AviationStack](https://aviationstack.com/) | `/bob-flight`, `/bob-flight-number` |
 | `AIRPORTDB_API_KEY` | [AirportDB](https://airportdb.io/) | `/bob-airport` |
 | `PAPPERS_API_KEY` | [Pappers](https://www.pappers.fr/) | `/bob-pappers` |
 | `AI_API_KEY` | [1min.ai](https://1min.ai/) | `/bob-chat` |
-| `VIRUSTOTAL_API_KEY` | [VirusTotal](https://www.virustotal.com/) | `/bob-recon-web` |
+| `VIRUSTOTAL_API_KEY` | [VirusTotal](https://www.virustotal.com/) | `/bob-web-recon` |
 | `NIKE_TOKEN` | Nike Run Club | `/bob-nike` |
 | `ETHERSCAN_API_KEY` | [Etherscan](https://etherscan.io/) | `/bob-blockchain` |
 | `BSCSCAN_API_KEY` | [BscScan](https://bscscan.com/) | `/bob-blockchain` |
@@ -79,7 +79,7 @@ Copy `.env.example` to `.env` and fill in your values. Here's what each variable
 
 ## External Tools
 
-These CLI tools are optional. Install the ones you want to use:
+These CLI tools are optional. Install the ones you want to use, or use the `full` Docker image, which ships all of them:
 
 | Tool | Install | Commands |
 |------|---------|----------|
@@ -92,27 +92,21 @@ These CLI tools are optional. Install the ones you want to use:
 | [Linkook](https://github.com/JackJuly/linkook) | See repo | `/bob-linkook` |
 | [jwt_tool](https://github.com/ticarpi/jwt_tool) | See repo | `/bob-jwt` |
 
-If a tool isn't installed, the corresponding command will return a clear "not installed" message instead of crashing.
+If a tool isn't installed, its command is hidden: `bun run deploy` skips it and the bot doesn't load it. Install the tool and re-run deploy to bring the command back.
 
 To use a non-standard path, set the corresponding env var (e.g., `SHERLOCK_PATH=/opt/sherlock/bin/sherlock`).
 
 ## Docker Deployment
 
 ```bash
-cp .env.example .env   # configure tokens
-docker compose up -d
+cp .env.example .env                        # configure tokens; BOT_TARGET=full for all CLI tools
+docker compose up -d --build
+docker compose exec bot bun run deploy      # register commands available in this image
 ```
 
 The `docker-compose.yml` includes security hardening: non-root user, dropped capabilities, read-only filesystem, memory/PID limits, and tmpfs mounts. See the [Security section](../README.md#security) in the README for details.
 
-To add external tools to the Docker image, extend the Dockerfile:
-
-```dockerfile
-FROM discord-osint-assistant AS base
-USER root
-RUN pip install sherlock-project maigret
-USER botuser
-```
+The default `slim` image has no CLI tools. Set `BOT_TARGET=full` in `.env` (or `docker build --target full .`) for an image with Sherlock, Maigret, GHunt, xeuledoc, Linkook, jwt_tool, Nuclei with templates, and ExifTool. `/home/botuser` is a named volume, so the GHunt login (`/bob-ghunt type:login`) persists across restarts.
 
 ## Command Deployment
 
@@ -142,6 +136,6 @@ After starting the bot, type `/bob-health detailed:true check-apis:true check-to
 
 **API command returns an error** — check that the corresponding API key is set in `.env`. Run `/bob-health check-apis:true` to test connectivity.
 
-**External tool "not installed"** — install the tool and make sure it's in your PATH, or set the path explicitly via env var (e.g., `SHERLOCK_PATH=/usr/local/bin/sherlock`).
+**A tool command is missing in Discord** — its tool isn't installed where `deploy` ran. Install it (or use `BOT_TARGET=full`), make sure it's in your PATH or set the path via env var (e.g., `SHERLOCK_PATH=/usr/local/bin/sherlock`), then re-run `bun run deploy`.
 
 **Commands not showing in Discord** — slash commands can take up to an hour to appear for global deployments. Use guild deployment (`bun run deploy`) for instant registration.

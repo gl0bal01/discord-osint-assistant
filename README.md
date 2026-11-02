@@ -26,9 +26,10 @@ bun run start
 
 ## Features
 
-- 31 slash commands across identity, network, media, blockchain, transport, business, analysis, and operations workflows
+- 32 slash commands across identity, network, media, blockchain, transport, business, analysis, and operations workflows
 - `/bob-chat` supports multi-model chat, code generation, OSINT analysis, and speech-to-text transcription
 - Optional integrations with third-party APIs and local external tools
+- Two Docker images: lean by default, or `full` with every CLI tool preinstalled
 - Security-focused runtime controls for process execution and URL handling
 - Container-ready deployment and CI validation
 
@@ -56,7 +57,7 @@ The bot currently provides 32 commands across 8 functional areas. Run `/bob-help
 
 ### Domain and Network
 
-`/bob-dns`, `/bob-whoxy`, `/bob-hostio`, `/bob-recon-web`, `/bob-redirect-chain`, `/bob-favicons`
+`/bob-dns`, `/bob-whoxy`, `/bob-hostio`, `/bob-web-recon`, `/bob-redirect-check`, `/bob-favicon`
 
 ### Image and Media
 
@@ -75,7 +76,7 @@ The bot currently provides 32 commands across 8 functional areas. Run `/bob-help
 
 ### Transportation
 
-`/bob-aviation`, `/bob-airport`, `/bob-flight-number`, `/bob-vessels`
+`/bob-flight`, `/bob-airport`, `/bob-flight-number`, `/bob-vessel`
 
 ### Business Intelligence
 
@@ -84,6 +85,12 @@ The bot currently provides 32 commands across 8 functional areas. Run `/bob-help
 ### Analysis
 
 `/bob-chat`, `/bob-jwt`, `/bob-xeuledoc`, `/bob-extract-links`, `/bob-dork`
+
+### Operations
+
+`/bob-health`, `/bob-help`, `/bob-monitor`, `/bob-upload`
+
+Commands that wrap a CLI tool (`/bob-sherlock`, `/bob-maigret`, `/bob-linkook`, `/bob-ghunt`, `/bob-nuclei`, `/bob-exif`, `/bob-jwt`, `/bob-xeuledoc`) are only registered and loaded when their tool is installed, so the lean image shows just the commands that work.
 
 ### `/bob-chat` Subcommands
 
@@ -282,10 +289,20 @@ See the unified clone/install/deploy/start snippet under [In Two Minutes](#in-tw
 
 ### Docker
 
+Two images from one Dockerfile:
+
+| `BOT_TARGET` | Contents | Commands |
+|--------------|----------|----------|
+| `slim` (default) | Bun + npm deps only | 24 (CLI-backed ones hidden) |
+| `full` | adds Sherlock, Maigret, GHunt, xeuledoc, Linkook, jwt_tool, Nuclei + templates, ExifTool (~1 GB more) | all 32 |
+
 ```bash
-cp .env.example .env
-docker compose up -d            # or: make up
+cp .env.example .env                        # DISCORD_TOKEN, CLIENT_ID, GUILD_ID; optional BOT_TARGET=full
+docker compose up -d --build                # or: make up
+docker compose exec bot bun run deploy      # register slash commands (re-run after switching image)
 ```
+
+Run `deploy` inside the container: it registers only the commands whose tools exist there. `$HOME` (`/home/botuser`) is a named volume, so the GHunt login survives restarts.
 
 ## Configuration
 
@@ -297,9 +314,9 @@ Copy `.env.example` to `.env` and configure at minimum:
 Optional integrations unlock additional commands:
 
 - API services such as Whoxy, DNSDumpster, Host.io, AviationStack, AWS Rekognition, and Etherscan (`ETHERSCAN_API_KEY`, required for `/bob-blockchain trace`)
-- External CLI tools such as Sherlock, Maigret, Nuclei, ExifTool, GHunt, xeuledoc, Linkook, and jwt_tool
+- External CLI tools such as Sherlock, Maigret, Nuclei, ExifTool, GHunt, xeuledoc, Linkook, and jwt_tool (all preinstalled in the `full` Docker image)
 
-If an optional dependency is missing, the related command returns a descriptive runtime error.
+If an API key is missing, the related command returns a descriptive error. If a CLI tool is missing, its command is not registered at all.
 
 ## Logging
 

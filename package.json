@@ -49,10 +49,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.1161.0",
-    "@discordjs/rest": "^2.6.3",
     "axios": "^1.21.0",
     "cheerio": "^1.2.0",
-    "discord-api-types": "^0.38.57",
     "discord.js": "^14.28.0",
     "dotenv": "^18.0.9",
     "murmurhash": "^2.0.1",

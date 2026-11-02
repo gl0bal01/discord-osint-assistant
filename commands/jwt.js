@@ -125,6 +125,7 @@ const createResultEmbed = (title, content, color = 0x0099FF) => {
 };
 
 module.exports = {
+    requiresTool: [CONFIG.JWT_TOOL_PATH, `${CONFIG.JWT_TOOL_PATH}/venv/bin/python3`, 'jwt_tool'],
     data: new SlashCommandBuilder()
         .setName('bob-jwt')
         .setDescription('Advanced JWT token analysis and manipulation toolkit')

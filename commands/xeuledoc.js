@@ -11,6 +11,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
 
 module.exports = {
+    requiresTool: ['xeuledoc'],
     data: new SlashCommandBuilder()
         .setName('bob-xeuledoc')
         .setDescription('Runs the installed xeuledoc command with a Google resource link')

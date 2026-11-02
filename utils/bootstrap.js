@@ -7,6 +7,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Collection } = require('discord.js');
+const { isToolAvailable } = require('./tools');
 
 const HEALTH_DIR_NAME = '.health';
 const SWEEP_EXCLUDE_DEFAULT = Object.freeze([HEALTH_DIR_NAME]);
@@ -14,7 +15,7 @@ const TEMP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 function loadCommands(commandsPath) {
     const commands = new Collection();
-    const stats = { loaded: 0, skipped: 0, failed: 0 };
+    const stats = { loaded: 0, skipped: 0, failed: 0, missingTool: [] };
 
     if (!fs.existsSync(commandsPath)) {
         return { commands, stats };
@@ -26,6 +27,11 @@ function loadCommands(commandsPath) {
         try {
             const command = require(filePath);
             if ('data' in command && 'execute' in command) {
+                // CLI-backed command whose tool isn't installed (e.g. lean image): hide it
+                if (command.requiresTool && !isToolAvailable(command.requiresTool)) {
+                    stats.missingTool.push(command.data.name);
+                    continue;
+                }
                 commands.set(command.data.name, command);
                 stats.loaded++;
             } else {

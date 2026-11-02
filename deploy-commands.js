@@ -14,6 +14,7 @@
 
 require('dotenv').config({ quiet: true });
 const { REST, Routes } = require('discord.js');
+const { isToolAvailable } = require('./utils/tools');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -73,6 +74,12 @@ async function loadCommands() {
                     continue;
                 }
                 
+                // Don't register CLI-backed commands whose tool isn't installed here
+                if (command.requiresTool && !isToolAvailable(command.requiresTool)) {
+                    console.log(`   ⏭️  Skipping ${command.data.name}: ${command.requiresTool.join(' / ')} not installed`);
+                    continue;
+                }
+
                 // Add the command to our deployment list
                 const commandData = command.data.toJSON();
                 commands.push(commandData);

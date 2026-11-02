@@ -248,6 +248,7 @@ function extractDriveId(url) {
 /* -------------------------------------------------------------------------- */
 
 module.exports = {
+    requiresTool: ['ghunt'],
     data: new SlashCommandBuilder()
         .setName('bob-ghunt')
         .setDescription('Execute GHunt commands for OSINT')

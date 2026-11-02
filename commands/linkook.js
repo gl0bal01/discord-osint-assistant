@@ -17,6 +17,7 @@ const { reportDirPath, cleanupDir } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
 
 module.exports = {
+    requiresTool: ['linkook'],
     data: new SlashCommandBuilder()
         .setName('bob-linkook')
         .setDescription('Search for a username across social platforms using Linkook')
