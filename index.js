@@ -13,6 +13,7 @@ const { startHourlySweep, stopHourlySweep } = require('./utils/temp-sweep');
 const { pruneReports, startReportsSweep, stopReportsSweep } = require('./utils/reports');
 
 require('./utils/config'); // validates env; exits(1) on missing required vars
+require('axios').defaults.timeout = 60_000; // ceiling for any request that sets no timeout of its own
 
 const tempDir = path.join(__dirname, 'temp');
 bootstrap.sweepBootTemp(tempDir);

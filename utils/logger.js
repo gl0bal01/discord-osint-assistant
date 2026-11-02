@@ -67,6 +67,41 @@ const _pinoOptions = {
     }
 };
 
+// Secret env names are the upper-case redact paths above.
+const SECRET_ENV = _pinoOptions.redact.paths.filter((p) => /^[A-Z][A-Z0-9_]+$/.test(p));
+
+function scrubSecrets(text) {
+    if (typeof text !== 'string') return text;
+    for (const name of SECRET_ENV) {
+        const value = process.env[name];
+        if (value && value.length >= 8) text = text.split(value).join('[REDACTED]');
+    }
+    return text;
+}
+
+/**
+ * Error serializer. Axios errors carry the request config, whose headers and URL
+ * query hold API keys (e.g. `?key=...`, `API-KEY:`), plus the whole socket/response.
+ * Keep only what helps debugging, and scrub any known secret value that remains.
+ */
+function errSerializer(err) {
+    if (!(err instanceof Error)) return err;
+    const out = pino.stdSerializers.err(err);
+    if (err.config || err.request || err.response) {
+        delete out.config;
+        delete out.request;
+        delete out.response;
+        out.status = err.response?.status;
+        out.method = err.config?.method;
+        out.url = String(err.config?.url ?? '').split('?')[0] || undefined;
+    }
+    out.message = scrubSecrets(out.message);
+    out.stack = scrubSecrets(out.stack);
+    if (out.url) out.url = scrubSecrets(out.url);
+    return out;
+}
+_pinoOptions.serializers = { err: errSerializer, error: errSerializer };
+
 // Use pino-pretty in dev (non-production + interactive TTY)
 if (process.env.NODE_ENV !== 'production' && process.stdout.isTTY) {
     _pinoOptions.transport = {

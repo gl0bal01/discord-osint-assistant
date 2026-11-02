@@ -128,3 +128,26 @@ describe('logger — log level filtering', () => {
         expect(lines).toHaveLength(0);
     });
 });
+
+describe('logger — error serializer', () => {
+    it('drops axios request config and scrubs known secret values', () => {
+        const lines = [];
+        const sink = new Writable({ write(c, _e, cb) { lines.push(JSON.parse(c.toString())); cb(); } });
+        const log = pino({ redact: _pinoOptions.redact, serializers: _pinoOptions.serializers }, sink);
+        const secret = 'whoxy-secret-key-1234';
+        const prev = process.env.WHOXY_API_KEY;
+        process.env.WHOXY_API_KEY = secret;
+        try {
+            const err = new Error(`Request failed for ${secret}`);
+            err.config = { method: 'get', url: `https://api.whoxy.com/?key=${secret}&whois=x`, headers: { 'API-KEY': secret } };
+            err.response = { status: 401, config: err.config };
+            log.error({ err }, 'whoxy failed');
+            const out = JSON.stringify(lines[0]);
+            expect(out).not.toContain(secret);
+            expect(lines[0].err).toMatchObject({ status: 401, method: 'get', url: 'https://api.whoxy.com/' });
+            expect(lines[0].err.config).toBeUndefined();
+        } finally {
+            if (prev === undefined) delete process.env.WHOXY_API_KEY; else process.env.WHOXY_API_KEY = prev;
+        }
+    });
+});
