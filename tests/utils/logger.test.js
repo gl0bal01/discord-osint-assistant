@@ -4,7 +4,7 @@
  * writing to real stdout from the singleton.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Writable } from 'node:stream';
 import pino from 'pino';
 
@@ -26,7 +26,7 @@ function buildTestLogger(levelOverride) {
     });
 
     const opts = {
-        ...structuredClone({ level: _pinoOptions.level, redact: _pinoOptions.redact }),
+        ...structuredClone({ level: 'info', redact: _pinoOptions.redact }),
         ...(levelOverride ? { level: levelOverride } : {})
     };
 
@@ -151,3 +151,58 @@ describe('logger — error serializer', () => {
         }
     });
 });
+
+describe('logger — error serializer: nested and non-axios shapes', () => {
+    const secret = 'whoxy-secret-key-1234+/=';
+    let prev;
+    const capture = (obj) => {
+        const lines = [];
+        const sink = new Writable({ write(c, _e, cb) { lines.push(c.toString()); cb(); } });
+        pino({ redact: _pinoOptions.redact, serializers: _pinoOptions.serializers }, sink).error(obj, 'failed');
+        return lines[0];
+    };
+    const axiosErr = () => Object.assign(new Error('Request failed with status code 401'), {
+        config: { url: `https://api.whoxy.com/?key=${secret}`, headers: { 'API-KEY': secret }, params: { key: secret } },
+        response: { status: 401, data: { echo: secret } }
+    });
+
+    beforeEach(() => { prev = process.env.WHOXY_API_KEY; process.env.WHOXY_API_KEY = secret; });
+    afterEach(() => { if (prev === undefined) delete process.env.WHOXY_API_KEY; else process.env.WHOXY_API_KEY = prev; });
+
+    it('drops request data from an axios error wrapped under any key', () => {
+        const wrapper = Object.assign(new Error('lookup failed'), { original: axiosErr() });
+        const out = capture({ err: wrapper });
+        expect(out).not.toContain(secret);
+        expect(out).toContain('lookup failed');
+    });
+
+    it('covers AggregateError members and cause chains', () => {
+        expect(capture({ err: new AggregateError([axiosErr()], 'all failed') })).not.toContain(secret);
+        expect(capture({ err: new Error('outer', { cause: axiosErr() }) })).not.toContain(secret);
+    });
+
+    it('scrubs URL-encoded secrets and non-Error throwables', () => {
+        expect(capture({ err: new Error(`bad url ?k=${encodeURIComponent(secret)}`) })).not.toContain(encodeURIComponent(secret));
+        expect(capture({ err: { message: 'thrown object', config: { headers: { 'API-KEY': secret } } } })).not.toContain(secret);
+        expect(capture({ err: `string throw ${secret}` })).not.toContain(secret);
+    });
+
+    it('redacts the Discord interaction token in a DiscordAPIError url and drops its request body', () => {
+        const djs = Object.assign(new Error('Unknown interaction'), {
+            url: 'https://discord.com/api/v10/webhooks/123456789/aW50ZXJhY3Rpb24tdG9rZW4.abc_def-123/messages/@original',
+            requestBody: { json: { content: 'private reply' }, files: [] },
+            status: 404
+        });
+        const out = capture({ err: djs });
+        expect(out).not.toContain('aW50ZXJhY3Rpb24tdG9rZW4');
+        expect(out).not.toContain('private reply');
+        expect(out).toContain('/webhooks/123456789/[REDACTED]');
+    });
+
+    it('survives circular references', () => {
+        const err = new Error('loop');
+        err.self = err;
+        expect(() => capture({ err })).not.toThrow();
+    });
+});
+

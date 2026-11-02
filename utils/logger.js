@@ -37,6 +37,7 @@ const _pinoOptions = {
             'AIRPORTDB_API_KEY',
             'NIKE_TOKEN',
             'SECURITY_WEBHOOK_URL',
+            'MARITIME_API_KEY',
             // nested under any single parent object
             '*.token',
             '*.authorization',
@@ -61,7 +62,8 @@ const _pinoOptions = {
             '*.AVIATIONSTACK_API_KEY',
             '*.AIRPORTDB_API_KEY',
             '*.NIKE_TOKEN',
-            '*.SECURITY_WEBHOOK_URL'
+            '*.SECURITY_WEBHOOK_URL',
+            '*.MARITIME_API_KEY'
         ],
         censor: '[REDACTED]'
     }
@@ -70,34 +72,53 @@ const _pinoOptions = {
 // Secret env names are the upper-case redact paths above.
 const SECRET_ENV = _pinoOptions.redact.paths.filter((p) => /^[A-Z][A-Z0-9_]+$/.test(p));
 
+// Discord interaction/webhook tokens sit in URL paths (e.g. DiscordAPIError.url).
+const TOKEN_IN_PATH = /(\/(?:webhooks|interactions)\/\d+\/)[\w.-]+/g;
+
 function scrubSecrets(text) {
     if (typeof text !== 'string') return text;
     for (const name of SECRET_ENV) {
         const value = process.env[name];
-        if (value && value.length >= 8) text = text.split(value).join('[REDACTED]');
+        if (!value || value.length < 8) continue;
+        for (const form of new Set([value, encodeURIComponent(value)])) text = text.split(form).join('[REDACTED]');
     }
-    return text;
+    return text.replace(TOKEN_IN_PATH, '$1[REDACTED]');
+}
+
+// Request/response objects (axios config, DiscordAPIError.requestBody, sockets)
+// carry keys, headers and payloads: dropped at any depth, not just the top level.
+const DROP_KEYS = new Set(['config', 'request', 'response', 'requestBody', 'headers', 'socket', '_header']);
+
+function scrubDeep(value, depth = 0, seen = new WeakSet()) {
+    if (typeof value === 'string') return scrubSecrets(value);
+    if (!value || typeof value !== 'object') return value;
+    if (seen.has(value)) return '[Circular]';
+    if (depth > 8) return '[Truncated]';
+    seen.add(value);
+    if (Array.isArray(value)) return value.map((v) => scrubDeep(v, depth + 1, seen));
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+        if (!DROP_KEYS.has(k)) out[k] = scrubDeep(v, depth + 1, seen);
+    }
+    return out;
 }
 
 /**
  * Error serializer. Axios errors carry the request config, whose headers and URL
- * query hold API keys (e.g. `?key=...`, `API-KEY:`), plus the whole socket/response.
- * Keep only what helps debugging, and scrub any known secret value that remains.
+ * query hold API keys (e.g. `?key=...`, `API-KEY:`), plus the whole socket/response;
+ * nested errors (`cause`, AggregateError.errors, wrappers) carry the same. Keep what
+ * helps debugging, drop request data at every depth, scrub every string.
  */
 function errSerializer(err) {
-    if (!(err instanceof Error)) return err;
-    const out = pino.stdSerializers.err(err);
-    if (err.config || err.request || err.response) {
-        delete out.config;
-        delete out.request;
-        delete out.response;
-        out.status = err.response?.status;
+    if (err === null || typeof err !== 'object') return scrubDeep(err);
+    const out = scrubDeep(err instanceof Error ? pino.stdSerializers.err(err) : err);
+    if (err.config || err.response) {
+        out.status = err.response?.status ?? err.status;
         out.method = err.config?.method;
-        out.url = String(err.config?.url ?? '').split('?')[0] || undefined;
+        out.url = scrubSecrets(String(err.config?.url ?? '').split('?')[0]) || undefined;
+    } else if (typeof err.url === 'string') {
+        out.url = scrubSecrets(err.url.split('?')[0]);
     }
-    out.message = scrubSecrets(out.message);
-    out.stack = scrubSecrets(out.stack);
-    if (out.url) out.url = scrubSecrets(out.url);
     return out;
 }
 _pinoOptions.serializers = { err: errSerializer, error: errSerializer };
