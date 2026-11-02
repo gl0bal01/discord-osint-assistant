@@ -33,10 +33,14 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 CMD ["bun", "run", "start"]
 
 # Every external OSINT tool the CLI-backed commands need, pinned. Python tools:
-# docker/osint/requirements.txt (Dependabot). The ARGs below are bumped by hand.
+# docker/osint/requirements.txt (Dependabot). The ARGs below are bumped by hand:
+# git refs by commit, the nuclei zip by its published SHA256.
 FROM runtime AS tools
 ARG NUCLEI_VERSION=3.11.1
-ARG NUCLEI_TEMPLATES_VERSION=v10.5.1
+ARG NUCLEI_SHA256_AMD64=ea63d4ae232808cd7c6bc00d0142428e231fab59dae01042246097d195835ab6
+ARG NUCLEI_SHA256_ARM64=8044e3d9768ba0a744b2872c1a87e813006f013da97ca9f50f7661a4203bec07
+# nuclei-templates v10.5.1
+ARG NUCLEI_TEMPLATES_COMMIT=79fb682760ab3d5b0e22afbb44709353cbebf023
 ARG JWT_TOOL_COMMIT=3bc7407cf2222d6a821dcc19c776e5a1b1cb9a9b
 ARG TARGETARCH
 COPY docker/osint/requirements.txt /opt/osint-requirements.txt
@@ -56,11 +60,13 @@ RUN apt-get update \
     # Nuclei binary + templates at the default NUCLEI_TEMPLATE_PATH root
     && cd /tmp \
     && curl -fsSLO "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION}_linux_${TARGETARCH:-amd64}.zip" \
-    && curl -fsSLO "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION}_checksums.txt" \
-    && sha256sum -c --ignore-missing "nuclei_${NUCLEI_VERSION}_checksums.txt" \
+    && arch="${TARGETARCH:-amd64}" && sum=$([ "$arch" = arm64 ] && echo "$NUCLEI_SHA256_ARM64" || echo "$NUCLEI_SHA256_AMD64") \
+    && echo "${sum}  nuclei_${NUCLEI_VERSION}_linux_${arch}.zip" | sha256sum -c - \
     && unzip -q "nuclei_${NUCLEI_VERSION}_linux_${TARGETARCH:-amd64}.zip" nuclei -d /usr/local/bin \
     && rm -f /tmp/nuclei_* && cd / \
-    && git clone -q --depth 1 --branch "${NUCLEI_TEMPLATES_VERSION}" https://github.com/projectdiscovery/nuclei-templates /opt/nuclei-templates \
+    && git init -q /opt/nuclei-templates \
+    && git -C /opt/nuclei-templates fetch -q --depth 1 https://github.com/projectdiscovery/nuclei-templates "${NUCLEI_TEMPLATES_COMMIT}" \
+    && git -C /opt/nuclei-templates checkout -q FETCH_HEAD \
     && rm -rf /opt/nuclei-templates/.git /opt/tools/jwt_tool/.git \
     && apt-get purge -y git curl unzip && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 

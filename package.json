@@ -21,8 +21,7 @@
     "lint": "eslint .",
     "ci": "bash scripts/ci-local.sh",
     "ci:fast": "bash scripts/ci-local.sh --fast",
-    "clean": "rm -rf temp/* || rmdir /s /q temp 2>nul || true",
-    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
+    "clean": "rm -rf temp/* || rmdir /s /q temp 2>nul || true"
   },
   "keywords": [
     "discord",

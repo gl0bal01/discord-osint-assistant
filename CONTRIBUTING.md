@@ -39,7 +39,7 @@ bun run test:watch    # Watch mode
 bun run ci            # Mirror of every CI job (run by the pre-push hook)
 ```
 
-`bun install` points git at `.githooks/`, so the local CI mirror runs before anything leaves your machine. Write tests for new utilities in `tests/utils/` and for new commands in `tests/commands/`. Stub axios or `utils/process` with `vi.spyOn` before requiring the command: `vi.mock` does not intercept `require()`.
+Opt in to running the local CI mirror before anything leaves your machine with `git config core.hooksPath .githooks`. Write tests for new utilities in `tests/utils/` and for new commands in `tests/commands/`. Stub axios or `utils/process` with `vi.spyOn` before requiring the command: `vi.mock` does not intercept `require()`.
 
 ## Pull Request Process
 

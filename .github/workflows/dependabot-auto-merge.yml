@@ -17,8 +17,10 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
       # Majors stay open for manual review; patch/minor merge once required checks pass.
+      # pip (the full image's OSINT tools) always waits for review: they run next to
+      # the GHunt session in $HOME.
       - name: Enable auto-merge (patch/minor only)
-        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major' && steps.metadata.outputs.package-ecosystem != 'pip'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}

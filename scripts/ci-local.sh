@@ -4,15 +4,18 @@
 # Every step runs (no stop at the first failure), then a pass/fail summary prints.
 #
 #   bun run ci        full mirror: Node matrix in containers, audits, both images, Trivy
-#   bun run ci:fast   frozen install + test + lint on the host Node, then the audit
+#   bun run ci:fast   dev loop only: frozen install + test + lint of the WORKING TREE on
+#                     the host Node (touches host node_modules), then the audit
 #
-# Wired to .githooks/pre-push. Add a CI step -> add it here in the same commit.
+# Pre-push hook (opt-in): git config core.hooksPath .githooks
+# Add a CI step -> add it here in the same commit.
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 NODE_MATRIX=(22 24 26)          # ci.yml jobs.test.strategy.matrix.node-version
-AUDIT_NODE=24                   # ci.yml jobs.audit / jobs.docker setup-node
-TRIVY_VERSION=0.76.1            # ci.yml trivy-action `version`
+AUDIT_NODE=24                   # ci.yml jobs.audit setup-node (jobs.docker uses the runner's Node)
+# ci.yml trivy-action `version` (0.76.1), pinned by digest: it never gets the Docker socket
+TRIVY_IMAGE=aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
 IMAGE=discord-osint-assistant
 
 LOGS="${CI_LOG_DIR:-$(mktemp -d -t ci-local-XXXXXX)}"
@@ -32,13 +35,17 @@ step() {
 # Run a shell snippet in a throwaway copy of the archived tree, on a given Node.
 in_node() {
     local version=$1; shift
-    docker run --rm -v "$SRC:/src:ro" -v "$BUN:/usr/local/bin/bun:ro" -e CI=true \
+    docker run --rm --pull=always -v "$SRC:/src:ro" -v "$BUN:/usr/local/bin/bun:ro" -e CI=true \
         "node:${version}-slim" sh -ec "cp -r /src /w && cd /w && $*"
 }
 
+# Scan a saved image tarball: Trivy never sees the Docker socket. Last arg = image ref.
 trivy() {
-    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v ci-local-trivy:/root/.cache \
-        "aquasec/trivy:${TRIVY_VERSION}" image --quiet "$@"
+    local img=${!#} tar="$LOGS/scan.tar"
+    docker save "$img" -o "$tar" || return 1
+    docker run --rm -v "$tar:/in/scan.tar:ro" -v ci-local-trivy:/root/.cache "$TRIVY_IMAGE" \
+        image --quiet "${@:1:$#-1}" --input /in/scan.tar
+    local rc=$?; rm -f "$tar"; return $rc
 }
 
 if [ "${1:-}" = "--fast" ]; then

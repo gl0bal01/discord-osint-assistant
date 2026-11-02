@@ -362,7 +362,7 @@ See [SECURITY.md](SECURITY.md) for full details.
 bun run dev          # nodemon hot-reload
 bun run test         # vitest
 bun run lint         # eslint
-bun run ci           # every CI job locally (Node 22/24/26, audits, both images, Trivy); the pre-push hook runs it
+bun run ci           # every CI job locally (Node 22/24/26, audits, both images, Trivy); git config core.hooksPath .githooks runs it before each push
 bun run ci:fast      # test + lint on your Node, then the audit
 bun run smoke        # run every command against the live APIs (Docker: docker compose run --rm bot bun run smoke)
 ```
