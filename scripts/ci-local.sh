@@ -49,6 +49,10 @@ trivy() {
     local rc=$?; rm -f "$tar"; return $rc
 }
 
+# The containers run the host bun: it must be the version ci.yml pins.
+CI_BUN=$(sed -n 's/.*bun-version: *\([0-9.]*\).*/\1/p' .github/workflows/ci.yml | head -1)
+step "bun $CI_BUN (ci.yml setup-bun)" test "$("$BUN" --version)" = "$CI_BUN"
+
 if [ "${1:-}" = "--fast" ]; then
     step "test (host node $(node -v))" sh -ec 'bun install --frozen-lockfile && bun run test && bun run lint'
 else
