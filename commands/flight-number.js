@@ -71,8 +71,8 @@ function standardizeFlightNumber(input) {
     // Remove spaces and convert to uppercase
     const cleanInput = input.toUpperCase().replace(/\s+/g, '');
     
-    // Try to match airline code (2-3 letters) followed by flight number (1-4 digits)
-    const match = cleanInput.match(/^([A-Z]{2,3})(\d{1,4})$/);
+    // Airline code: 3-letter ICAO, or 2-char IATA (letters/digits, at least one letter), then 1-4 digits
+    const match = cleanInput.match(/^([A-Z]{3}|[A-Z][A-Z0-9]|[0-9][A-Z])(\d{1,4})$/);
     if (!match) return null;
     
     const airline = match[1];

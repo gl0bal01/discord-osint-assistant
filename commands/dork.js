@@ -41,11 +41,12 @@ module.exports = {
     
     async execute(interaction) {
         await interaction.deferReply();
-        
+
+        let outputFile;
         try {
             // Get options
-            const firstname = interaction.options.getString('firstname');
-            const lastname = interaction.options.getString('lastname');
+            const firstname = interaction.options.getString('firstname')?.trim();
+            const lastname = interaction.options.getString('lastname')?.trim();
             const engine = interaction.options.getString('engine') || 'google';
             const advanced = interaction.options.getBoolean('advanced') ?? false;
             
@@ -59,7 +60,7 @@ module.exports = {
             
             // Generate unique filename under temp/reports/
             const safeFn = (s) => s.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
-            const outputFile = reportFilePath(`dork_${safeFn(firstname)}_${safeFn(lastname)}`, 'txt');
+            outputFile = reportFilePath(`dork_${safeFn(firstname)}_${safeFn(lastname)}`, 'txt');
             
             // Write URLs to file
             let fileContent = `# OSINT Search URLs for ${firstname} ${lastname}\n`;
@@ -95,13 +96,13 @@ module.exports = {
 Use these URLs with browser extensions like "Open Multiple URLs" to open them all at once.`,
                 files: [attachment]
             });
-            
-            // Clean up temp file after a delay
-            cleanupFile(outputFile, 5000);
-            
+
         } catch (error) {
             console.error('Error in dork command:', error);
             await interaction.editReply('An error occurred while generating dork URLs.');
+        } finally {
+            // Clean up temp file after a delay
+            if (outputFile) cleanupFile(outputFile, 5000);
         }
     },
 };

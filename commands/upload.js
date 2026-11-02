@@ -126,12 +126,10 @@ module.exports = {
 
             if (error.response) {
                 const status = error.response.status;
-                const errBody = error.response.data;
-                const errMsg = errBody?.error?.message || errBody?.message || '';
 
                 switch (status) {
                     case 400:
-                        message += `**Bad Request** — ${capField(errMsg || 'Invalid file format or missing file.', 512)}`;
+                        message += `**Bad Request** — Invalid file format or missing file.`;
                         break;
                     case 401:
                         message += '**Unauthorized** — Invalid or missing API key.';
@@ -143,14 +141,14 @@ module.exports = {
                         message += '**Rate Limited** — Too many uploads. Please wait a moment.';
                         break;
                     default:
-                        message += `**API Error (${status})** — ${capField(errMsg || 'An error occurred while uploading.', 512)}`;
+                        message += `**API Error (${status})** — An error occurred while uploading.`;
                 }
             } else if (error.code === 'ECONNABORTED') {
                 message += '**Timeout** — The upload took too long. Please try again.';
             } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
                 message += '**Network Error** — Cannot reach the upload service.';
             } else {
-                message += capField(error.message, 512);
+                message += 'An unexpected error occurred. Please try again later.';
             }
 
             await interaction.editReply({ content: message });

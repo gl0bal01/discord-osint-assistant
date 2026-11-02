@@ -97,6 +97,8 @@ module.exports = {
 
         // Declared outside try so it's accessible in finally block
         const tempDir = path.join(__dirname, '..', 'temp');
+        // Files written by this run, removed in finally once the reply has been sent
+        const created = [];
 
         try {
             // Check if AWS credentials are configured
@@ -112,9 +114,9 @@ module.exports = {
             }
             
             if (subcommand === 'analyze') {
-                await handleAnalyze(interaction, tempDir);
+                await handleAnalyze(interaction, tempDir, created);
             } else if (subcommand === 'compare') {
-                await handleCompare(interaction, tempDir);
+                await handleCompare(interaction, tempDir, created);
             }
         } catch (error) {
             console.error('Error in rekognition command:', error);
@@ -133,6 +135,9 @@ module.exports = {
             
             await interaction.editReply(errorMessage);
         } finally {
+            for (const file of created) {
+                try { fs.unlinkSync(file); } catch { /* already removed */ }
+            }
             // Clean up temp files after a delay (don't delete the entire temp directory)
             setTimeout(() => {
                 try {
@@ -173,7 +178,7 @@ module.exports = {
  * @param {object} interaction - Discord interaction
  * @param {string} tempDir - Temporary directory for files
  */
-async function handleAnalyze(interaction, tempDir) {
+async function handleAnalyze(interaction, tempDir, created) {
     try {
         const imageUrl = interaction.options.getString('url');
         const uploadedImage = interaction.options.getAttachment('image');
@@ -218,6 +223,7 @@ async function handleAnalyze(interaction, tempDir) {
                     throw new Error('Invalid file path');
                 }
                 const imagePath = finalPath;
+                created.push(imagePath);
                 fs.writeFileSync(imagePath, imageBuffer);
                 
                 // Create an attachment to send back
@@ -243,7 +249,7 @@ async function handleAnalyze(interaction, tempDir) {
             
             try {
                 // Download the image
-                const imagePath = await downloadImage(imageUrl, tempDir);
+                const imagePath = await downloadImage(imageUrl, tempDir, '', created);
                 
                 // Read the image as a buffer
                 imageBuffer = fs.readFileSync(imagePath);
@@ -298,7 +304,7 @@ async function handleAnalyze(interaction, tempDir) {
         await Promise.all(analysisPromises);
         
         // Create a report file with the analysis results
-        const reportPath = await createAnalysisReport(results, sourceDescription, tempDir);
+        const reportPath = await createAnalysisReport(results, sourceDescription, tempDir, created);
         
         // Prepare the response embed
         const embed = new EmbedBuilder()
@@ -410,13 +416,13 @@ async function handleAnalyze(interaction, tempDir) {
  * @param {object} interaction - Discord interaction
  * @param {string} tempDir - Temporary directory for files
  */
-async function handleCompare(interaction, tempDir) {
+async function handleCompare(interaction, tempDir, created) {
     try {
         const sourceUrl = interaction.options.getString('source_url');
         const sourceAttachment = interaction.options.getAttachment('source_image');
         const targetUrl = interaction.options.getString('target_url');
         const targetAttachment = interaction.options.getAttachment('target_image');
-        const similarityThreshold = interaction.options.getNumber('similarity') || 80;
+        const similarityThreshold = interaction.options.getNumber('similarity') ?? 80;
         
         // Check if we have either URLs or attachments for both source and target
         if (!sourceUrl && !sourceAttachment) {
@@ -470,6 +476,7 @@ async function handleCompare(interaction, tempDir) {
                     throw new Error('Invalid file path');
                 }
                 const imagePath = finalPath;
+                created.push(imagePath);
                 fs.writeFileSync(imagePath, sourceImageBuffer);
                 
                 // Create an attachment
@@ -491,7 +498,7 @@ async function handleCompare(interaction, tempDir) {
             
             try {
                 // Download the image
-                const sourceImagePath = await downloadImage(sourceUrl, tempDir, 'source');
+                const sourceImagePath = await downloadImage(sourceUrl, tempDir, 'source', created);
                 sourceImageBuffer = fs.readFileSync(sourceImagePath);
                 
                 // Create an attachment
@@ -533,6 +540,7 @@ async function handleCompare(interaction, tempDir) {
                     throw new Error('Invalid file path');
                 }
                 const imagePath = finalPath;
+                created.push(imagePath);
                 fs.writeFileSync(imagePath, targetImageBuffer);
                 
                 // Create an attachment
@@ -554,7 +562,7 @@ async function handleCompare(interaction, tempDir) {
             
             try {
                 // Download the image
-                const targetImagePath = await downloadImage(targetUrl, tempDir, 'target');
+                const targetImagePath = await downloadImage(targetUrl, tempDir, 'target', created);
                 targetImageBuffer = fs.readFileSync(targetImagePath);
                 
                 // Create an attachment
@@ -576,7 +584,8 @@ async function handleCompare(interaction, tempDir) {
         const comparisonResult = await compareFaces(sourceImageBuffer, targetImageBuffer, similarityThreshold / 100);
         
         // Create a detailed report
-        const reportPath = path.join(tempDir, 'face_comparison_report.json');
+        const reportPath = path.join(tempDir, `face_comparison_report_${crypto.randomBytes(4).toString('hex')}.json`);
+        created.push(reportPath);
         fs.writeFileSync(reportPath, JSON.stringify(comparisonResult, null, 2));
         
         // Create the response embed
@@ -668,7 +677,7 @@ async function handleCompare(interaction, tempDir) {
  * @param {string} prefix - Optional prefix for the filename
  * @returns {Promise<string>} - Path to the downloaded image
  */
-async function downloadImage(url, tempDir, prefix = '') {
+async function downloadImage(url, tempDir, prefix = '', created = []) {
     try {
         await validateUrlNotInternal(url);
 
@@ -694,6 +703,7 @@ async function downloadImage(url, tempDir, prefix = '') {
         }
         
         // Save the image to disk
+        created.push(filePath);
         fs.writeFileSync(filePath, Buffer.from(response.data));
         
         return filePath;
@@ -717,7 +727,7 @@ async function downloadImage(url, tempDir, prefix = '') {
  * @param {string} tempDir - Directory to save the report
  * @returns {Promise<string>} - Path to the report file
  */
-async function createAnalysisReport(results, imageUrl, tempDir) {
+async function createAnalysisReport(results, imageUrl, tempDir, created) {
     // Create a report object
     const report = {
         meta: {
@@ -728,7 +738,8 @@ async function createAnalysisReport(results, imageUrl, tempDir) {
     };
     
     // Write the report to a file
-    const reportPath = path.join(tempDir, 'rekognition_analysis_report.json');
+    const reportPath = path.join(tempDir, `rekognition_analysis_report_${crypto.randomBytes(4).toString('hex')}.json`);
+    created.push(reportPath);
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
     
     return reportPath;

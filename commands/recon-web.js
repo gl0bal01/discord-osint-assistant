@@ -30,7 +30,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { URL } = require('url');
-const mmh = require('murmurhash'); // Changed from mmh3 to mmh
+const { shodanFaviconHash } = require('../utils/favicon-hash');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -113,6 +113,7 @@ module.exports = {
             
             // Create button row for links
             const row = new ActionRowBuilder();
+            let faviconTempDir = null;
             
             // Process each service
             for (const svc of services) {
@@ -284,7 +285,7 @@ module.exports = {
                             }
                             
                             // Create temp directory for files
-                            const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'discord-favicons-'));
+                            const tempDir = faviconTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'discord-favicons-'));
                             
                             // Parse the domain for display purposes
                             const parsedUrl = new URL(targetUrl);
@@ -379,12 +380,7 @@ module.exports = {
                                 faviconData.filePath = filePath;
                                 faviconData.fileSize = faviconResponse.data.length;
                                 
-                                // Calculate the mmh hash (the same way Shodan does it)
-                                const faviconBuffer = Buffer.from(faviconResponse.data);
-                                const faviconBase64 = faviconBuffer.toString('base64');
-                                
-                                // Use mmh instead of mmh3
-                                const faviconHash = mmh.v3(faviconBase64).toString(16);
+                                const faviconHash = shodanFaviconHash(Buffer.from(faviconResponse.data));
                                 
                                 // Generate the Shodan search URL
                                 const shodanUrl = `https://www.shodan.io/search?query=http.favicon.hash%3A${faviconHash}`;
@@ -430,6 +426,11 @@ module.exports = {
                                 name: 'Shodan Favicon', 
                                 value: 'Failed to extract and hash the favicon.'
                             });
+                        } finally {
+                            // Without an attachment nothing needs the dir; otherwise it is removed after the reply is sent
+                            if (faviconTempDir && !interaction.faviconAttachment) {
+                                fs.rmSync(faviconTempDir, { recursive: true, force: true });
+                            }
                         }
                         completedServices++;
                         break;

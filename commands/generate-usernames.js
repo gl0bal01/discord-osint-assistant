@@ -107,7 +107,7 @@ module.exports = {
             const usernames = generateUsernames({
                 firstName: cleanFirstName,
                 lastName: cleanLastName,
-                separators: customSeparators || '.,_,-',
+                separators: sanitizeInput(customSeparators) || '.,_,-',
                 suffix: sanitizeInput(suffix),
                 prefix: sanitizeInput(prefix),
                 includeNumbers,
@@ -220,7 +220,7 @@ function generateUsernames(options) {
         currentUsernames.forEach(username => {
             commonNumbers.forEach(number => {
                 // Strip existing prefix/suffix to avoid duplication
-                const baseUsername = username.replace(new RegExp(`^${prefix}`), '').replace(new RegExp(`${suffix}$`), '');
+                const baseUsername = username.replace(new RegExp(`^${escapeRegExp(prefix)}`), '').replace(new RegExp(`${escapeRegExp(suffix)}$`), '');
                 addUsernameVariation(usernames, baseUsername, prefix, suffix + number, caseVariations);
                 addUsernameVariation(usernames, baseUsername, prefix + number, suffix, caseVariations);
             });
@@ -229,6 +229,10 @@ function generateUsernames(options) {
     
     // Convert Set back to Array and sort
     return Array.from(usernames).sort();
+}
+
+function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
