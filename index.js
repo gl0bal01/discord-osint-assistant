@@ -36,7 +36,9 @@ const ALLOWED_GUILDS = bootstrap.parseAllowedGuilds(process.env.ALLOWED_GUILD_ID
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
-    allowedMentions: { parse: ['users'], repliedUser: false }
+    // No pings by default: relayed third-party text (LLM, tools, scraped pages) can carry <@id>.
+    // A reply that should ping the requester opts in with allowedMentions: { users: [id] }.
+    allowedMentions: { parse: [], repliedUser: false }
 });
 
 const { commands, stats } = bootstrap.loadCommands(path.join(__dirname, 'commands'));

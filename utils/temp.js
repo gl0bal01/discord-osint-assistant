@@ -7,12 +7,12 @@ const TEMP_DIR = path.join(__dirname, '..', 'temp');
 const REPORTS_DIR = path.join(TEMP_DIR, 'reports');
 
 function ensureTempDir() {
-    fs.mkdirSync(TEMP_DIR, { recursive: true });
+    fs.mkdirSync(TEMP_DIR, { recursive: true, mode: 0o700 });
     return TEMP_DIR;
 }
 
 function ensureReportsDir() {
-    fs.mkdirSync(REPORTS_DIR, { recursive: true });
+    fs.mkdirSync(REPORTS_DIR, { recursive: true, mode: 0o700 });
     return REPORTS_DIR;
 }
 
@@ -47,7 +47,7 @@ function reportDirPath(command) {
     const randomId = crypto.randomBytes(4).toString('hex');
     const timestamp = Date.now();
     const dir = path.join(REPORTS_DIR, `${command}_${timestamp}_${randomId}`);
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     return dir;
 }
 

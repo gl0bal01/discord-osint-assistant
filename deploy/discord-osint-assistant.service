@@ -23,6 +23,8 @@ TasksMax=50
 LimitNOFILE=1024
 
 # Sandboxing
+# Owner-only files: temp exports hold personal data about investigation targets
+UMask=0077
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
