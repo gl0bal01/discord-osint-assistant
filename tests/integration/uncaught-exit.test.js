@@ -9,6 +9,7 @@ describe('uncaught process errors: fatal log + exit(1)', () => {
     it('uncaughtException logs fatal JSON and exits 1', () => {
         const r = spawnSync(process.execPath, ['-e', `
             process.env.NODE_ENV = 'production';
+            process.env.LOG_LEVEL = 'info';
             const logger = require('${PATH_TO_LOGGER}');
             process.on('uncaughtException', (err) => {
                 logger.fatal({ err }, 'uncaughtException');
@@ -28,6 +29,7 @@ describe('uncaught process errors: fatal log + exit(1)', () => {
     it('unhandledRejection logs fatal JSON and exits 1', () => {
         const r = spawnSync(process.execPath, ['-e', `
             process.env.NODE_ENV = 'production';
+            process.env.LOG_LEVEL = 'info';
             const logger = require('${PATH_TO_LOGGER}');
             process.on('unhandledRejection', (reason) => {
                 logger.fatal({ reason }, 'unhandledRejection');
