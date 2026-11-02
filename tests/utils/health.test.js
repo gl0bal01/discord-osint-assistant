@@ -78,6 +78,28 @@ describe('health writer', () => {
         expect(payload.shuttingDownSince).toBeLessThanOrEqual(after);
     });
 
+    it('refreshes lastReady on every write while the gateway is ready', async () => {
+        const client = { ws: { status: 0 } };
+        await startHealthWriter({ path: filePath, intervalMs: 60000, client });
+        await markReady();
+        const now = Date.now() + 60000;
+        vi.spyOn(Date, 'now').mockReturnValue(now);
+        try {
+            await writeNow();
+            const payload = JSON.parse(await fs.readFile(filePath, 'utf8'));
+            expect(payload.lastReady).toBe(now);
+
+            client.ws.status = 5; // disconnected: lastReady must go stale
+            vi.spyOn(Date, 'now').mockReturnValue(now + 60000);
+            await writeNow();
+            const stale = JSON.parse(await fs.readFile(filePath, 'utf8'));
+            expect(stale.state).toBe('starting');
+            expect(stale.lastReady).toBe(now);
+        } finally {
+            vi.restoreAllMocks();
+        }
+    });
+
     it('writeNow flushes immediately', async () => {
         await startHealthWriter({ path: filePath, intervalMs: 60000 });
         await markReady();

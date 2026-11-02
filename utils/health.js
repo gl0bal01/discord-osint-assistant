@@ -49,8 +49,11 @@ function _deriveState() {
 
 /** Build the health payload object. */
 function _buildPayload() {
+    const state = _deriveState();
+    // Heartbeat: the healthcheck needs a ready observation within the last 30s.
+    if (state === 'ready') _lastReady = Date.now();
     return {
-        state: _deriveState(),
+        state,
         lastReady: _lastReady,
         shuttingDownSince: _shuttingDownSince,
         uptime: process.uptime(),
