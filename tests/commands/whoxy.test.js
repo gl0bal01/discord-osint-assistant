@@ -210,6 +210,14 @@ describe('bob-whoxy happy path', () => {
         expect(value).toContain('**Reverse WHOIS Balance:** 7');
     });
 
+    it('reports an auth error when Whoxy answers status 0 (bad or expired key)', async () => {
+        axios.get.mockResolvedValue({ data: { status: 0, status_reason: 'Invalid API key' } });
+        const i = makeInteraction({ type: 'balance' });
+        await cmd.execute(i);
+        const reply = JSON.stringify(i.sent.at(-1));
+        expect(reply).toContain('Authentication Error');
+    });
+
     it('counts registrant email changes between real nested history records', async () => {
         axios.get.mockResolvedValue({
             data: {

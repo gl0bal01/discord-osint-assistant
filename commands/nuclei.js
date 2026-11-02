@@ -83,6 +83,7 @@ const { archiveReport } = require('../utils/reports');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
+const logger = require('../utils/logger').child({ command: 'bob-nuclei' });
 
 /**
  * Discord slash command definition for Nuclei OSINT scanner
@@ -103,7 +104,7 @@ module.exports = {
                 .setRequired(false))
         .addStringOption(option =>
             option.setName('tags')
-                .setDescription('OSINT categories to scan: social,gaming,dev,professional,academic (comma-separated)')
+                .setDescription('Categories, comma-separated: social, gaming, coding, tech, business, finance, art, music, dating')
                 .setRequired(false))
         .addIntegerOption(option =>
             option.setName('timeout')
@@ -147,7 +148,9 @@ module.exports = {
             await fs.mkdir(outputDir, { recursive: true });
             
             // Build and validate tags list for targeted scanning
-            let tagsList = ['osint']; // Base OSINT tag always included
+            // Templates are tagged osint + osint-<category>. nuclei -tags is OR, so the
+            // categories replace 'osint' (which every template carries) to narrow the scan.
+            let tagsList = ['osint'];
             if (additionalTags) {
                 const userTags = additionalTags.split(',').map(tag => tag.trim().toLowerCase());
                 
@@ -159,8 +162,8 @@ module.exports = {
                     });
                 }
                 
-                // Merge user tags with base OSINT tag, removing duplicates
-                tagsList = [...new Set([...tagsList, ...userTags])];
+                tagsList = [...new Set(userTags.filter(Boolean).map(t => (t.startsWith('osint') ? t : `osint-${t}`)))];
+                if (!tagsList.length) tagsList = ['osint'];
             }
             
             // Construct Nuclei args array (no shell interpolation)
@@ -182,6 +185,8 @@ module.exports = {
             const args = [
                 '-t', templatesPath,
                 '-tags', tagsList.join(','),
+                // Adult sites only when asked for, as with /bob-sherlock include-nsfw
+                ...(tagsList.includes('osint-porn') ? [] : ['-etags', 'osint-porn']),
                 '-var', `user=${username}`,
                 '-o', outputFile,
                 '-disable-update-check',
@@ -202,7 +207,7 @@ module.exports = {
             // Execute Nuclei scan using safe spawn (no shell interpolation)
             const scanResult = await safeSpawn(nucleiBinary, args, { timeout: customTimeout * 1000 });
             const scanStderr = (scanResult?.stderr || '').trim();
-            if (scanStderr) console.warn(`[Nuclei] stderr for ${username}: ${scanStderr.slice(0, 2000)}`);
+            if (scanStderr) logger.warn({ username, stderr: scanStderr.slice(0, 2000) }, 'nuclei scan stderr');
 
             // Process scan results and prepare output
             let fileContent = '';
@@ -213,7 +218,7 @@ module.exports = {
                 fileExists = true;
             } catch (_readError) {
                 // File doesn't exist or can't be read - no results found
-                console.info(`[Nuclei] No output file generated for ${username}`);
+                logger.info({ username }, 'no output file generated');
             }
             
             // Analyze and present results based on content availability
@@ -297,7 +302,7 @@ module.exports = {
             }
         } catch (error) {
             // Comprehensive error handling with user-friendly messages
-            console.error(`[Nuclei OSINT Error] ${error.message}`);
+            logger.error({ err: error }, 'nuclei scan failed');
             
             // Categorize error types for better user guidance
             let errorCategory = 'Unknown Error';
@@ -327,9 +332,9 @@ module.exports = {
             // Comprehensive cleanup to prevent data leakage and resource exhaustion
             try {
                 await fs.unlink(outputFile).catch(() => {}); // Ignore errors if file doesn't exist
-                console.info(`[Nuclei] Cleanup completed for ${username} scan`);
+                logger.debug({ username }, 'cleanup completed');
             } catch (cleanupError) {
-                console.error(`[Nuclei] Cleanup error: ${cleanupError.message}`);
+                logger.error({ err: cleanupError }, 'cleanup failed');
             }
         }
     },

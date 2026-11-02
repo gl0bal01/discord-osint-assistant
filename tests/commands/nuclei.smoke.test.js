@@ -130,12 +130,23 @@ describe('bob-nuclei scan', () => {
         const [, args, opts] = spawn.mock.calls[0];
         expect(args).toEqual([
             '-t', TEMPLATES,
-            '-tags', 'osint,social,dev',
+            '-tags', 'osint-social,osint-dev',
+            '-etags', 'osint-porn',
             '-var', 'user=john.doe_1',
             '-o', outFiles[0],
             '-disable-update-check', '-esc', '-silent'
         ]);
         expect(opts.timeout).toBe(90_000);
+    });
+
+    it('excludes adult-site templates unless that category is requested', async () => {
+        spawn.mockImplementation(findings(OUTPUT));
+        await cmd.execute(makeInteraction({ username: 'john' }));
+        expect(spawn.mock.calls[0][1]).toEqual(expect.arrayContaining(['-tags', 'osint', '-etags', 'osint-porn']));
+        spawn.mockClear();
+        await cmd.execute(makeInteraction({ username: 'john', tags: 'porn' }));
+        expect(spawn.mock.calls[0][1]).toEqual(expect.arrayContaining(['-tags', 'osint-porn']));
+        expect(spawn.mock.calls[0][1]).not.toContain('-etags');
     });
 
     it('uses -v instead of -silent in verbose mode and defaults to a 300 second timeout', async () => {

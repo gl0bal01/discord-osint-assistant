@@ -244,20 +244,14 @@ describe('bob-vpic makes', () => {
         expect(last(i)).toBe('Invalid page number. There are only 2 pages of results.');
     });
 
-    it.each([1899, 3000])('rejects year %i without any request', async (year) => {
-        const i = makeInteraction('makes', { year });
-        await cmd.execute(i);
-        expect(last(i)).toMatch(/Invalid year/);
-        expect(getSpy).not.toHaveBeenCalled();
-    });
-
-    it('filters by year when one is given', async () => {
+    it('has no year filter: NHTSA has no makes-by-year endpoint', async () => {
+        const makesCmd = cmd.data.toJSON().options.find((o) => o.name === 'makes');
+        expect((makesCmd.options ?? []).map((o) => o.name)).not.toContain('year');
         getSpy.mockResolvedValue({ data: { Results: [{ MakeName: 'TESLA' }] } });
         const i = makeInteraction('makes', { year: 2020 });
         await cmd.execute(i);
-        expect(getSpy.mock.calls[0][0]).toBe(`${BASE}/GetMakeForManufacturer/2020?format=json`);
-        expect(edata(i).title).toBe('Vehicle Makes for 2020');
-        expect(val(i, 'Makes (Page 1 of 1)')).toBe('1. TESLA\n');
+        expect(getSpy.mock.calls[0][0]).toBe(`${BASE}/GetAllMakes?format=json`);
+        expect(edata(i).title).toBe('Vehicle Makes');
     });
 
     it('tells the user when the API returns no result list', async () => {

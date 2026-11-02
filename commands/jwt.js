@@ -42,6 +42,8 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const { reportFilePath, cleanupFile, REPORTS_DIR } = require('../utils/temp');
+const { stripVTControlCharacters } = require('node:util');
+const logger = require('../utils/logger').child({ command: 'bob-jwt' });
 
 // Configuration - adjust these paths according to your environment
 const CONFIG = {
@@ -70,11 +72,11 @@ const cleanupOldFiles = async () => {
 
             if (now - stats.mtime.getTime() > CONFIG.MAX_FILE_AGE) {
                 await fs.unlink(filePath);
-                console.log(`Cleaned up old file: ${file}`);
+                logger.debug({ file }, 'cleaned up old file');
             }
         }
     } catch (error) {
-        console.error('Error during cleanup:', error.message);
+        logger.error({ err: error }, 'cleanup failed');
     }
 };
 
@@ -330,7 +332,9 @@ module.exports = {
             await executeJwtCommand(jwtToolCmd, [...jwtToolArgs, ...jwtArgs], outputFile, spawnOptions);
 
             // Read and process output
-            const outputContent = await fs.readFile(outputFile, 'utf8');
+            // jwt_tool colours its output; ANSI codes would show up raw in Discord
+            const outputContent = stripVTControlCharacters(await fs.readFile(outputFile, 'utf8'));
+            await fs.writeFile(outputFile, outputContent);
 
             if (!outputContent.trim()) {
                 const embed = createResultEmbed(
@@ -369,7 +373,7 @@ module.exports = {
         } catch (error) {
             // Log only the message — never log error.config.url or full error objects
             // which may contain secrets or sensitive request data
-            console.error('Error in JWT command:', error.message);
+            logger.error({ err: error }, 'jwt command failed');
 
             let errorMessage = 'An unexpected error occurred while processing your request.';
             let errorColor = 0xFF0000;
@@ -384,9 +388,7 @@ module.exports = {
 
             const errorEmbed = createResultEmbed('❌ Error', errorMessage, errorColor);
 
-            if (error.stderr) {
-                console.error('JWT tool stderr:', error.stderr);
-            }
+            // stderr is not logged: jwt_tool echoes the token the user pasted
 
             await interaction.editReply({ embeds: [errorEmbed] });
         } finally {

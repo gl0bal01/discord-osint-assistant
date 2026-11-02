@@ -13,6 +13,7 @@ const fs = require('fs');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-vpic' });
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -34,10 +35,6 @@ module.exports = {
             subcommand
                 .setName('makes')
                 .setDescription('Get all vehicle makes')
-                .addIntegerOption(option =>
-                    option.setName('year')
-                        .setDescription('Filter makes by model year')
-                        .setRequired(false))
                 .addIntegerOption(option =>
                     option.setName('page')
                         .setDescription('Page number for results (starts at 1)')
@@ -80,7 +77,7 @@ module.exports = {
                 await handleGetModels(interaction, returnRaw);
             }
         } catch (error) {
-            console.error('Error in vpic command:', error);
+            logger.error({ err: error }, 'vpic command failed');
             
             const errorMessage = generateErrorMessage(error);
             await interaction.editReply(errorMessage);
@@ -220,7 +217,7 @@ async function handleVinDecode(interaction, returnRaw) {
         await interaction.editReply({ embeds: [embed] });
         
     } catch (error) {
-        console.error('Error decoding VIN:', error);
+        logger.error({ err: error }, 'vin decode failed');
         throw error;
     }
 }
@@ -231,20 +228,11 @@ async function handleVinDecode(interaction, returnRaw) {
  * @param {boolean} returnRaw - Whether to return raw JSON data
  */
 async function handleGetMakes(interaction, returnRaw) {
-    const year = interaction.options.getInteger('year');
-    const page = interaction.options.getInteger('page') || 1;
-    
+    const page = interaction.options.getInteger('page') ?? 1;
+
     try {
-        // Build the URL based on whether a year was provided
-        let url = 'https://vpic.nhtsa.dot.gov/api/vehicles/GetAllMakes?format=json';
-        if (year) {
-            // Validate year input
-            if (year < 1900 || year > new Date().getFullYear() + 1) {
-                return interaction.editReply(`Invalid year. Please provide a year between 1900 and ${new Date().getFullYear() + 1}.`);
-            }
-            url = `https://vpic.nhtsa.dot.gov/api/vehicles/GetMakeForManufacturer/${year}?format=json`;
-        }
-        
+        const url = 'https://vpic.nhtsa.dot.gov/api/vehicles/GetAllMakes?format=json';
+
         const response = await axios.get(url, {
             timeout: 10000,
             maxContentLength: 10 * 1024 * 1024,
@@ -268,16 +256,16 @@ async function handleGetMakes(interaction, returnRaw) {
             fs.writeFileSync(filePath, JSON.stringify(response.data, null, 2));
 
             // Persist a durable copy to reports/ (temp copy is cleaned up shortly after).
-            await archiveReport(filePath, `vpic_makes_${year || 'all'}`, 'json');
+            await archiveReport(filePath, 'vpic_makes_all', 'json');
 
             // Create an attachment for the JSON file
             const attachment = new AttachmentBuilder(filePath, {
-                name: `vehicle_makes_${year || 'all'}.json`
+                name: 'vehicle_makes_all.json'
             });
             
             // Send the response with the attachment
             await interaction.editReply({
-                content: `Raw vehicle make data${year ? ` for year ${year}` : ''}`,
+                content: 'Raw vehicle make data',
                 files: [attachment]
             });
             
@@ -318,8 +306,8 @@ async function handleGetMakes(interaction, returnRaw) {
         
         // Create an embed for the main response
         const embed = new EmbedBuilder()
-            .setTitle(`Vehicle Makes${year ? ` for ${year}` : ''}`)
-            .setDescription(`Found ${makes.length} vehicle makes${year ? ` for the year ${year}` : ''}`)
+            .setTitle('Vehicle Makes')
+            .setDescription(`Found ${makes.length} vehicle makes`)
             .setColor(0x0099FF)
             .addFields(
                 { name: `Makes (Page ${page} of ${totalPages})`, value: makesList || 'No makes found' },
@@ -331,7 +319,7 @@ async function handleGetMakes(interaction, returnRaw) {
         await interaction.editReply({ embeds: [embed] });
         
     } catch (error) {
-        console.error('Error getting vehicle makes:', error);
+        logger.error({ err: error }, 'vehicle makes fetch failed');
         throw error;
     }
 }
@@ -434,7 +422,7 @@ async function handleGetModels(interaction, returnRaw) {
         await interaction.editReply({ embeds: [embed] });
         
     } catch (error) {
-        console.error('Error getting vehicle models:', error);
+        logger.error({ err: error }, 'vehicle models fetch failed');
         throw error;
     }
 }

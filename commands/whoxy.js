@@ -26,6 +26,7 @@ const axios = require('axios');
 const { isValidDomain, isValidEmail, sanitizeInput } = require('../utils/validation');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { saveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-whoxy' });
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -88,7 +89,7 @@ module.exports = {
         const domain = rawDomain ? sanitizeInput(rawDomain) : null;
         const searchValue = rawValue ? sanitizeInput(rawValue) : null;
         
-        console.log(`🔍 [WHOXY] Starting ${requestType} analysis`);
+        logger.debug({ requestType }, 'analysis starting');
         
         // Validate API key
         const apiKey = process.env.WHOXY_API_KEY;
@@ -151,10 +152,10 @@ module.exports = {
             
             await interaction.editReply(response);
             
-            console.log(`✅ [WHOXY] Successfully completed ${requestType} analysis`);
+            logger.debug({ requestType }, 'analysis completed');
             
         } catch (error) {
-            console.error(`❌ [WHOXY] Error during ${requestType} analysis:`, { status: error.response?.status, message: error.message });
+            logger.error({ err: error, requestType }, 'whoxy analysis failed');
             await handleWhoxyError(interaction, error, requestType);
         }
     },
@@ -174,6 +175,11 @@ async function performBalanceCheck(apiKey) {
         headers: { 'User-Agent': 'Discord-OSINT-Assistant/2.0' },
         ...getSafeAxiosConfig()
     });
+
+    // Whoxy answers HTTP 200 with status 0 for an invalid, expired or empty key
+    if (String(response.data?.status) !== '1') {
+        throw Object.assign(new Error('whoxy rejected the balance request'), { response: { status: 401 } });
+    }
     
     return {
         type: 'balance',
