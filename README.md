@@ -359,7 +359,7 @@ See [SECURITY.md](SECURITY.md) for full details.
 bun run dev          # nodemon hot-reload
 bun run test         # vitest
 bun run lint         # eslint
-bun run smoke        # quick boot/health probe
+bun run smoke        # run every command against the live APIs (Docker: docker compose run --rm bot bun run smoke)
 ```
 
 Slash command registration (`deploy`, `deploy:global`, `clear`, `clear:global`, `clear:all`, `clear:list`) and other scripts live in `package.json`. Run `bun run` with no args to see them all.

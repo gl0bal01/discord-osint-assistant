@@ -7,15 +7,17 @@
  * Reports pass / skip / fail per command.
  *
  * Skip rules:
- *   - attachment-required commands (cannot mock Discord CDN attachments)
- *   - commands requiring an external binary that isn't on PATH
- *   - commands that would create persistent side effects (monitor start)
+ *   - attachment-only commands (cannot mock Discord CDN attachments)
+ *   - CLI-backed commands whose `requiresTool` isn't installed (slim image)
  *   - commands whose required API key env var is unset
+ *
+ * A reply reporting an error (❌, "failed", ...) counts as a failure.
  *
  * Usage:
  *   node scripts/smoke-test.js                # run all
  *   node scripts/smoke-test.js bob-dns bob-airport   # subset
  *   TIMEOUT_MS=60000 node scripts/smoke-test.js
+ *   docker compose run --rm bot bun run smoke   # in its own container, not the live bot's
  */
 
 require('dotenv').config({ quiet: true });
@@ -23,6 +25,7 @@ require('dotenv').config({ quiet: true });
 const path = require('path');
 const fs = require('fs');
 const { PermissionsBitField } = require('discord.js');
+const { isToolAvailable } = require('../utils/tools');
 
 // Loosen guild whitelist + role gate while testing so the runner reaches
 // the command's own logic. (The bot's real index.js still enforces these.)
@@ -38,47 +41,50 @@ const argFilter = process.argv.slice(2);
  *   subcommand: optional name (for getSubcommand)
  *   skip:       optional reason string -> command is skipped without execution
  *   needsEnv:   optional list of env vars; if any unset -> auto-skip
- *   needsBin:   optional list of binaries; if missing on PATH -> auto-skip
+ *   timeoutMs:  optional per-command timeout (CLI scans run for minutes)
+ *   expect:     optional regex the final reply must match (instead of the error check)
+ * Commands exporting `requiresTool` are skipped when the tool isn't installed
+ * (slim image), and run in the full image.
  */
+const loadedCommands = new Map();
+const LONG = 240000;
 const SAMPLES = {
     'bob-airport':       { options: { icao: 'KJFK' }, needsEnv: ['AIRPORTDB_API_KEY'] },
-    'bob-flight':        { options: { flight: 'AA100' }, needsEnv: ['AVIATIONSTACK_API_KEY'] },
+    'bob-flight':        { options: { flight_number: 'AA100' }, needsEnv: ['AVIATIONSTACK_API_KEY'] },
     'bob-blockchain':    { subcommand: 'address', options: { blockchain: 'eth', address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045' } },
     'bob-blockchain-detect': { options: { address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045' } },
-    'bob-chat':          { skip: 'requires AI provider key + multi-step prompt; covered by manual QA' },
-    'bob-dns':           { options: { domain: 'example.com' }, needsEnv: ['DNSDUMPSTER_TOKEN'] },
+    'bob-chat':          { subcommand: 'ask', options: { message: 'Reply with the single word OK.' }, needsEnv: ['AI_API_KEY'], timeoutMs: 130000 },
+    'bob-dns':           { options: { domain: 'github.com' }, needsEnv: ['DNSDUMPSTER_TOKEN'] },
     'bob-dork':          { options: { firstname: 'John', lastname: 'Doe', engine: 'google' } },
-    'bob-exif':          { skip: 'attachment subcommand cannot be mocked' },
-    'bob-extract-links': { options: { url: 'https://example.com' } },
-    'bob-favicon':       { options: { url: 'https://example.com' } },
+    'bob-exif':          { options: { url: 'https://raw.githubusercontent.com/ianare/exif-samples/master/jpg/Canon_40D.jpg' } },
+    'bob-extract-links': { options: { url: 'https://www.iana.org/' } },
+    'bob-favicon':       { options: { url: 'https://github.com' } },
     'bob-flight-number': { options: { flight: 'AA100' } },
     'bob-generate-usernames': { options: { firstname: 'John', lastname: 'Doe' } },
-    'bob-ghunt':         { skip: 'requires ghunt binary', needsBin: ['ghunt'] },
-    'bob-health':        { options: { detailed: false } },
-    'bob-hostio':        { subcommand: 'domain', options: { domain: 'example.com' }, needsEnv: ['HOSTIO_API_KEY'] },
-    'bob-jwt':           { skip: 'requires jwt_tool binary + admin permissions', needsBin: ['jwt_tool'] },
-    'bob-linkook':       { skip: 'requires linkook binary', needsBin: ['linkook'] },
-    'bob-maigret':       { skip: 'requires maigret binary', needsBin: ['maigret'] },
-    'bob-monitor':       { skip: 'creates persistent setInterval; smoke test would leak handles' },
-    'bob-nike':          { options: { id: '12345' }, needsEnv: ['NIKE_TOKEN'] },
-    'bob-nuclei':        { skip: 'requires nuclei binary', needsBin: ['nuclei'] },
-    'bob-pappers':       { subcommand: 'search', options: { query: 'test' }, needsEnv: ['PAPPERS_API_KEY'] },
-    'bob-web-recon':     { options: { domain: 'example.com', service: 'crtsh' } },
-    'bob-redirect-check': { options: { url: 'https://google.com' } },
-    'bob-rekognition':   { skip: 'attachment subcommand cannot be mocked' },
-    'bob-sherlock':      { skip: 'requires sherlock binary', needsBin: ['sherlock'] },
-    'bob-vessel':        { subcommand: 'name', options: { query: 'titanic' } },
+    'bob-ghunt':         { options: { type: 'check-login' }, expect: /Logged In|Credentials/ },
+    'bob-health':        { options: { detailed: true } },
+    'bob-help':          { options: {} },
+    'bob-hostio':        { subcommand: 'full', options: { domain: 'github.com' }, needsEnv: ['HOSTIO_API_KEY'] },
+    'bob-jwt':           { subcommand: 'analyze', options: { token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c' } },
+    'bob-linkook':       { options: { username: 'torvalds' }, timeoutMs: LONG },
+    'bob-maigret':       { options: { username: 'torvalds' }, timeoutMs: 330000 },
+    'bob-monitor':       { subcommand: 'list', options: {} },
+    'bob-nike':          { options: { name: 'John Doe' }, needsEnv: ['NIKE_TOKEN'] },
+    'bob-nuclei':        { options: { username: 'torvalds', timeout: 200 }, timeoutMs: LONG },
+    'bob-pappers':       { subcommand: 'search', options: { country_code: 'FR', query: 'Renault' }, needsEnv: ['PAPPERS_API_KEY'] },
+    'bob-web-recon':     { options: { domain: 'example.com', service: 'crtsh' }, timeoutMs: 90000 },
+    'bob-redirect-check': { options: { url: 'https://google.com' }, expect: /Redirect Chain/ },
+    'bob-rekognition':   { subcommand: 'analyze', options: { url: 'https://raw.githubusercontent.com/ianare/exif-samples/master/jpg/Canon_40D.jpg', features: 'labels' }, needsEnv: ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'] },
+    'bob-sherlock':      { options: { username: 'torvalds', timeout: 200 }, timeoutMs: LONG },
+    'bob-upload':        { skip: 'attachment-only command cannot be mocked' },
+    'bob-vessel':        { subcommand: 'name', options: { vessel: 'Ever Given' } },
     'bob-vpic':          { subcommand: 'decode', options: { vin: '1HGCM82633A004352' } },
-    'bob-whoxy':         { subcommand: 'domain', options: { domain: 'example.com' }, needsEnv: ['WHOXY_API_KEY'] },
-    'bob-xeuledoc':      { skip: 'requires xeuledoc binary', needsBin: ['xeuledoc'] }
+    'bob-whoxy':         { options: { type: 'balance' }, needsEnv: ['WHOXY_API_KEY'] },
+    'bob-xeuledoc':      { options: { link: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms' }, timeoutMs: 90000 }
 };
 
-function which(bin) {
-    const dirs = (process.env.PATH || '').split(':');
-    return dirs.some(d => {
-        try { return fs.statSync(path.join(d, bin)).isFile(); } catch { return false; }
-    });
-}
+// A reply that reports a failure means the command did not work, even if execute() resolved.
+const ERROR_REPLY = /❌|\berror\b|failed|please provide|invalid request|not configured|not allowed|rate limit|could not|unable to/i;
 
 function buildMockInteraction(commandName, sample) {
     const replies = [];
@@ -113,7 +119,15 @@ function buildMockInteraction(commandName, sample) {
                     permissionsFor: () => ({ has: () => true })
                 })
             },
-            user: { id: 'smoke-bot' }
+            user: { id: 'smoke-bot', tag: 'smoke-bot#0000' },
+            commands: loadedCommands,
+            isReady: () => true,
+            presence: { status: 'online' },
+            ws: { ping: 42 },
+            guilds: { cache: { size: 1 } },
+            users: { cache: { size: 1 } },
+            uptime: 1000,
+            readyAt: new Date()
         },
         options: {
             getString: (name, required) => {
@@ -200,12 +214,6 @@ async function runOne(commandName, modulePath) {
             return { commandName, status: 'skip', reason: `missing env: ${missing.join(', ')}` };
         }
     }
-    if (sample.needsBin) {
-        const missing = sample.needsBin.filter(b => !which(b));
-        if (missing.length) {
-            return { commandName, status: 'skip', reason: `missing binary: ${missing.join(', ')}` };
-        }
-    }
 
     let cmd;
     try {
@@ -214,11 +222,24 @@ async function runOne(commandName, modulePath) {
         return { commandName, status: 'fail', error: `require: ${e.message}` };
     }
     if (!cmd.execute) return { commandName, status: 'fail', error: 'no execute()' };
+    if (cmd.requiresTool && !isToolAvailable(cmd.requiresTool)) {
+        return { commandName, status: 'skip', reason: 'tool not installed (full image only)' };
+    }
 
     const { interaction, replies } = buildMockInteraction(commandName, sample);
     const start = Date.now();
     try {
-        await withTimeout(Promise.resolve(cmd.execute(interaction)), TIMEOUT_MS, commandName);
+        const ms = sample.timeoutMs ?? TIMEOUT_MS;
+        await withTimeout(Promise.resolve(cmd.execute(interaction)), ms, commandName);
+        const preview = summarizeReply(replies);
+        const last = replies.at(-1);
+        const text = JSON.stringify(last?.payload ?? ''); // whole reply, embed fields included
+        const error = !last || last.kind === 'defer' ? 'no reply after defer'
+            : sample.expect ? (!sample.expect.test(text) && `reply does not match ${sample.expect}`)
+            : (ERROR_REPLY.test(text) && 'error reply');
+        if (error) {
+            return { commandName, status: 'fail', ms: Date.now() - start, error, preview };
+        }
         return {
             commandName,
             status: 'pass',
@@ -246,6 +267,7 @@ async function main() {
         const cmd = (() => { try { return require(modulePath); } catch { return null; } })();
         if (!cmd?.data?.name) continue;
         const name = cmd.data.name;
+        loadedCommands.set(name, cmd);
         if (argFilter.length && !argFilter.includes(name)) continue;
         tasks.push({ name, modulePath });
     }
