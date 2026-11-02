@@ -108,6 +108,10 @@ The `docker-compose.yml` includes security hardening: non-root user, dropped cap
 
 The default `slim` image has no CLI tools. Set `BOT_TARGET=full` in `.env` (or `docker build --target full .`) for an image with Sherlock, Maigret, GHunt, xeuledoc, Linkook, jwt_tool, Nuclei with templates, and ExifTool. `/home/botuser` is a named volume, so the GHunt login (`/bob-ghunt type:login`) persists across restarts.
 
+The tools sit in their own cached layer, so rebuilding after a code change takes seconds. `docker compose build --pull --no-cache` refreshes them and the base image to their latest releases.
+
+To check every command against the live APIs, in a throwaway container from the same image: `docker compose run --rm bot bun run smoke`. Commands whose API key is unset, or whose tool isn't in the image, are skipped.
+
 ## Command Deployment
 
 ```bash

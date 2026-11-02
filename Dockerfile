@@ -3,40 +3,37 @@
 #   full           — adds Sherlock, Maigret, GHunt, xeuledoc, Linkook, jwt_tool,
 #                    Nuclei (+ templates) and ExifTool
 # Pick one with BOT_TARGET=slim|full (docker-compose.yml) or `docker build --target full`.
+# The tools layer is independent of the app code, so code changes rebuild in
+# seconds; `docker compose build --pull --no-cache` refreshes the tools and base image.
 
-# Stage 1: Install production dependencies
-FROM oven/bun:1-slim AS builder
+# Production dependencies + app code
+FROM oven/bun:1-slim AS app
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --production --frozen-lockfile
-
-# Stage 2: App runtime shared by both images
-FROM oven/bun:1-slim AS base
-WORKDIR /app
-
-# Non-root user (uid 999, matches the compose tmpfs mounts). Code stays root-owned
-# (read-only to the bot); only the runtime dirs and $HOME are writable.
-RUN groupadd -r botuser && useradd -r -m -g botuser botuser \
-    && mkdir -p /app/temp /app/reports \
-    && chown botuser:botuser /app/temp /app/reports
-
-COPY --from=builder /app/node_modules ./node_modules
-COPY package.json index.js deploy-commands.js clear-commands.js ./
+COPY index.js deploy-commands.js clear-commands.js ./
 COPY commands/ ./commands/
 COPY utils/ ./utils/
 COPY scripts/ ./scripts/
 COPY addons/ ./addons/
 
-USER botuser
+# Runtime shared by both images
+FROM oven/bun:1-slim AS runtime
+WORKDIR /app
+
+# Non-root user (uid 999, matches the compose tmpfs mounts). The app code copied
+# in later stays root-owned (read-only to the bot); only these dirs and $HOME are writable.
+RUN groupadd -r botuser && useradd -r -m -g botuser botuser \
+    && mkdir -p /app/temp /app/reports \
+    && chown botuser:botuser /app/temp /app/reports
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["bun", "run", "scripts/healthcheck.js"]
 
 CMD ["bun", "run", "start"]
 
-# Full image: every external OSINT tool the CLI-backed commands need
-FROM base AS full
-USER root
+# Every external OSINT tool the CLI-backed commands need
+FROM runtime AS tools
 ARG NUCLEI_VERSION=3.11.1
 ARG TARGETARCH
 RUN apt-get update \
@@ -60,7 +57,12 @@ RUN apt-get update \
     && git clone --depth 1 https://github.com/projectdiscovery/nuclei-templates /opt/nuclei-templates \
     && rm -rf /opt/nuclei-templates/.git /opt/tools/jwt_tool/.git \
     && apt-get purge -y git curl unzip && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+
+FROM tools AS full
+COPY --from=app /app ./
 USER botuser
 
 # Default build target (last stage): the lean image
-FROM base AS slim
+FROM runtime AS slim
+COPY --from=app /app ./
+USER botuser
