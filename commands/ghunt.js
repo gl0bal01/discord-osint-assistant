@@ -540,7 +540,8 @@ module.exports = {
                 throw Object.assign(new Error('GHunt authentication failed'), { code: 'EAUTH' });
             }
             if (code !== 0 && !fs.existsSync(outputFilePath)) {
-                logger.error({ code, stderr: (stderr ?? '').slice(0, 2000) }, 'ghunt exited non-zero without output');
+                // stderr is not logged: GHunt can print its Google session and the target's data
+                logger.error({ code, stderrBytes: (stderr ?? '').length }, 'ghunt exited non-zero without output');
                 embed.setColor(0xff0000).addFields({ name: 'GHunt Error', value: 'GHunt failed. Check server logs.' });
                 return await interaction.editReply({ embeds: [embed] });
             }

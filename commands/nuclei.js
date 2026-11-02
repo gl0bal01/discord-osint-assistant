@@ -215,7 +215,8 @@ module.exports = {
             // Execute Nuclei scan using safe spawn (no shell interpolation)
             const scanResult = await safeSpawn(nucleiBinary, args, { timeout: customTimeout * 1000 });
             const scanStderr = (scanResult?.stderr || '').trim();
-            if (scanStderr) logger.warn({ username, stderr: scanStderr.slice(0, 2000) }, 'nuclei scan stderr');
+            // Tool output names the target's profiles: debug only (off by default)
+            if (scanStderr) logger.debug({ stderr: scanStderr.slice(0, 2000) }, 'nuclei scan stderr');
 
             // Process scan results and prepare output
             let fileContent = '';

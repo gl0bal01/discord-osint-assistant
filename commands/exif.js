@@ -321,7 +321,7 @@ async function extractExifData(imagePath, includeDetailed = false) {
         const { stdout, stderr } = await safeSpawn(exiftoolPath, args, { timeout: 30000 });
 
         if (stderr && !stderr.includes('Warning')) {
-            logger.warn({ stderr }, 'exiftool warnings');
+            logger.debug({ stderr }, 'exiftool warnings');
         }
 
         // Parse JSON output

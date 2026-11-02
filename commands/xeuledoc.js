@@ -51,7 +51,8 @@ module.exports = {
             const { stdout, stderr, code } = await safeSpawn('xeuledoc', [parsedUrl.href], { timeout: 60000 });
 
             if (code !== 0) {
-                logger.error({ code, stderr }, 'xeuledoc exited with error');
+                logger.error({ code, stderrBytes: (stderr ?? '').length }, 'xeuledoc exited with error');
+                logger.debug({ stderr }, 'xeuledoc stderr');
                 const embed = new EmbedBuilder()
                     .setTitle('Command Error')
                     .setDescription('xeuledoc encountered an error while processing the link.')
@@ -60,7 +61,7 @@ module.exports = {
             }
 
             if (stderr) {
-                logger.error({ stderr }, 'xeuledoc stderr');
+                logger.debug({ stderr }, 'xeuledoc stderr');
             }
 
             const embed = new EmbedBuilder()
