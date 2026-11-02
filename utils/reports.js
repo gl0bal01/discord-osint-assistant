@@ -29,10 +29,10 @@ const REPORTS_DIR = process.env.REPORTS_DIR
 const RETENTION_DAYS = Number(process.env.REPORTS_RETENTION_DAYS) || 30;
 const REPORTS_MAX_AGE_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
+// Owner-only: reports hold personal data about investigation targets.
 function ensureReportsDir() {
-    if (!fs.existsSync(REPORTS_DIR)) {
-        fs.mkdirSync(REPORTS_DIR, { recursive: true });
-    }
+    fs.mkdirSync(REPORTS_DIR, { recursive: true, mode: 0o700 });
+    try { fs.chmodSync(REPORTS_DIR, 0o700); } catch { /* not ours (e.g. read-only mount) */ }
     return REPORTS_DIR;
 }
 
@@ -59,7 +59,7 @@ function reportFilePath(label, extension = 'txt') {
 async function saveReport(label, content, extension = 'txt') {
     try {
         const dest = reportFilePath(label, extension);
-        await fsp.writeFile(dest, content);
+        await fsp.writeFile(dest, content, { mode: 0o600 });
         logger.info({ report: path.basename(dest) }, 'report archived');
         return dest;
     } catch (err) {
@@ -75,6 +75,7 @@ async function archiveReport(srcPath, label, extension) {
         const ext = extension || path.extname(String(srcPath)).replace(/^\./, '') || 'txt';
         const dest = reportFilePath(label, ext);
         await fsp.copyFile(srcPath, dest);
+        await fsp.chmod(dest, 0o600);
         logger.info({ report: path.basename(dest) }, 'report archived');
         return dest;
     } catch (err) {

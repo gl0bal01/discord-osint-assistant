@@ -65,6 +65,17 @@ describe('utils/reports', () => {
         expect(fs.readFileSync(dest, 'utf8')).toBe('{"x":1}');
     });
 
+    it('keeps reports owner-only (personal data about targets)', async () => {
+        const mod = loadReports(path.join(dir, 'archive'));
+        const saved = await mod.saveReport('sherlock_john', 'x');
+        const src = path.join(dir, 'export.txt');
+        fs.writeFileSync(src, 'y', { mode: 0o644 });
+        const copied = await mod.archiveReport(src, 'maigret_john');
+        expect(fs.statSync(path.join(dir, 'archive')).mode & 0o777).toBe(0o700);
+        expect(fs.statSync(saved).mode & 0o777).toBe(0o600);
+        expect(fs.statSync(copied).mode & 0o777).toBe(0o600);
+    });
+
     it('archiveReport returns null when the source is missing (never throws)', async () => {
         const mod = loadReports(dir);
         const dest = await mod.archiveReport(path.join(dir, 'nope.txt'), 'label');
