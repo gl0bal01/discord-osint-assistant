@@ -38,7 +38,7 @@ See [`utils/permissions.js`](utils/permissions.js).
 Per-user cooldowns (3s light / 10s medium / 30s heavy commands) and configurable daily limits prevent abuse. Check and record are atomic to prevent TOCTOU bypass. State is in-memory only and resets on restart — supervisors (systemd `Restart=always`, Docker `restart: unless-stopped`) are expected to restart rarely in steady state. A periodic prune (`startRateLimitPrune`) drops stale cooldowns and yesterday's daily counters. See [`utils/ratelimit.js`](utils/ratelimit.js).
 
 ### Structured Logging and Secret Redaction
-All boot, lifecycle, and routing logs go through pino in JSON format ([`utils/logger.js`](utils/logger.js)). The redaction list censors `token`, `authorization`, `password`, `api_key`, `headers.authorization`, `headers.cookie`, plus every named secret env var declared in `utils/config.js` (`DISCORD_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, scanner API keys, `NIKE_TOKEN`, `SECURITY_WEBHOOK_URL`). When adding a new secret env var, update both `utils/config.js` OPTIONAL and the redact path list in `utils/logger.js`. Pretty output via `pino-pretty` is dev-only (`NODE_ENV !== 'production' && stdout.isTTY`); production emits raw JSON for log aggregators.
+All boot, lifecycle, and routing logs go through pino in JSON format ([`utils/logger.js`](utils/logger.js)). The redaction list censors `token`, `authorization`, `password`, `api_key`, `headers.authorization`, `headers.cookie`, plus every named secret env var declared in `utils/config.js` (`DISCORD_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, scanner API keys, `NIKE_TOKEN`, `SECURITY_WEBHOOK_URL`). Errors logged under `err` go through a serializer that drops the HTTP request config, request and response from axios errors (their headers and URL query hold API keys). It keeps only status, method and the URL without its query string, and replaces any remaining occurrence of a known secret value in the message or stack with `[REDACTED]`. When adding a new secret env var, update both `utils/config.js` OPTIONAL and the redact path list in `utils/logger.js`. Pretty output via `pino-pretty` is dev-only (`NODE_ENV !== 'production' && stdout.isTTY`); production emits raw JSON for log aggregators.
 
 ### Fail-Loud Lifecycle
 `uncaughtException` and `unhandledRejection` log a structured fatal record (`level=60`) and call `process.exit(1)` — they are no longer swallowed. The bot must run under a supervisor (systemd, Docker `restart`, PM2). If pino itself fails to instantiate, the boot path falls back to `console.error` for the init failure and exits 1. There are no fallback shims that mask broken state.
@@ -53,8 +53,8 @@ All boot, lifecycle, and routing logs go through pino in JSON format ([`utils/lo
 `SECURITY_WEBHOOK_URL` is consumed by exactly one call site: `commands/redirect-chain.js notifyWebhook()`. It is intentionally not generalized into a global event sink because doing so without a per-event cooldown would create a webhook-fanout DDoS amplifier (a user spamming a command could exhaust the webhook). Per-URL throttling for that single consumer is tracked as follow-up work. Do not import this env var from any other module.
 
 ### Data Handling
-- Temporary files are cleaned up automatically after use; an hourly sweep removes anything older than 24h from `temp/` (excluding `.health/`)
-- No investigation data is persisted beyond the Discord message lifetime
+- Temporary files are cleaned up automatically after use; an hourly sweep removes anything older than 24h from `temp/` (excluding `.health/` and `.monitor/`)
+- Command exports are copied to `reports/`, which is owner-only (`0700`/`0600`) and ephemeral by default: a tmpfs under Docker, and the service's private `/tmp` under systemd. Files older than `REPORTS_RETENTION_DAYS` (30) are pruned. Nothing survives a restart unless the operator mounts persistent storage there.
 - API keys are loaded from environment variables, never hardcoded; child processes spawned via `safeSpawn` receive a stripped environment so secrets never leak to subprocesses
 - Error messages shown to users are generic; detailed errors are logged server-side only via the structured logger
 
@@ -63,18 +63,21 @@ The `docker-compose.yml` enforces:
 - `security_opt: no-new-privileges` — prevents privilege escalation
 - `cap_drop: ALL` — drops all Linux capabilities
 - `read_only: true` — read-only root filesystem (preserved through all production-readiness work)
-- `tmpfs` mounts with size limits for `/app/temp`, `/app/reports` and `/tmp`, plus the `/home/botuser` volume — these are the only writable paths
+- `tmpfs` mounts with size limits for `/app/temp`, `/app/reports` (both `mode=0700`, owned by `botuser`) and `/tmp`, plus the `/home/botuser` volume — these are the only writable paths; the app code is root-owned
 - Memory limit (512MB) and PID limit (50)
 - Non-root `botuser` in the Dockerfile
 - `HEALTHCHECK` runs `bun run scripts/healthcheck.js` every 30s — not just `kill -0 1`
 
 ### systemd Deployment
-`deploy/discord-osint-assistant.service` provides equivalent hardening for bare-metal deployments: `NoNewPrivileges=true`, `ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp=true`, `PrivateDevices=true`, `RestrictNamespaces=true`, `RestrictRealtime=true`, `LockPersonality=true`, plus `MemoryMax=512M` and `TasksMax=50` mirroring the Docker resource limits. `WatchdogSec=60` ties the supervisor to the gateway healthcheck.
+`deploy/discord-osint-assistant.service` provides equivalent hardening for bare-metal deployments: `NoNewPrivileges=true`, `ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp=true`, `PrivateDevices=true`, `RestrictNamespaces=true`, `RestrictRealtime=true`, `LockPersonality=true`, plus `MemoryMax=512M` and `TasksMax=50` mirroring the Docker resource limits. `Restart=always` restarts the bot after any crash (fatal errors exit 1). There is no `WatchdogSec`: the bot doesn't send sd_notify keep-alives. Gateway health is in `temp/.health/health.json`; check it with `bun run scripts/healthcheck.js`. Reports go to the service's private `/tmp` (`REPORTS_DIR=/tmp/reports`), so they are wiped when the service stops.
 
 ### CI/CD
 - GitHub Actions pinned to commit SHAs (not mutable tags)
 - `npm audit` runs on every push (warn level) and again as a blocking gate against `--omit=dev` (production deps only) at high severity
-- Trivy scans the Docker image for known vulnerabilities
+- Trivy blocks on fixable CRITICAL/HIGH library vulnerabilities in the default image; it scans the full image too, but only reports, since those findings are in the third-party OSINT tools
+- CI builds the full image and fails if any CLI-backed command would be hidden for a missing tool (`scripts/check-tools.js`)
+- Reproducible images: the base image is pinned by digest, the Python tools are pinned in `docker/osint/requirements.txt` (Dependabot pip), and nuclei, nuclei-templates and jwt_tool are pinned by version or commit in the Dockerfile
+- `scripts/ci-local.sh` (`bun run ci`) mirrors every CI job locally, and the `.githooks/pre-push` hook runs it
 - Secrets passed via environment variables, not embedded in URLs
 - `.github/dependabot.yml` schedules weekly updates for npm, github-actions, and docker — production dependency PRs are labeled separately from devDependencies
 

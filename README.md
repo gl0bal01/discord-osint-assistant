@@ -11,7 +11,7 @@ Discord OSINT Assistant is a self-hosted Discord intelligence bot for Open Sourc
 ```bash
 git clone https://github.com/gl0bal01/discord-osint-assistant.git
 cd discord-osint-assistant
-bun install                       # or: npm install
+bun install
 cp .env.example .env              # set DISCORD_TOKEN and CLIENT_ID
 bun run deploy
 bun run start
@@ -332,14 +332,17 @@ Sensitive fields (`token`, `authorization`, `password`, `api_key`, `headers.auth
 
 ## Reports Archive
 
-In addition to being attached in Discord, command exports (Sherlock, Maigret, Nuclei, Linkook, GHunt, blockchain, and others) are written to a durable `reports/` directory. Files auto-prune after `REPORTS_RETENTION_DAYS` (default 30). Set `REPORTS_DIR` to change the location.
+Besides the Discord attachment, command exports (Sherlock, Maigret, Nuclei, Linkook, GHunt, blockchain, and others) are copied to `reports/`. They hold personal data about investigation subjects, so they are owner-only (`0700` directory, `0600` files) and **ephemeral by default**:
 
-| Variable                 | Default     | Description                              |
-|--------------------------|-------------|------------------------------------------|
-| `REPORTS_DIR`            | `./reports` | Directory for durable command exports     |
+- Docker: `/app/reports` is a tmpfs, wiped on every restart.
+- systemd: `REPORTS_DIR=/tmp/reports` in the service's private `/tmp`, wiped when the service stops.
+
+To keep them, point `REPORTS_DIR` at a disk path (Docker: mount a named volume on `/app/reports`; systemd: also add it to `ReadWritePaths`). Files older than `REPORTS_RETENTION_DAYS` are pruned at boot and hourly.
+
+| Variable                 | Default     | Description                                |
+|--------------------------|-------------|--------------------------------------------|
+| `REPORTS_DIR`            | `./reports` | Directory for command exports              |
 | `REPORTS_RETENTION_DAYS` | `30`        | Age (days) after which reports are pruned  |
-
-Under Docker, `/app/reports` is a tmpfs by default (ephemeral, wiped on restart). Mount a named volume there to persist reports across restarts. Reports may contain investigation subjects' data (usernames, addresses); `reports/` is gitignored.
 
 ## Security
 
@@ -359,6 +362,8 @@ See [SECURITY.md](SECURITY.md) for full details.
 bun run dev          # nodemon hot-reload
 bun run test         # vitest
 bun run lint         # eslint
+bun run ci           # every CI job locally (Node 22/24/26, audits, both images, Trivy); the pre-push hook runs it
+bun run ci:fast      # test + lint on your Node, then the audit
 bun run smoke        # run every command against the live APIs (Docker: docker compose run --rm bot bun run smoke)
 ```
 
