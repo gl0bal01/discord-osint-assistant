@@ -293,7 +293,7 @@ async function handleSherlockError(interaction, error, username) {
     let errorMessage = `❌ **Sherlock Scan Failed**\n`;
     errorMessage += `🎯 **Target:** \`${username}\`\n\n`;
     
-    if (error.message.includes('timed out')) {
+    if (error.code === 'ETIMEDOUT') {
         errorMessage += `**⏱️ Timeout Error**\n`;
         errorMessage += `The scan exceeded the maximum time limit.\n\n`;
         errorMessage += `**Solutions:**\n`;
@@ -309,7 +309,7 @@ async function handleSherlockError(interaction, error, username) {
         errorMessage += `**Alternative:**\n`;
         errorMessage += `Set SHERLOCK_PATH in environment variables`;
         
-    } else if (error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
         errorMessage += `**🌐 Network Error**\n`;
         errorMessage += `Unable to connect to social media platforms.\n\n`;
         errorMessage += `**Possible causes:**\n`;

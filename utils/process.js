@@ -71,7 +71,7 @@ function safeSpawn(command, args = [], options = {}) {
             setTimeout(() => {
                 try { if (!proc.killed) proc.kill('SIGKILL'); } catch { /* process already exited */ }
             }, 5000);
-            reject(new Error(`Process timed out after ${timeout / 1000} seconds`));
+            reject(Object.assign(new Error(`Process timed out after ${timeout / 1000} seconds`), { code: 'ETIMEDOUT' }));
         }, timeout);
 
         proc.on('close', (code) => {
@@ -83,7 +83,7 @@ function safeSpawn(command, args = [], options = {}) {
 
         proc.on('error', (error) => {
             clearTimeout(timeoutId);
-            reject(new Error(`Failed to start process: ${error.message}`));
+            reject(Object.assign(new Error(`Failed to start process: ${error.message}`), { code: error.code }));
         });
     });
 }
@@ -148,7 +148,7 @@ function safeSpawnToFile(command, args = [], outputFilePath, options = {}) {
             setTimeout(() => {
                 try { if (!proc.killed) proc.kill('SIGKILL'); } catch { /* process already exited */ }
             }, 5000);
-            reject(new Error(`Process timed out after ${timeout / 1000} seconds`));
+            reject(Object.assign(new Error(`Process timed out after ${timeout / 1000} seconds`), { code: 'ETIMEDOUT' }));
         }, timeout);
 
         // A write failure (e.g. full tmpfs) must reject, not crash the process
@@ -172,7 +172,7 @@ function safeSpawnToFile(command, args = [], outputFilePath, options = {}) {
         proc.on('error', (error) => {
             clearTimeout(timeoutId);
             outStream.end();
-            reject(new Error(`Failed to start process: ${error.message}`));
+            reject(Object.assign(new Error(`Failed to start process: ${error.message}`), { code: error.code }));
         });
     });
 }

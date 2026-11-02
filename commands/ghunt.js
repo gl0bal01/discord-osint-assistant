@@ -14,7 +14,7 @@
 
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
-const { isValidEmail, isValidUrl } = require('../utils/validation');
+const { isValidEmail, isValidUrl, sanitizeFilename } = require('../utils/validation');
 const { capField, escapeHtml } = require('../utils/embed');
 const fs = require('fs');
 const path = require('path');
@@ -395,7 +395,12 @@ module.exports = {
                 }
                 break;
             }
-            case 'gaia':
+            case 'gaia': {
+                if (!query?.replace(/[^0-9]/g, '')) {
+                    return interaction.reply({ content: 'Please provide a numeric Gaia ID in the `query` field.', flags: MessageFlags.Ephemeral });
+                }
+                break;
+            }
             case 'spiderdal': {
                 if (!query) {
                     return interaction.reply({ content: 'Please provide a value in the `query` field.', flags: MessageFlags.Ephemeral });
@@ -517,7 +522,11 @@ module.exports = {
         }
 
         try {
-            await safeSpawn('ghunt', ghuntArgs, { timeout: 120000 });
+            const { code, stderr } = await safeSpawn('ghunt', ghuntArgs, { timeout: 120000 });
+            // safeSpawn resolves on a non-zero exit, so expired credentials only show up in stderr
+            if (code !== 0 && /credentials|authenticat|unauthorized|\b401\b|expired/i.test(stderr ?? '')) {
+                throw Object.assign(new Error('GHunt authentication failed'), { code: 'EAUTH' });
+            }
 
             if (fs.existsSync(outputFilePath)) {
                 const attachment = new AttachmentBuilder(outputFilePath, {
@@ -547,7 +556,7 @@ module.exports = {
                     ghuntResults = JSON.parse(jsonData);
                 } catch { /* ignore */ }
 
-                const htmlReportPath = path.join(resultsDir, `report_${sanitizedQuery}_${timestamp}.html`);
+                const htmlReportPath = path.join(resultsDir, `report_${sanitizeFilename(sanitizedQuery)}_${timestamp}.html`);
                 const htmlContent = generateHtmlReport(ghuntResults, searchType, query, userTag, timestamp);
                 fs.writeFileSync(htmlReportPath, htmlContent);
 
@@ -572,20 +581,14 @@ module.exports = {
             console.error(`[GHUNT] Execution error: ${error.message}`);
 
             // Detect expired/invalid credentials from GHunt stderr
-            const errMsg = String(error.message || '');
-            const isAuthError = errMsg.includes('credentials') ||
-                errMsg.includes('authenticated') ||
-                errMsg.includes('Unauthorized') ||
-                errMsg.includes('401');
-
-            if (isAuthError) {
+            if (error.code === 'EAUTH') {
                 embed.setColor(0xff0000)
                     .setTitle('Authentication Failed')
                     .setDescription('GHunt reported an authentication error. Your Google session may have expired.\n\n' +
                         '**Run:** `/bob-ghunt type:check-login` to verify\n' +
                         '**Then:** `/bob-ghunt type:login query:<base64-from-companion>` to refresh');
             } else {
-                const userMsg = errMsg.includes('ENOENT') || errMsg.includes('Failed to start process')
+                const userMsg = error.code === 'ENOENT'
                     ? 'GHunt is not installed or not found in PATH. Please contact the administrator.'
                     : 'Error running GHunt. Check server logs for details.';
                 embed.addFields({ name: 'GHunt Error', value: userMsg });

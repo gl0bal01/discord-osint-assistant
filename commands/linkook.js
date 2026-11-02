@@ -44,8 +44,8 @@ module.exports = {
             
             // Sanitize username to prevent command injection
             const sanitizedUsername = username.replace(/[^a-zA-Z0-9_.-]/g, '_');
-            if (sanitizedUsername !== username) {
-                return interaction.editReply('Username contains invalid characters. Please use only letters, numbers, dots, underscores, and hyphens.');
+            if (sanitizedUsername !== username || !/^[a-zA-Z0-9_]/.test(username)) {
+                return interaction.editReply('Username contains invalid characters. Please use only letters, numbers, dots, underscores, and hyphens, and start with a letter, number or underscore.');
             }
             
             // Create a unique output directory for this run under temp/reports/
@@ -66,7 +66,7 @@ module.exports = {
             
         } catch (error) {
             console.error('Linkook error:', error);
-            const errorMsg = error.message.includes('ENOENT') || error.message.includes('Failed to start process')
+            const errorMsg = error.code === 'ENOENT'
                 ? 'Linkook is not installed or not found in PATH. Please contact the administrator.'
                 : 'An error occurred while processing your request. Please try again later.';
             await interaction.editReply(errorMsg);
@@ -94,9 +94,11 @@ async function runLinkook(args, interaction, outputDir, username, rawMode) {
         const lines = stdout.split('\n');
         for (const line of lines) {
             if (line.includes('[+]') || line.includes('FOUND:')) {
-                const siteName = line.match(/\[([^\]]+)\]/) || line.match(/FOUND: ([^\s]+)/);
-                if (siteName && siteName[1]) {
-                    foundSites.push(siteName[1]);
+                // Drop URLs, then take the name after "FOUND:" or after the "[+]" marker
+                const text = line.replace(/https?:\/\/\S+/g, '');
+                const siteName = text.match(/FOUND:\s*(\S+)/) || text.match(/\[\+\]\s*\[?([^\]:]+)/);
+                if (siteName && siteName[1].trim()) {
+                    foundSites.push(siteName[1].trim());
                 }
             }
         }

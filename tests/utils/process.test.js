@@ -34,6 +34,14 @@ describe('safeSpawn', () => {
             .rejects.toThrow('Failed to start process');
     });
 
+    it('sets error.code to ENOENT when the binary is missing', async () => {
+        await expect(safeSpawn('nonexistent-command-xyz-123', [])).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it('sets error.code to ETIMEDOUT on timeout', async () => {
+        await expect(safeSpawn('sleep', ['10'], { timeout: 200 })).rejects.toMatchObject({ code: 'ETIMEDOUT' });
+    }, 10000);
+
     it('handles timeout', async () => {
         await expect(safeSpawn('sleep', ['10'], { timeout: 200 }))
             .rejects.toThrow('timed out');
@@ -106,4 +114,18 @@ describe('safeSpawnToFile', () => {
         const content = await fsp.readFile(out, 'utf8');
         expect(content.trim()).toBe('piped-secret');
     });
+});
+
+describe('safeSpawnToFile error codes', () => {
+    it('sets error.code to ENOENT when the binary is missing', async () => {
+        const out = mkTmp();
+        cleanups.push(out);
+        await expect(safeSpawnToFile('nonexistent-command-xyz-123', [], out)).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it('sets error.code to ETIMEDOUT on timeout', async () => {
+        const out = mkTmp();
+        cleanups.push(out);
+        await expect(safeSpawnToFile('sleep', ['10'], out, { timeout: 200 })).rejects.toMatchObject({ code: 'ETIMEDOUT' });
+    }, 10000);
 });

@@ -9,6 +9,7 @@
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
+const { capField } = require('../utils/embed');
 
 module.exports = {
     requiresTool: ['xeuledoc'],
@@ -63,12 +64,12 @@ module.exports = {
 
             const embed = new EmbedBuilder()
                 .setTitle('xeuledoc Output')
-                .setDescription(`\`\`\`\n${stdout}\n\`\`\``)
+                .setDescription(`\`\`\`\n${capField(stdout, 4000)}\n\`\`\``)
                 .setColor(0x00ff00);
             await interaction.editReply({ embeds: [embed] });
         } catch (error) {
             console.error('Error executing xeuledoc:', error);
-            const errorMsg = error.message.includes('ENOENT') || error.message.includes('Failed to start process')
+            const errorMsg = error.code === 'ENOENT'
                 ? 'xeuledoc is not installed or not found in PATH. Please contact the administrator.'
                 : 'An unexpected error occurred while running xeuledoc. Please try again later.';
             const embed = new EmbedBuilder()

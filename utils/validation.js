@@ -59,8 +59,9 @@ function isValidEmail(email) {
  * @returns {boolean} Whether the username is valid
  */
 function isValidUsername(username) {
-    // Allow alphanumeric, underscores, dots, and hyphens
-    const usernameRegex = /^[a-zA-Z0-9_.-]+$/;
+    // Allow alphanumeric, underscores, dots, and hyphens; the first character can't be
+    // '.' or '-' so a username is never parsed as a CLI option
+    const usernameRegex = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/;
     
     if (!username || typeof username !== 'string') {
         return false;

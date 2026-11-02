@@ -60,6 +60,12 @@ describe('isValidUsername', () => {
         expect(isValidUsername('user$(whoami)')).toBe(false);
         expect(isValidUsername('user`id`')).toBe(false);
     });
+    it('rejects a leading hyphen or dot so it cannot be parsed as an option', () => {
+        expect(isValidUsername('--help')).toBe(false);
+        expect(isValidUsername('-abc')).toBe(false);
+        expect(isValidUsername('.abc')).toBe(false);
+        expect(isValidUsername('_abc')).toBe(true);
+    });
     it('rejects null/undefined', () => {
         expect(isValidUsername(null)).toBe(false);
         expect(isValidUsername(undefined)).toBe(false);

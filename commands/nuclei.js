@@ -303,16 +303,16 @@ module.exports = {
             let errorCategory = 'Unknown Error';
             let errorAdvice = 'Please try again or contact support.';
             
-            if (error.message.includes('timeout')) {
+            if (error.code === 'ETIMEDOUT') {
                 errorCategory = 'Scan Timeout';
                 errorAdvice = 'Try increasing the timeout value or using more specific tags.';
-            } else if (error.message.includes('ENOENT') || error.message.includes('not found')) {
+            } else if (error.code === 'ENOENT') {
                 errorCategory = 'Configuration Error';
                 errorAdvice = 'Nuclei scanner may not be properly installed or configured.';
-            } else if (error.message.includes('permission') || error.message.includes('EACCES')) {
+            } else if (error.code === 'EACCES' || error.code === 'EPERM') {
                 errorCategory = 'Permission Error';
                 errorAdvice = 'Check file system permissions for temporary directory access.';
-            } else if (error.message.includes('network') || error.message.includes('connection')) {
+            } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
                 errorCategory = 'Network Error';
                 errorAdvice = 'Check internet connectivity and try again.';
             }

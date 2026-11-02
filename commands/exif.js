@@ -108,10 +108,11 @@ module.exports = {
 
             console.log(`📸 [EXIF] Starting metadata extraction for: ${imageUrl}`);
 
+            let imagePath;
             try {
                 // Generate unique filename to prevent collisions
                 const fileExtension = getExtensionFromUrl(imageUrl);
-                const imagePath = tempFilePath('exif', fileExtension);
+                imagePath = tempFilePath('exif', fileExtension);
                 
                 // Download the image with validation
                 await downloadImageFromUrl(imageUrl, imagePath);
@@ -122,7 +123,6 @@ module.exports = {
                 
                 // Verify it's actually an image file
                 if (!await isImageFile(imagePath)) {
-                    await cleanupFile(imagePath);
                     return interaction.editReply({
                         content: '❌ **Invalid Image File**\n' +
                                 'The downloaded file is not a valid image format.\n\n' +
@@ -153,6 +153,8 @@ module.exports = {
             } catch (error) {
                 console.error(`❌ [EXIF] Error processing image from ${imageUrl}:`, error.message);
                 await handleExifError(interaction, error, imageUrl);
+            } finally {
+                if (imagePath) await cleanupFile(imagePath);
             }
             
         } catch (unexpectedError) {
@@ -329,10 +331,10 @@ async function extractExifData(imagePath, includeDetailed = false) {
         return exifData;
 
     } catch (error) {
-        if (error.message.includes('Failed to start process')) {
+        if (error.code === 'ENOENT') {
             throw new Error('ExifTool not found. Please install ExifTool and ensure it\'s in your PATH.');
-        } else if (error.message.includes('timed out')) {
-            throw new Error('ExifTool process timed out');
+        } else if (error.code === 'ETIMEDOUT') {
+            throw Object.assign(new Error('ExifTool process timed out'), { code: 'ETIMEDOUT' });
         } else {
             throw new Error(`ExifTool error: ${error.message}`);
         }
@@ -540,7 +542,7 @@ async function sendExifResults(interaction, formattedData, imageUrl, fileStats, 
 async function handleExifError(interaction, error, _imageUrl) {
     let errorMessage = '❌ **EXIF Extraction Failed**\n';
     
-    if (error.message.includes('timeout')) {
+    if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
         errorMessage += 'The operation timed out. The image may be too large or the server is slow.';
     } else if (error.message.includes('HTTP')) {
         errorMessage += 'Failed to download image. The URL may be invalid or the server is unreachable.';

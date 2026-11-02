@@ -90,7 +90,7 @@ const findJwtTool = () => {
     const pyScript = `${CONFIG.JWT_TOOL_PATH}/jwt_tool.py`;
     const venvPython = `${CONFIG.JWT_TOOL_PATH}/venv/bin/python3`;
     if (fsSync.existsSync(pyScript) && isToolAvailable([venvPython])) return [venvPython, pyScript];
-    throw new Error('jwt_tool not found.');
+    throw Object.assign(new Error('jwt_tool not found.'), { code: 'ENOENT' });
 };
 
 const executeJwtCommand = async (cmd, args, outputFile, spawnOptions = {}) => {
@@ -99,6 +99,8 @@ const executeJwtCommand = async (cmd, args, outputFile, spawnOptions = {}) => {
     } catch (error) {
         const fsSync = require('fs');
         if (!fsSync.existsSync(outputFile) || fsSync.statSync(outputFile).size === 0) {
+            // Timeout and missing-binary keep their code so the caller can tell the user why
+            if (error.code === 'ETIMEDOUT' || error.code === 'ENOENT') throw error;
             throw new Error(`No output generated. Command failed: ${error.message}`);
         }
     }
@@ -372,9 +374,9 @@ module.exports = {
             let errorMessage = 'An unexpected error occurred while processing your request.';
             let errorColor = 0xFF0000;
 
-            if (error.message.includes('timeout')) {
+            if (error.code === 'ETIMEDOUT') {
                 errorMessage = '⏱️ Operation timed out. Complex operations may require more time.';
-            } else if (error.message.includes('jwt_tool not found')) {
+            } else if (error.code === 'ENOENT') {
                 errorMessage = '🚫 JWT tool not found. Please check the installation and configuration.';
             } else if (error.message.includes('No output generated')) {
                 errorMessage = '📄 Command completed but generated no output. Check your inputs and try again.';

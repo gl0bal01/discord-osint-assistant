@@ -118,9 +118,9 @@ module.exports = {
         } catch (error) {
             console.error(`Maigret scan error: ${error.message}`);
 
-            const errorDetail = error.message.includes('ENOENT') || error.message.includes('Failed to start process')
+            const errorDetail = error.code === 'ENOENT'
                 ? 'Maigret is not installed or not found in PATH. Please contact the administrator.'
-                : error.message.includes('timed out')
+                : error.code === 'ETIMEDOUT'
                     ? `Scan timed out after ${customTimeout}s. Try again with a larger \`timeout\` (max 600).`
                     : 'An unexpected error occurred. Check server logs for details.';
             const errorEmbed = new EmbedBuilder()
