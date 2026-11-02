@@ -267,7 +267,7 @@ GHunt requires a valid Google session before it can perform lookups. The bot can
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 22.12+
 - Discord bot application and token
 - Bun (optional)
 - Docker (optional)

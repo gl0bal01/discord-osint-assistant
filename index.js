@@ -1,5 +1,5 @@
 // Main Discord bot entry point for OSINT Assistant — gl0bal01
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const { Client, GatewayIntentBits, Events, MessageFlags } = require('discord.js');
 const path = require('node:path');

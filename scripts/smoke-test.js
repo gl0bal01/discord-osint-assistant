@@ -18,7 +18,7 @@
  *   TIMEOUT_MS=60000 node scripts/smoke-test.js
  */
 
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const path = require('path');
 const fs = require('fs');

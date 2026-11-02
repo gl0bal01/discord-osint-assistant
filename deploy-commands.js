@@ -12,7 +12,7 @@
  *   node deploy-commands.js --global  # Deploy commands globally
  */
 
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const { REST, Routes } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');

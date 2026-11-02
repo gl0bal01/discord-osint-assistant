@@ -14,7 +14,7 @@
  */
 
 const { REST, Routes } = require('discord.js');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 class CommandCleaner {
     constructor() {
