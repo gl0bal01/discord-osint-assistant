@@ -46,8 +46,6 @@ function stubAxios(responses = []) {
         else post.mockResolvedValueOnce(r);
     }
     vi.spyOn(axios, 'get').mockRejectedValue(new Error('unstubbed axios.get'));
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
 }
 
 const conv = (uuid = 'conv-1') => ({ data: { conversation: { uuid } } });

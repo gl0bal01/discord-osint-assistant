@@ -17,13 +17,14 @@ const SECRET = 'SECRET_INTERNAL_DETAIL';
 const coded = (message, code) => Object.assign(new Error(message), { code });
 const VALID_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc';
 
-let cmd, spawnToFile, toolAvailable, outFiles;
+let cmd, spawnToFile, spawnPrime, toolAvailable, outFiles;
 
 beforeAll(() => {
     process.env.DISCORD_TOKEN ||= 'test-token';
     process.env.CLIENT_ID ||= 'test-client-id';
     fs.mkdirSync(path.join(tmp, 'out'), { recursive: true });
     spawnToFile = vi.spyOn(require('../../utils/process.js'), 'safeSpawnToFile');
+    spawnPrime = vi.spyOn(require('../../utils/process.js'), 'safeSpawn');
     toolAvailable = vi.spyOn(require('../../utils/tools.js'), 'isToolAvailable');
     let n = 0;
     vi.spyOn(require('../../utils/temp.js'), 'reportFilePath').mockImplementation((label, ext = 'txt') => {
@@ -38,6 +39,8 @@ beforeEach(() => {
     outFiles = [];
     fs.writeFileSync(process.env.JWT_WORDLIST, 'password\n');
     spawnToFile.mockReset();
+    spawnPrime.mockReset();
+    spawnPrime.mockResolvedValue({ stdout: '', stderr: '', code: 1 });
     spawnToFile.mockRejectedValue(new Error('unstubbed safeSpawnToFile'));
     toolAvailable.mockReset();
     toolAvailable.mockImplementation((candidates) => candidates.includes(TOOL));
@@ -77,7 +80,7 @@ const prints = (text) => async (_cmd, _args, out) => {
 };
 
 describe('bob-jwt input validation', () => {
-    it.each(['not-a-jwt', 'a.b', 'a.b.c;id', '$(id).b.c', 'a.b.c d'])('rejects token %j without spawning', async (token) => {
+    it.each(['not-a-jwt', 'a.b', 'a.b.c;id', '$(id).b.c', 'a.b.c d', '-Qj.t.', '-x.y.z'])('rejects token %j without spawning', async (token) => {
         const i = makeInteraction('analyze', { token });
         await cmd.execute(i);
         expect(embedOf(i).title).toBe('❌ Invalid JWT Format');
@@ -124,6 +127,21 @@ describe('bob-jwt analyze', () => {
         expect(embedOf(i).title).toBe('🔍 JWT Analysis Results');
         expect(embedOf(i).description).toContain('"sub":"1234567890"');
         expect(i.sentFiles).toEqual([{ name: 'jwt-analyze-results.txt', body: 'Header: {"alg":"HS256"}\nPayload: {"sub":"1234567890"}\n' }]);
+    });
+
+    it('runs jwt_tool with a throwaway HOME that is removed afterwards', async () => {
+        let runHome;
+        spawnToFile.mockImplementation(async (_cmd, _args, out, opts) => {
+            runHome = opts.env.HOME;
+            expect(fs.existsSync(runHome)).toBe(true);
+            fs.writeFileSync(out, 'ok');
+            return { stderr: '', code: 0 };
+        });
+        await cmd.execute(makeInteraction('analyze', { token: VALID_JWT }));
+        expect(runHome).toContain('jwt-home-');
+        expect(runHome).not.toBe(process.env.HOME);
+        expect(spawnPrime.mock.calls[0][2].env.HOME).toBe(runHome);
+        expect(fs.existsSync(runHome)).toBe(false);
     });
 
     it('passes the token as a single argv element, with -v only when verbose', async () => {

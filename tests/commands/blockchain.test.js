@@ -138,8 +138,9 @@ describe('bob-blockchain: routing and validation', () => {
 
     it('does not forward a block value with path or query characters to the provider', async () => {
         getSpy.mockResolvedValue({ data: { height: 1 } });
-        await run('block', { blockchain: 'btc', block: '1/../../rawaddr/x?y=1#z' });
-        for (const [url] of getSpy.mock.calls) expect(url).not.toMatch(/[?#]|\.\./);
+        const i = await run('block', { blockchain: 'btc', block: '1/../../rawaddr/x?y=1#z' });
+        expect(last(i)).toMatch(/^Invalid Bitcoin block\./);
+        expect(getSpy).not.toHaveBeenCalled();
     });
 });
 
@@ -394,10 +395,12 @@ describe('bob-blockchain block lookups', () => {
         expect(field(i, 'Gas Used')).toMatch(/^21.?000$/);
     });
 
-    it('looks up an Ethereum block by hash', async () => {
-        getSpy.mockResolvedValue({ data: { result: { number: hex(1), hash: HASH, timestamp: hex(0), size: hex(1), difficulty: hex(1), gasUsed: hex(1), gasLimit: hex(1) } } });
-        await run('block', { blockchain: 'eth', block: `0x${HASH}` });
-        expect(getSpy.mock.calls[0][1].params).toMatchObject({ action: 'eth_getBlockByHash', hash: `0x${HASH}` });
+    it.each([
+        ['eth', 'mainnet'], ['bsc', 'mainnet'], ['matic', 'mainnet'], ['eth', 'testnet'], ['bsc', 'testnet'], ['matic', 'testnet']
+    ])('refuses an %s %s block hash lookup without any request', async (blockchain, network) => {
+        const i = await run('block', { blockchain, block: `0x${HASH}`, network });
+        expect(last(i)).toBe('Etherscan can only look up EVM blocks by number.');
+        expect(getSpy).not.toHaveBeenCalled();
     });
 
     it('keeps an API-supplied miner value inside the embed, never in message content', async () => {

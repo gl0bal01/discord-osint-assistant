@@ -56,7 +56,6 @@ const okDownload = () => Promise.resolve({ data: new ArrayBuffer(2048) });
 
 async function run(file, { get = okDownload, post = () => Promise.resolve(goodUpload) } = {}) {
     vi.stubEnv('AI_API_KEY', API_KEY);
-    vi.spyOn(console, 'error').mockImplementation(() => {});
     const spies = stubAxios({ get, post });
     const interaction = makeInteraction(file);
     await expect(upload.execute(interaction)).resolves.not.toThrow();
@@ -192,11 +191,12 @@ describe('bob-upload upstream failures', () => {
         expect(last.content).not.toContain('10.0.0.5');
     });
 
-    it('neutralizes mass mentions in error text relayed from the API', async () => {
+    it('shows a fixed Bad Request message and relays no upstream text', async () => {
         const { last } = await run(attachment(), {
             post: () => Promise.reject(apiError(400, { message: '@everyone bad file' }))
         });
-        expect(last.content).not.toMatch(/@everyone/i);
+        expect(last.content).toContain('**Bad Request** — Invalid file format or missing file.');
+        expect(last.content).not.toMatch(/@everyone|bad file/i);
     });
 
     it('does not expose internal response-validation errors when the API reply is malformed', async () => {

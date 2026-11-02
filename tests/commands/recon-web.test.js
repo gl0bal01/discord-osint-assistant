@@ -63,7 +63,6 @@ const is = (s) => (u) => u.includes(s);
 async function run(options, { timers = false } = {}) {
     if (timers) vi.useFakeTimers({ toFake: ['setTimeout'] });
     validate.mockResolvedValue(undefined);
-    vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(axios, 'post').mockRejectedValue(new Error('unstubbed axios.post'));
     const interaction = makeInteraction({ domain: 'example.com', ...options });
     await expect(recon.execute(interaction)).resolves.not.toThrow();
@@ -157,8 +156,8 @@ describe('bob-web-recon wayback', () => {
         await run({ service: 'wayback' });
         const [url, config] = get.mock.calls[0];
         expect(url).toBe('https://web.archive.org/cdx/search/cdx?fl=original&collapse=urlkey&url=*.example.com');
-        expect(config.httpAgent).toBeDefined();
-        expect(config.httpsAgent).toBeDefined();
+        expect(config.httpAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpAgent);
+        expect(config.httpsAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpsAgent);
     });
 
     it('shows a generic error field instead of the upstream error text', async () => {
@@ -214,8 +213,8 @@ describe('bob-web-recon shodan favicon', () => {
         const get = stubGet(faviconRoutes());
         await run({ service: 'shodan' }, { timers: true });
         for (const [, config] of get.mock.calls) {
-            expect(config.httpAgent).toBeDefined();
-            expect(config.httpsAgent).toBeDefined();
+            expect(config.httpAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpAgent);
+            expect(config.httpsAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpsAgent);
         }
     });
 
@@ -318,7 +317,6 @@ describe('bob-web-recon unexpected errors', () => {
     it('replies with a generic message that hides the internal error', async () => {
         stubGet([]);
         validate.mockResolvedValue(undefined);
-        vi.spyOn(console, 'error').mockImplementation(() => {});
         const interaction = makeInteraction({ domain: 'example.com', service: 'certspotter' });
         interaction.editReply.mockRejectedValueOnce(new Error('discord-internal-detail'));
         await expect(recon.execute(interaction)).resolves.not.toThrow();

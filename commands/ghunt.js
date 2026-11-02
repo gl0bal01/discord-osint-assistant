@@ -235,6 +235,12 @@ function generateLinkCard(title, url) {
             </div>`;
 }
 
+// encodeURIComponent leaves ! ' ( ) * alone; ( and ) would end a markdown link early
+const urlPart = (v) => encodeURIComponent(v).replace(/[!'()*]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+
+// spiderdal takes -u <domain>; keep domain characters only and drop a leading '-' or '.'
+const spiderdalTarget = (v) => (v ?? '').replace(/[^a-zA-Z0-9-.]/g, '').replace(/^[-.]+/, '');
+
 function extractDriveId(url) {
     try {
         const idMatch = url.match(/[-\w]{25,}/);
@@ -324,7 +330,7 @@ module.exports = {
                 });
             } catch (error) {
                 logger.error({ err: error }, 'ghunt login failed');
-                let reason = error.message;
+                let reason = 'Could not save the token. Make sure you copied the full string from GHunt Companion.';
                 if (error.message.includes('Invalid base64')) {
                     reason = 'The token is not valid base64. Make sure you copied the entire string from GHunt Companion.';
                 } else if (error.message.includes('JSON')) {
@@ -403,8 +409,8 @@ module.exports = {
                 break;
             }
             case 'spiderdal': {
-                if (!query) {
-                    return interaction.reply({ content: 'Please provide a value in the `query` field.', flags: MessageFlags.Ephemeral });
+                if (!spiderdalTarget(query)) {
+                    return interaction.reply({ content: 'Please provide a domain in the `query` field.', flags: MessageFlags.Ephemeral });
                 }
                 break;
             }
@@ -451,20 +457,25 @@ module.exports = {
             case 'email': {
                 sanitizedQuery = query.replace(/[^a-zA-Z0-9@.]/g, '_');
                 outputFilePath = path.join(resultsDir, `email_${sanitizedQuery}_${timestamp}.json`);
-                ghuntArgs = ['email', sanitizedQuery, '--json', outputFilePath];
+                // The address goes through unchanged, after '--' so it can't be read as an option
+                ghuntArgs = ['email', '--json', outputFilePath];
                 if (useDriver) ghuntArgs.push('--driver');
                 if (useSight) ghuntArgs.push('--sight');
-                const [uname, domain] = query.split('@');
+                ghuntArgs.push('--', query);
+                const at = query.lastIndexOf('@');
+                const uname = query.slice(0, at);
+                const domain = query.slice(at + 1);
+                const q = urlPart(query);
                 embed.setTitle('Email Lookup Results')
                     .setDescription(`Results for ${query}`);
                 if (domain.toLowerCase() === 'gmail.com') {
-                    embed.addFields({ name: 'Gmail OSINT Tool', value: `[View Results](https://gmail-osint.activetk.jp/${uname})` });
+                    embed.addFields({ name: 'Gmail OSINT Tool', value: `[View Results](https://gmail-osint.activetk.jp/${urlPart(uname)})` });
                 }
                 embed.addFields(
-                    { name: 'Epieos OSINT', value: `[View Results](https://epieos.com/?q=${query})` },
-                    { name: 'EmailRep Lookup', value: `[View Results](https://emailrep.io/${query})` },
-                    { name: 'Have I Been Pwned', value: `[View Results](https://haveibeenpwned.com/account/${query})` },
-                    { name: 'Google Calendar ICS', value: `[Download Calendar](https://calendar.google.com/calendar/ical/${query}/public/basic.ics)` }
+                    { name: 'Epieos OSINT', value: `[View Results](https://epieos.com/?q=${q})` },
+                    { name: 'EmailRep Lookup', value: `[View Results](https://emailrep.io/${q})` },
+                    { name: 'Have I Been Pwned', value: `[View Results](https://haveibeenpwned.com/account/${q})` },
+                    { name: 'Google Calendar ICS', value: `[Download Calendar](https://calendar.google.com/calendar/ical/${q}/public/basic.ics)` }
                 );
                 break;
             }
@@ -474,9 +485,9 @@ module.exports = {
                 ghuntArgs = ['gaia', sanitizedQuery, '--json', outputFilePath];
                 if (useDriver) ghuntArgs.push('--driver');
                 embed.setTitle('Gaia ID Lookup Results')
-                    .setDescription(`Results for Gaia ID: ${query}`);
+                    .setDescription(`Results for Gaia ID: ${sanitizedQuery}`);
                 embed.addFields(
-                    { name: 'Google Maps Reviews', value: `[View Reviews](https://www.google.com/maps/contrib/${query}/reviews)` },
+                    { name: 'Google Maps Reviews', value: `[View Reviews](https://www.google.com/maps/contrib/${sanitizedQuery}/reviews)` },
                     { name: 'Google Calendar ICS', value: 'Use with email when available' }
                 );
                 break;
@@ -507,11 +518,11 @@ module.exports = {
                 break;
             }
             case 'spiderdal': {
-                sanitizedQuery = query.replace(/[^a-zA-Z0-9-.]/g, '');
+                sanitizedQuery = spiderdalTarget(query);
                 outputFilePath = path.join(resultsDir, `spiderdal_${sanitizedQuery}_${timestamp}.json`);
-                ghuntArgs = ['spiderdal', sanitizedQuery, '--json', outputFilePath];
+                ghuntArgs = ['spiderdal', '-u', sanitizedQuery, '--json', outputFilePath];
                 embed.setTitle('Digital Asset Links Analysis')
-                    .setDescription(`Results for domain: ${query}`);
+                    .setDescription(`Results for domain: ${sanitizedQuery}`);
                 embed.addFields(
                     { name: 'Google Calendar ICS', value: `[Calendar ICS](https://calendar.google.com/calendar/ical/${sanitizedQuery}/public/basic.ics)` },
                     { name: 'Google Maps Reviews', value: 'Use with Gaia ID when available' }
@@ -523,10 +534,15 @@ module.exports = {
         }
 
         try {
-            const { code, stderr } = await safeSpawn('ghunt', ghuntArgs, { timeout: 120000 });
-            // safeSpawn resolves on a non-zero exit, so expired credentials only show up in stderr
-            if (code !== 0 && /credentials|authenticat|unauthorized|\b401\b|expired/i.test(stderr ?? '')) {
+            const { code, stdout, stderr } = await safeSpawn('ghunt', ghuntArgs, { timeout: 120000 });
+            // safeSpawn resolves on a non-zero exit, so expired credentials only show up in the output
+            if (code !== 0 && /credentials|authenticat|unauthorized|401|expired|session|ghunt login/i.test(`${stdout ?? ''}\n${stderr ?? ''}`)) {
                 throw Object.assign(new Error('GHunt authentication failed'), { code: 'EAUTH' });
+            }
+            if (code !== 0 && !fs.existsSync(outputFilePath)) {
+                logger.error({ code, stderr: (stderr ?? '').slice(0, 2000) }, 'ghunt exited non-zero without output');
+                embed.setColor(0xff0000).addFields({ name: 'GHunt Error', value: 'GHunt failed. Check server logs.' });
+                return await interaction.editReply({ embeds: [embed] });
             }
 
             if (fs.existsSync(outputFilePath)) {
@@ -543,7 +559,7 @@ module.exports = {
                         if (ghuntResults && ghuntResults.personId) {
                             embed.addFields({
                                 name: 'Google Maps Reviews',
-                                value: `[View Reviews](https://www.google.com/maps/contrib/${ghuntResults.personId}/reviews)`
+                                value: `[View Reviews](https://www.google.com/maps/contrib/${urlPart(String(ghuntResults.personId))}/reviews)`
                             });
                         }
                     } catch (jsonError) {

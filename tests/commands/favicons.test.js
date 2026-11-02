@@ -132,8 +132,10 @@ describe('bob-favicon: SSRF protection', () => {
             html: `<html><head><link rel="icon" href="${evilIcon}"></head></html>`,
             icons: { [evilIcon]: { data: PNG, type: 'image/png' } }
         });
-        await cmd.execute(makeInteraction({ url: PAGE_URL }));
+        const i = makeInteraction({ url: PAGE_URL });
+        await cmd.execute(i);
         expect(getSpy.mock.calls.map((c) => c[0])).not.toContain(evilIcon);
+        expect(last(i).embeds[0].data.description).toBe('Could not find or download any favicons from **example.com**');
     });
 });
 

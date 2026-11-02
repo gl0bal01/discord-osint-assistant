@@ -22,8 +22,6 @@ function makeInteraction(options = {}) {
 }
 
 async function run(options) {
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
     const interaction = makeInteraction(options);
     await expect(cmd.execute(interaction)).resolves.not.toThrow();
     const payload = interaction.reply.mock.calls[0][0];
@@ -120,8 +118,6 @@ describe('bob-generate-usernames output', () => {
 
 describe('bob-generate-usernames error handling', () => {
     it('replies with a generic private message when generation throws', async () => {
-        vi.spyOn(console, 'log').mockImplementation(() => {});
-        vi.spyOn(console, 'error').mockImplementation(() => {});
         // The first Buffer.from in the attachment builder is the only place generation can be forced to fail
         vi.spyOn(Buffer, 'from').mockImplementationOnce(() => { throw new Error('internal-secret-detail'); });
         const interaction = makeInteraction({ firstname: 'John', lastname: 'Doe' });

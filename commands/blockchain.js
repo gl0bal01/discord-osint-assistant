@@ -83,9 +83,8 @@ async function etherscan(chainId, params, safeConfig) {
     return response.data;
 }
 
-const evmBlockParams = (block, isHeight) => (isHeight
-    ? { module: 'proxy', action: 'eth_getBlockByNumber', tag: `0x${parseInt(block).toString(16)}`, boolean: 'true' }
-    : { module: 'proxy', action: 'eth_getBlockByHash', hash: block, boolean: 'true' });
+// Etherscan's proxy module has no eth_getBlockByHash, so EVM blocks are looked up by number only
+const evmBlockParams = (block) => ({ module: 'proxy', action: 'eth_getBlockByNumber', tag: `0x${parseInt(block).toString(16)}`, boolean: 'true' });
 
 /**
  * Build a testnet block-explorer URL for a given chain and resource kind.
@@ -468,6 +467,10 @@ async function handleBlockLookup(interaction, blockchain, blockchainInfo, fullDa
 
     if (!isHeight && !/^(0x)?[a-fA-F0-9]{64}$/.test(block)) {
         return interaction.editReply(`Invalid ${blockchainInfo.name}${netLabel} block. Provide a height (digits) or a 64-character hex hash.`);
+    }
+
+    if (!isHeight && EVM_CHAIN_IDS[blockchain]) {
+        return interaction.editReply('Etherscan can only look up EVM blocks by number.');
     }
 
     try {
@@ -908,7 +911,7 @@ async function fetchBlockData(blockchain, block, isHeight, network = 'mainnet') 
         case 'eth':
         case 'bsc':
         case 'matic':
-            return etherscan(EVM_CHAIN_IDS[blockchain], evmBlockParams(block, isHeight), safeConfig);
+            return etherscan(EVM_CHAIN_IDS[blockchain], evmBlockParams(block), safeConfig);
         case 'ltc':
         case 'bch':
         case 'dash':
@@ -1007,7 +1010,7 @@ async function fetchTestnetBlockData(blockchain, block, isHeight, safeConfig) {
     if (!cfg) throw new Error(`Testnet not supported for ${blockchain}`);
 
     if (cfg.provider === 'etherscan') {
-        return etherscan(cfg.chainId, evmBlockParams(block, isHeight), safeConfig);
+        return etherscan(cfg.chainId, evmBlockParams(block), safeConfig);
     }
 
     const blockParam = isHeight ? `height/${encodeURIComponent(block)}` : `hash/${encodeURIComponent(block)}`;

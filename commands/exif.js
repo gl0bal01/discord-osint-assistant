@@ -28,7 +28,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
-const { isValidUrl, sanitizeInput } = require('../utils/validation');
+const { isValidUrl } = require('../utils/validation');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { tempFilePath, cleanupFile } = require('../utils/temp');
 const { saveReport } = require('../utils/reports');
@@ -61,8 +61,9 @@ module.exports = {
     async execute(interaction) {
         try {
             // Get and validate URL input
-            const rawUrl = interaction.options.getString('url');
-            const imageUrl = sanitizeInput(rawUrl);
+            // Not sanitized: stripping & ; ( ) $ ' would break signed CDN URLs. isValidUrl and the
+            // SSRF check below gate it, and it only ever reaches axios, never a shell.
+            const imageUrl = interaction.options.getString('url');
             const includeDetailed = interaction.options.getBoolean('detailed') ?? true;
             const privacyMode = interaction.options.getBoolean('privacy-mode') ?? false;
             
@@ -545,7 +546,7 @@ async function handleExifError(interaction, error, _imageUrl) {
     
     if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
         errorMessage += 'The operation timed out. The image may be too large or the server is slow.';
-    } else if (error.message.includes('HTTP')) {
+    } else if (axios.isAxiosError(error)) {
         errorMessage += 'Failed to download image. The URL may be invalid or the server is unreachable.';
     } else if (error.message.includes('ExifTool not found')) {
         errorMessage += 'ExifTool is not installed or not found in PATH.\nPlease contact the administrator.';

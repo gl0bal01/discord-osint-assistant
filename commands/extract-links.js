@@ -132,7 +132,7 @@ module.exports = {
                             href: absoluteUrl
                         });
                     } catch (_e) {
-                        logger.error({ href }, 'skipping invalid href');
+                        logger.debug({ href }, 'skipping invalid href');
                     }
                 }
             });

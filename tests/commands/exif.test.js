@@ -124,8 +124,8 @@ describe('bob-exif SSRF protection', () => {
         exiftool(META);
         await cmd.execute(makeInteraction({ url: URL_OK }));
         const cfg = axios.get.mock.calls[0][1];
-        expect(cfg.httpsAgent).toBeDefined();
-        expect(cfg.httpAgent).toBeDefined();
+        expect(cfg.httpsAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpsAgent);
+        expect(cfg.httpAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpAgent);
     });
 });
 
@@ -238,11 +238,23 @@ describe('bob-exif failures', () => {
 
     it('shows a download message without the underlying error', async () => {
         allowUrl();
-        axios.get.mockRejectedValue(new Error(`HTTP 404 from upstream ${SECRET}`));
+        axios.get.mockRejectedValue(new axios.AxiosError(
+            `Request failed with status code 404 ${SECRET}`, 'ERR_BAD_REQUEST', {}, {}, { status: 404, data: SECRET }
+        ));
         const i = makeInteraction({ url: URL_OK });
         await expect(cmd.execute(i)).resolves.toBeUndefined();
         expect(lastReply(i).content).toContain('Failed to download image');
         expect(lastReply(i).content).not.toContain(SECRET);
+    });
+
+    it('passes a signed URL with & ; ( ) $ \' to axios unchanged', async () => {
+        allowUrl();
+        serveImage();
+        exiftool(META);
+        const signed = "https://cdn.example.com/p/a.jpg?X-Amz=a&b=(1);c=$d&e='f'";
+        await cmd.execute(makeInteraction({ url: signed }));
+        expect(ssrf).toHaveBeenCalledWith(signed);
+        expect(axios.get.mock.calls[0][0]).toBe(signed);
     });
 
     it('tells the user exiftool is missing, without the underlying error', async () => {

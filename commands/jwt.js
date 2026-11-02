@@ -36,11 +36,12 @@
  */
 
 const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { safeSpawnToFile } = require('../utils/process');
+const { safeSpawn, safeSpawnToFile, getSafeEnv } = require('../utils/process');
 const { isToolAvailable } = require('../utils/tools');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
+const os = require('os');
 const { reportFilePath, cleanupFile, REPORTS_DIR } = require('../utils/temp');
 const { stripVTControlCharacters } = require('node:util');
 const logger = require('../utils/logger').child({ command: 'bob-jwt' });
@@ -56,8 +57,10 @@ const CONFIG = {
     MAX_FILE_AGE: 24 * 60 * 60 * 1000 // 24 hours max file age
 };
 
-// JWT token validation regex — rejects malformed tokens before invoking jwt_tool
-const JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
+// JWT token validation regex — rejects malformed tokens before invoking jwt_tool.
+// The first character can't be '-' or jwt_tool's argparse reads the token as an option
+// (e.g. "-Qj.t." is a search of jwt_tool's log of other users' tokens).
+const JWT_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
 
 const cleanupOldFiles = async () => {
     try {
@@ -201,6 +204,7 @@ module.exports = {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         let outputFile = null;
+        let runHome = null;
 
         try {
             const subcommand = interaction.options.getSubcommand();
@@ -328,6 +332,14 @@ module.exports = {
             );
             await interaction.editReply({ embeds: [progressEmbed] });
 
+            // Throwaway HOME: jwt_tool logs every token to ~/.jwt_tool/logs.txt, which must
+            // not be shared between users. A fresh HOME makes its first run write the config
+            // and exit, so prime it once.
+            runHome = await fs.mkdtemp(path.join(os.tmpdir(), 'jwt-home-'));
+            const runEnv = { ...getSafeEnv(), HOME: runHome };
+            await safeSpawn(jwtToolCmd, [...jwtToolArgs], { env: runEnv, timeout: 30000 }).catch(() => {});
+            spawnOptions = { ...spawnOptions, env: runEnv };
+
             // Execute command using safe spawn (no shell interpolation)
             await executeJwtCommand(jwtToolCmd, [...jwtToolArgs, ...jwtArgs], outputFile, spawnOptions);
 
@@ -392,6 +404,7 @@ module.exports = {
 
             await interaction.editReply({ embeds: [errorEmbed] });
         } finally {
+            if (runHome) await fs.rm(runHome, { recursive: true, force: true }).catch(() => {});
             // Cleanup output file after a delay to ensure Discord has processed the attachment
             if (outputFile) {
                 cleanupFile(outputFile, 30000);

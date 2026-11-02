@@ -81,13 +81,13 @@ describe('bob-sherlock input validation', () => {
         spawnToFile.mockImplementation(writes(OUTPUT));
         await cmd.execute(makeInteraction({ username: 'john;doe`id`' }));
         const [, args] = spawnToFile.mock.calls[0];
-        expect(args).toEqual(['johndoeid']);
+        expect(args).toEqual(['--', 'johndoeid']);
     });
-    it('does not hand a dash-prefixed username to sherlock as an option', async () => {
+    it('passes a dash-prefixed username after -- so it is a positional argument', async () => {
         spawnToFile.mockImplementation(writes(OUTPUT));
         await cmd.execute(makeInteraction({ username: '--help' }));
-        const args = spawnToFile.mock.calls[0]?.[1] ?? [];
-        expect(args[0]?.startsWith('-') ?? false).toBe(false);
+        const args = spawnToFile.mock.calls[0][1];
+        expect(args).toEqual(['--', '--help']);
     });
 });
 
@@ -137,7 +137,7 @@ describe('bob-sherlock scan', () => {
         spawnToFile.mockImplementation(writes(OUTPUT));
         await cmd.execute(makeInteraction({ username: 'johndoe', verbose: true, 'include-nsfw': true, timeout: 90 }));
         const [, args, , opts] = spawnToFile.mock.calls[0];
-        expect(args).toEqual(['johndoe', '--verbose', '--nsfw']);
+        expect(args).toEqual(['--verbose', '--nsfw', '--', 'johndoe']);
         expect(opts.timeout).toBe(90_000);
     });
 
@@ -145,7 +145,7 @@ describe('bob-sherlock scan', () => {
         spawnToFile.mockImplementation(writes(OUTPUT));
         await cmd.execute(makeInteraction({ username: 'johndoe' }));
         const [, args, , opts] = spawnToFile.mock.calls[0];
-        expect(args).toEqual(['johndoe']);
+        expect(args).toEqual(['--', 'johndoe']);
         expect(opts.timeout).toBe(300_000);
     });
 

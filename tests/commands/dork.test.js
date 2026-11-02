@@ -23,7 +23,6 @@ beforeAll(() => {
 
 afterEach(() => {
     vi.useRealTimers();
-    vi.mocked(console.error).mockRestore?.();
 });
 
 afterAll(() => {
@@ -46,7 +45,6 @@ function makeInteraction(options = {}) {
 // Runs the command with fake timers so the delayed temp-file cleanup is observable
 async function run(options) {
     vi.useFakeTimers({ toFake: ['setTimeout'] });
-    vi.spyOn(console, 'error').mockImplementation(() => {});
     const interaction = makeInteraction(options);
     await dork.execute(interaction);
     return interaction;
@@ -140,7 +138,6 @@ describe('bob-dork temp file cleanup', () => {
 
     it('removes the temp file even when sending the reply fails', async () => {
         vi.useFakeTimers({ toFake: ['setTimeout'] });
-        vi.spyOn(console, 'error').mockImplementation(() => {});
         const before = new Set(fs.readdirSync(workDir));
         const interaction = makeInteraction({ firstname: 'Leak', lastname: 'Test' });
         interaction.editReply.mockRejectedValueOnce(new Error('discord down'));
@@ -152,7 +149,6 @@ describe('bob-dork temp file cleanup', () => {
 
 describe('bob-dork error handling', () => {
     it('replies with a generic message and does not throw when writing the file fails', async () => {
-        vi.spyOn(console, 'error').mockImplementation(() => {});
         vi.spyOn(fs, 'writeFileSync').mockImplementationOnce(() => { throw new Error('ENOSPC /secret/path'); });
         const interaction = makeInteraction({ firstname: 'John', lastname: 'Doe' });
         await expect(dork.execute(interaction)).resolves.not.toThrow();

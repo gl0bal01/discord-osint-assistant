@@ -70,7 +70,6 @@ describe('bob-flight-number success output', () => {
 
 describe('bob-flight-number error handling', () => {
     it('sends a generic ephemeral message when the first reply fails', async () => {
-        vi.spyOn(console, 'error').mockImplementation(() => {});
         const interaction = makeInteraction('BA234');
         interaction.reply.mockRejectedValueOnce(new Error('internal-secret-detail'));
         await expect(cmd.execute(interaction)).resolves.not.toThrow();

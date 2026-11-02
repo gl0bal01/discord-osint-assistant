@@ -84,11 +84,11 @@ describe('bob-linkook input validation', () => {
         expect(contentOf(i)).toMatch(/valid username/);
         expect(spawn).not.toHaveBeenCalled();
     });
-    it('does not hand a dash-prefixed username to linkook as an option', async () => {
+    it('passes a dash-prefixed username after -- so it is a positional argument', async () => {
         spawn.mockImplementation(runs(''));
         await cmd.execute(makeInteraction({ username: '--help' }));
-        const args = spawn.mock.calls[0]?.[1] ?? [];
-        expect(args[0]?.startsWith('-') ?? false).toBe(false);
+        const args = spawn.mock.calls[0][1];
+        expect(args.slice(-2)).toEqual(['--', '--help']);
     });
 });
 
@@ -137,6 +137,15 @@ describe('bob-linkook results', () => {
         expect(contentOf(i)).toContain('Found 1 sites');
         expect(contentOf(i)).toContain('Sites: github');
     });
+    it('parses the real "[+] Site Name: X" format, neutralizing mentions', async () => {
+        spawn.mockImplementation(runs('[+] Site Name: Instagram\nProfile URL: https://instagram.com/-eDgAR-\n[+] Site Name: @everyone\nProfile URL: https://x.example/a\n'));
+        const i = makeInteraction({ username: '-eDgAR-' });
+        await cmd.execute(i);
+        expect(contentOf(i)).toContain('Found 2 sites');
+        expect(contentOf(i)).toContain('Instagram');
+        expect(contentOf(i)).not.toContain('Site Name');
+        expect(contentOf(i)).not.toContain('@everyone');
+    });
     it('names the site on a "[+] Site: url" line', async () => {
         spawn.mockImplementation(runs('[+] GitHub: https://github.com/johndoe\n'));
         const i = makeInteraction({ username: 'johndoe' });
@@ -149,7 +158,7 @@ describe('bob-linkook results', () => {
         await cmd.execute(makeInteraction({ username: 'john.doe_1' }));
         const [bin, args, opts] = spawn.mock.calls[0];
         expect(bin).toBe('linkook');
-        expect(args).toEqual(['john.doe_1', '--scan-all', '--output', outDirs[0]]);
+        expect(args).toEqual(['--scan-all', '--output', outDirs[0], '--', 'john.doe_1']);
         expect(opts.timeout).toBe(180_000);
     });
 });

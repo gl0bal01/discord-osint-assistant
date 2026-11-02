@@ -83,7 +83,6 @@ function stubNetwork(responses, { tlsFails = true } = {}) {
         if (tlsFails) queueMicrotask(() => handlers.error?.(new Error('offline')));
         return socket;
     });
-    vi.spyOn(console, 'error').mockImplementation(() => {});
     return { get, post };
 }
 
@@ -170,8 +169,8 @@ describe('bob-redirect-check results', () => {
         const { get } = stubNetwork({ 'https://example.com/': page() });
         await run({ url: 'https://example.com/', deep: false });
         for (const [, config] of get.mock.calls) {
-            expect(config.httpAgent).toBeDefined();
-            expect(config.httpsAgent).toBeDefined();
+            expect(config.httpAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpAgent);
+            expect(config.httpsAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpsAgent);
         }
     });
 

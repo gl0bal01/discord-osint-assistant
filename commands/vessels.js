@@ -29,6 +29,7 @@ module.exports = {
                 .addStringOption(option =>
                     option.setName('vessel')
                         .setDescription('The vessel name to search')
+                        .setMaxLength(100)
                         .setRequired(true))),
     
     async execute(interaction) {
@@ -75,7 +76,7 @@ module.exports = {
                 // Create embed for vessel name search
                 const embed = new EmbedBuilder()
                     .setColor(0x0099ff)
-                    .setTitle(`Vessel Search: "${vesselName}"`)
+                    .setTitle(`Vessel Search: "${vesselName.slice(0, 100)}"`)
                     .setDescription('Search for this vessel name on multiple tracking services:')
                     .addFields(
                         { name: 'MarineTraffic', value: searchLinks.marineTraffic, inline: false },

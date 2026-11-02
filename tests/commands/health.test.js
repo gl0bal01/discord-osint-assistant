@@ -131,8 +131,8 @@ describe('bob-health check-apis', () => {
         expect(head).toHaveBeenCalledTimes(1);
         const [url, config] = head.mock.calls[0];
         expect(url).toBe('https://api.dnsdumpster.com');
-        expect(config.httpAgent).toBeDefined();
-        expect(config.httpsAgent).toBeDefined();
+        expect(config.httpAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpAgent);
+        expect(config.httpsAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpsAgent);
         expect(JSON.stringify(head.mock.calls[0])).not.toContain('dns-secret-token');
         expect(fields['🌐 External APIs']).toBe('🟢 DNSDumpster\n🟡 Whoxy\n🟡 Host.io');
         expect(JSON.stringify(data)).not.toContain('dns-secret-token');

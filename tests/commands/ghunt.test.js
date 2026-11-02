@@ -122,6 +122,7 @@ describe('bob-ghunt input validation', () => {
         spawn.mockImplementation(writesJson({}));
         const i = makeInteraction({ type: 'gaia', query: 'abc' });
         await cmd.execute(i);
+        expect(i.reply.mock.calls[0][0].content).toMatch(/numeric Gaia ID/);
         expect(spawn).not.toHaveBeenCalled();
     });
 
@@ -155,14 +156,25 @@ describe('bob-ghunt searches', () => {
         await cmd.execute(makeInteraction({ type: 'email', query: 'john@example.org', driver: true, sight: true }));
         const [bin, args, opts] = spawn.mock.calls[0];
         expect(bin).toBe('ghunt');
-        expect(args).toEqual(['email', 'john@example.org', '--json', expect.stringMatching(/email_john@example\.org_\d+\.json$/), '--driver', '--sight']);
+        expect(args).toEqual(['email', '--json', expect.stringMatching(/email_john@example\.org_\d+\.json$/), '--driver', '--sight', '--', 'john@example.org']);
         expect(opts.timeout).toBe(120_000);
     });
 
-    it('email lookup keeps shell metacharacters out of the argv element', async () => {
+    it('email lookup searches the exact address, as one argv element after --', async () => {
         spawn.mockImplementation(writesJson({}));
-        await cmd.execute(makeInteraction({ type: 'email', query: 'a;$(id)`x`@example.org' }));
-        expect(spawn.mock.calls[0][1][1]).toBe('a___id__x_@example.org');
+        await cmd.execute(makeInteraction({ type: 'email', query: '-a+b-c@example.org' }));
+        expect(spawn.mock.calls[0][1].slice(-2)).toEqual(['--', '-a+b-c@example.org']);
+        expect(spawn.mock.calls[0][1][2]).toMatch(/email__a_b_c@example\.org_\d+\.json$/);
+    });
+
+    it('email lookup URL-encodes the address in markdown links', async () => {
+        spawn.mockImplementation(writesJson({}));
+        const i = makeInteraction({ type: 'email', query: 'a)[x](https://evil.example@example.org' });
+        await cmd.execute(i);
+        const values = embedOf(i).fields.map((f) => f.value).join('\n');
+        expect(values).not.toContain('evil.example@');
+        expect(values).not.toMatch(/\)\[/);
+        expect(values).toContain('https://epieos.com/?q=a%29%5Bx%5D%28https%3A%2F%2Fevil.example%40example.org');
     });
 
     it('gaia lookup sends only the numeric ID', async () => {
@@ -198,8 +210,28 @@ describe('bob-ghunt searches', () => {
         spawn.mockImplementation(writesJson({}));
         const i = makeInteraction({ type: 'spiderdal', query: 'exa mple.com;id' });
         await cmd.execute(i);
-        expect(spawn.mock.calls[0][1].slice(0, 2)).toEqual(['spiderdal', 'example.comid']);
+        expect(spawn.mock.calls[0][1].slice(0, 2)).toEqual(['spiderdal', '-u']);
+        expect(spawn.mock.calls[0][1][2]).toBe('example.comid');
+        expect(spawn.mock.calls[0][1][3]).toBe('--json');
         expect(embedOf(i).title).toBe('Digital Asset Links Analysis');
+    });
+
+    it('spiderdal strips a leading dash or dot and rejects an all-dash query', async () => {
+        spawn.mockImplementation(writesJson({}));
+        await cmd.execute(makeInteraction({ type: 'spiderdal', query: '--help.example.com' }));
+        expect(spawn.mock.calls[0][1][2]).toBe('help.example.com');
+        const i = makeInteraction({ type: 'spiderdal', query: '-.-' });
+        await cmd.execute(i);
+        expect(i.reply.mock.calls[0][0].content).toMatch(/domain/);
+        expect(spawn).toHaveBeenCalledTimes(1);
+    });
+
+    it('gaia embed never carries the raw query into markdown links', async () => {
+        spawn.mockImplementation(writesJson({}));
+        const i = makeInteraction({ type: 'gaia', query: '1)[Re-login](https://evil.example' });
+        await cmd.execute(i);
+        expect(JSON.stringify(embedOf(i))).not.toContain('evil');
+        expect(embedOf(i).fields[0].value).toBe('[View Reviews](https://www.google.com/maps/contrib/1/reviews)');
     });
 
     it('says so, without attachments, when ghunt wrote no output', async () => {
@@ -247,11 +279,20 @@ describe('bob-ghunt failures', () => {
 });
 
 describe('bob-ghunt non-zero exit', () => {
-    it('keeps the no-results message when ghunt fails for a non-auth reason', async () => {
-        spawn.mockResolvedValue({ stdout: '', stderr: 'something else broke', code: 1 });
+    it('replies with a generic failure, not "no results", when ghunt fails for a non-auth reason', async () => {
+        spawn.mockResolvedValue({ stdout: '', stderr: `something else broke ${SECRET}`, code: 1 });
         const i = makeInteraction({ type: 'email', query: 'john@gmail.com' });
         await cmd.execute(i);
-        expect(field(i, 'GHunt Results').value).toBe('GHunt executed but no results were found.');
+        expect(field(i, 'GHunt Error').value).toBe('GHunt failed. Check server logs.');
+        expect(JSON.stringify(embedOf(i))).not.toContain(SECRET);
+        expect(lastEdit(i).files).toBeUndefined();
+    });
+
+    it('detects an auth failure reported on stdout', async () => {
+        spawn.mockResolvedValue({ stdout: 'Session expired, run ghunt login', stderr: '', code: 1 });
+        const i = makeInteraction({ type: 'email', query: 'john@gmail.com' });
+        await cmd.execute(i);
+        expect(embedOf(i).title).toBe('Authentication Failed');
     });
 });
 

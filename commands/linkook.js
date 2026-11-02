@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const { reportDirPath, cleanupDir } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const { neutralizeMentions } = require('../utils/discord');
 const logger = require('../utils/logger').child({ command: 'bob-linkook' });
 
 module.exports = {
@@ -45,8 +46,8 @@ module.exports = {
             
             // Sanitize username to prevent command injection
             const sanitizedUsername = username.replace(/[^a-zA-Z0-9_.-]/g, '_');
-            if (sanitizedUsername !== username || !/^[a-zA-Z0-9_]/.test(username)) {
-                return interaction.editReply('Username contains invalid characters. Please use only letters, numbers, dots, underscores, and hyphens, and start with a letter, number or underscore.');
+            if (sanitizedUsername !== username) {
+                return interaction.editReply('Username contains invalid characters. Please use only letters, numbers, dots, underscores, and hyphens.');
             }
             
             // Create a unique output directory for this run under temp/reports/
@@ -54,9 +55,9 @@ module.exports = {
             
             // Build command arguments
             const args = [
-                sanitizedUsername,
                 '--scan-all',
-                '--output', outputDir
+                '--output', outputDir,
+                '--', sanitizedUsername
             ];
             
             // Send initial progress message
@@ -95,9 +96,10 @@ async function runLinkook(args, interaction, outputDir, username, rawMode) {
         const lines = stdout.split('\n');
         for (const line of lines) {
             if (line.includes('[+]') || line.includes('FOUND:')) {
-                // Drop URLs, then take the name after "FOUND:" or after the "[+]" marker
+                // Real output is "[+] Site Name: Instagram"; keep the older "FOUND:" and
+                // "[+] Name:" shapes as fallbacks. URLs are dropped first.
                 const text = line.replace(/https?:\/\/\S+/g, '');
-                const siteName = text.match(/FOUND:\s*(\S+)/) || text.match(/\[\+\]\s*\[?([^\]:]+)/);
+                const siteName = text.match(/Site Name:\s*(.+)/) || text.match(/FOUND:\s*(\S+)/) || text.match(/\[\+\]\s*\[?([^\]:]+)/);
                 if (siteName && siteName[1].trim()) {
                     foundSites.push(siteName[1].trim());
                 }
@@ -112,7 +114,7 @@ async function runLinkook(args, interaction, outputDir, username, rawMode) {
         const resultFiles = fs.readdirSync(outputDir);
         if (resultFiles.length === 0) {
             if (foundSites.length > 0) {
-                await interaction.editReply(`Found ${foundSites.length} sites for username "${username}", but no result files were created.\n\nSites: ${foundSites.join(', ')}`);
+                await interaction.editReply(`Found ${foundSites.length} sites for username "${username}", but no result files were created.\n\nSites: ${neutralizeMentions(foundSites.join(', '))}`);
             } else {
                 await interaction.editReply(`No results found for username "${username}". The username might not exist on any of the scanned platforms.`);
             }

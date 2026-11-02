@@ -218,7 +218,7 @@ async function handleAnalyze(interaction, tempDir, created) {
                 imageBuffer = Buffer.from(response.data);
 
                 // Save the image locally so we can attach it to our response
-                const finalPath = path.join(tempDir, `original_${sanitizeFilename(uploadedImage.name)}`);
+                const finalPath = path.join(tempDir, `original_${crypto.randomBytes(4).toString('hex')}_${sanitizeFilename(uploadedImage.name)}`);
                 const normalizedPath = path.resolve(finalPath);
                 if (!normalizedPath.startsWith(path.resolve(tempDir) + path.sep)) {
                     throw new Error('Invalid file path');
@@ -471,7 +471,7 @@ async function handleCompare(interaction, tempDir, created) {
                 sourceImageBuffer = Buffer.from(response.data);
 
                 // Save the image locally to attach in response
-                const finalPath = path.join(tempDir, `original_source_${sanitizeFilename(sourceAttachment.name)}`);
+                const finalPath = path.join(tempDir, `original_source_${crypto.randomBytes(4).toString('hex')}_${sanitizeFilename(sourceAttachment.name)}`);
                 const normalizedPath = path.resolve(finalPath);
                 if (!normalizedPath.startsWith(path.resolve(tempDir) + path.sep)) {
                     throw new Error('Invalid file path');
@@ -535,7 +535,7 @@ async function handleCompare(interaction, tempDir, created) {
                 targetImageBuffer = Buffer.from(response.data);
 
                 // Save the image locally to attach in response
-                const finalPath = path.join(tempDir, `original_target_${sanitizeFilename(targetAttachment.name)}`);
+                const finalPath = path.join(tempDir, `original_target_${crypto.randomBytes(4).toString('hex')}_${sanitizeFilename(targetAttachment.name)}`);
                 const normalizedPath = path.resolve(finalPath);
                 if (!normalizedPath.startsWith(path.resolve(tempDir) + path.sep)) {
                     throw new Error('Invalid file path');

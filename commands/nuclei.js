@@ -48,7 +48,7 @@
  * /bob-nuclei username:john_doe
  * /bob-nuclei username:target_user verbose:true timeout:120
  * /bob-nuclei username:username123 tags:social,gaming
- * /bob-nuclei username:research_user tags:academic,professional timeout:300
+ * /bob-nuclei username:research_user tags:coding,tech timeout:300
  * 
  * Output Formats:
  * - Interactive Discord messages with @user mentions
@@ -84,6 +84,12 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 const logger = require('../utils/logger').child({ command: 'bob-nuclei' });
+
+// Template tags in nuclei-templates are osint-<category>
+const OSINT_CATEGORIES = [
+    'social', 'gaming', 'porn', 'hobby', 'coding', 'misc', 'tech', 'shopping', 'images', 'finance',
+    'business', 'music', 'blog', 'health', 'art', 'political', 'dating', 'video', 'news', 'archived', 'creative'
+];
 
 /**
  * Discord slash command definition for Nuclei OSINT scanner
@@ -152,18 +158,20 @@ module.exports = {
             // categories replace 'osint' (which every template carries) to narrow the scan.
             let tagsList = ['osint'];
             if (additionalTags) {
-                const userTags = additionalTags.split(',').map(tag => tag.trim().toLowerCase());
-                
-                // Validate each tag to prevent command injection
-                // Only allow alphanumeric characters, underscores, and hyphens
-                if (userTags.some(tag => !/^[a-zA-Z0-9_-]+$/.test(tag))) {
+                // Empty entries go first so "social," works; accept "social" or "osint-social"
+                const userTags = additionalTags.split(',')
+                    .map(tag => tag.trim().toLowerCase().replace(/^osint-/, ''))
+                    .filter(Boolean);
+
+                // Whitelist: also keeps anything shell- or option-like out of -tags
+                const unknown = userTags.filter(tag => !OSINT_CATEGORIES.includes(tag));
+                if (unknown.length) {
                     return await interaction.editReply({
-                        content: '❌ **Invalid Tag Format**\n\nTags must contain only:\n• Letters (a-z, A-Z)\n• Numbers (0-9)\n• Underscores (_)\n• Hyphens (-)\n\nExample: `social,gaming,dev`'
+                        content: `❌ **Invalid Tag**\n\nValid categories: ${OSINT_CATEGORIES.map(c => `\`${c}\``).join(', ')}\n\nExample: \`social,gaming,coding\``
                     });
                 }
-                
-                tagsList = [...new Set(userTags.filter(Boolean).map(t => (t.startsWith('osint') ? t : `osint-${t}`)))];
-                if (!tagsList.length) tagsList = ['osint'];
+
+                if (userTags.length) tagsList = [...new Set(userTags.map(t => `osint-${t}`))];
             }
             
             // Construct Nuclei args array (no shell interpolation)
@@ -241,6 +249,7 @@ module.exports = {
                 const tagsShown = tagsList.join(', ').slice(0, 300);
 
                 await interaction.editReply({
+                    allowedMentions: { users: [interaction.user.id] }, // ping only the requester (client default: no pings)
                     content: `<@${interaction.user.id}> ✅ **OSINT Enumeration Complete**\n\n` +
                             `🎯 **Target:** \`${username}\`\n` +
                             `📊 **Results:** ${discoveredUrls.length} potential profiles found\n` +
@@ -286,6 +295,7 @@ module.exports = {
                     ? `\n\n⚠️ **Scanner output:**\n\`\`\`\n${scanStderr.slice(0, 600)}\n\`\`\``
                     : '';
                 await interaction.editReply({
+                    allowedMentions: { users: [interaction.user.id] }, // ping only the requester (client default: no pings)
                     content: `<@${interaction.user.id}> ${looksBroken ? '⚠️' : '✅'} **OSINT Scan Complete**\n\n` +
                             `🎯 **Target:** \`${username}\`\n` +
                             `📊 **Results:** No profiles found\n` +
@@ -323,6 +333,7 @@ module.exports = {
             }
             
             await interaction.editReply({
+                allowedMentions: { users: [interaction.user.id] }, // ping only the requester (client default: no pings)
                 content: `<@${interaction.user.id}> ❌ **${errorCategory}**\n\n` +
                         `🎯 **Target:** \`${username}\`\n` +
                         `⚠️ **Issue:** An error occurred while processing your request.\n\n` +

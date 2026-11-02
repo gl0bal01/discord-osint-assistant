@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vites
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
+const { EmbedBuilder } = require('discord.js');
 
 let cmd, getSpy;
 
@@ -31,6 +32,16 @@ function makeInteraction(sub, opts = {}) {
 }
 const reply = (i) => i.editReply.mock.calls.at(-1)[0];
 const fields = (i) => Object.fromEntries(reply(i).embeds[0].data.fields.map((f) => [f.name, f.value]));
+
+describe('bob-vessel name length', () => {
+    it('caps the option at 100 characters and keeps a long name inside the embed title limit', async () => {
+        const opt = cmd.data.toJSON().options.find((o) => o.name === 'name').options[0];
+        expect(opt.max_length).toBe(100);
+        const i = makeInteraction('name', { vessel: 'A'.repeat(300) });
+        await cmd.execute(i);
+        expect(reply(i).embeds[0].data.title.length).toBeLessThanOrEqual(256);
+    });
+});
 
 describe('bob-vessel imo', () => {
     it.each(['123456', '12345678', 'abcdefg', ''])('rejects %j as an invalid IMO number', async (number) => {
@@ -97,9 +108,11 @@ describe('bob-vessel name', () => {
     });
 
     it('answers with a generic message, without the underlying error, when building the reply fails', async () => {
-        // a 300 char name overflows the 256 char embed title, which makes discord.js throw
-        const i = makeInteraction('name', { vessel: 'A'.repeat(300) });
+        const spy = vi.spyOn(EmbedBuilder.prototype, 'setTitle').mockImplementationOnce(() => { throw new Error('SECRET_INTERNAL_DETAIL'); });
+        const i = makeInteraction('name', { vessel: 'Ever Given' });
         await expect(cmd.execute(i)).resolves.not.toThrow();
+        spy.mockRestore();
+        expect(JSON.stringify(reply(i))).not.toContain('SECRET_INTERNAL_DETAIL');
         expect(reply(i)).toBe('An error occurred while processing your request. Please try again later.');
     });
 });

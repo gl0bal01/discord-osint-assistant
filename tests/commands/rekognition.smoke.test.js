@@ -188,8 +188,8 @@ describe('bob-rekognition analyze', () => {
         await run({ image: attachment(), features: 'labels' });
         const [url, config] = axios.get.mock.calls[0];
         expect(url).toBe('https://cdn.discordapp.com/attachments/1/2/face.jpg');
-        expect(config.httpAgent).toBeDefined();
-        expect(config.httpsAgent).toBeDefined();
+        expect(config.httpAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpAgent);
+        expect(config.httpsAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpsAgent);
         expect(config.responseType).toBe('arraybuffer');
     });
 
@@ -214,7 +214,7 @@ describe('bob-rekognition analyze', () => {
         const { fields, last } = await run({ url: 'https://example.com/pic.png', features: 'labels' });
         expect(validate).toHaveBeenCalledWith('https://example.com/pic.png');
         expect(axios.get.mock.calls[0][0]).toBe('https://example.com/pic.png');
-        expect(axios.get.mock.calls[0][1].httpAgent).toBeDefined();
+        expect(axios.get.mock.calls[0][1].httpAgent).toBe(require('../../utils/ssrf.js').getSafeAxiosConfig().httpAgent);
         expect(fields['🏷️ Top Labels']).toContain('Person (99.5%)');
         expect(last.files[1].name).toMatch(/^image_[0-9a-f]{16}\.png$/);
     });
@@ -240,6 +240,17 @@ describe('bob-rekognition analyze', () => {
         const written = fs.writeFileSync.mock.calls.map(([p]) => p).filter(inTemp);
         expect(written.length).toBeGreaterThan(0);
         expect(written.every((p) => path.dirname(p) === TEMP)).toBe(true);
+    });
+
+    it('gives concurrent uploads of the same filename different temp paths', async () => {
+        downloadOk();
+        awsReturns();
+        await run({ image: attachment({ name: 'face.jpg' }), features: 'labels' });
+        await run({ image: attachment({ name: 'face.jpg' }), features: 'labels' });
+        const originals = fs.writeFileSync.mock.calls.map(([p]) => p).filter((p) => inTemp(p) && path.basename(p).startsWith('original_'));
+        expect(originals).toHaveLength(2);
+        expect(originals[0]).not.toBe(originals[1]);
+        expect(path.basename(originals[0])).toMatch(/^original_[0-9a-f]{8}_face\.jpg$/);
     });
 
     it.each([

@@ -71,11 +71,11 @@ describe('bob-maigret input validation', () => {
         expect(lastReply(i)).toMatch(/Invalid username format/);
         expect(spawnToFile).not.toHaveBeenCalled();
     });
-    it('does not hand a dash-prefixed username to maigret as an option', async () => {
+    it('passes a dash-prefixed username after -- so it is a positional argument', async () => {
         spawnToFile.mockImplementation(writes(SMALL));
         await cmd.execute(makeInteraction({ username: '--help' }));
-        const args = spawnToFile.mock.calls[0]?.[1] ?? [];
-        expect(args[0]?.startsWith('-') ?? false).toBe(false);
+        const args = spawnToFile.mock.calls[0][1];
+        expect(args).toEqual(['-a', '--no-progressbar', '--folderoutput', os.tmpdir(), '--', '--help']);
     });
 });
 
@@ -113,7 +113,7 @@ describe('bob-maigret scan', () => {
         spawnToFile.mockImplementation(writes(SMALL));
         await cmd.execute(makeInteraction({ username: 'john.doe_1', verbose: true, timeout: 120 }));
         const [, args, , opts] = spawnToFile.mock.calls[0];
-        expect(args).toEqual(['john.doe_1', '-a', '--no-progressbar', '--txt', '--verbose']);
+        expect(args).toEqual(['-a', '--no-progressbar', '--folderoutput', os.tmpdir(), '--verbose', '--', 'john.doe_1']);
         expect(opts.timeout).toBe(120_000);
     });
 

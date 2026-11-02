@@ -36,6 +36,6 @@ module.exports = [
         rules: { 'no-console': 'error' },
     },
     {
-        ignores: ['node_modules/', 'temp/', 'tests/'],
+        ignores: ['node_modules/', 'temp/', 'tests/', 'vitest.config.mjs'],
     },
 ];

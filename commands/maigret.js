@@ -11,6 +11,7 @@ const { isValidUsername } = require('../utils/validation');
 const fs = require('fs').promises;
 const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const os = require('node:os');
 const logger = require('../utils/logger').child({ command: 'bob-maigret' });
 
 module.exports = {
@@ -52,8 +53,8 @@ module.exports = {
         try {
             
             const maigretPath = process.env.MAIGRET_PATH || 'maigret';
-            const args = [username, '-a', '--no-progressbar', '--txt'];
-            if (verbose) args.push('--verbose');
+            // --folderoutput: maigret creates <cwd>/reports otherwise (read-only under systemd)
+            const args = ['-a', '--no-progressbar', '--folderoutput', os.tmpdir(), ...(verbose ? ['--verbose'] : []), '--', username];
 
             await interaction.editReply(`🔍 Starting OSINT scan for username: \`${username}\`\nThis may take a few moments...`);
 

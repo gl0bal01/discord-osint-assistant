@@ -82,10 +82,11 @@ describe('bob-nuclei input validation', () => {
         expect(spawn).not.toHaveBeenCalled();
     });
 
-    it.each(['good,bad tag!', 'a;id', 'x,$(id)', '-oops/../x'])('rejects tags %j without spawning', async (tags) => {
+    it.each(['good,bad tag!', 'a;id', 'x,$(id)', '-oops/../x', 'dev', 'social,professional', 'academic', 'osint'])('rejects tags %j without spawning', async (tags) => {
         const i = makeInteraction({ username: 'johndoe', tags });
         await cmd.execute(i);
-        expect(lastEdit(i).content).toMatch(/Invalid Tag Format/);
+        expect(lastEdit(i).content).toMatch(/Invalid Tag/);
+        expect(lastEdit(i).content).toContain('`social`');
         expect(spawn).not.toHaveBeenCalled();
     });
 
@@ -105,6 +106,7 @@ describe('bob-nuclei scan', () => {
         await cmd.execute(i);
         const reply = lastEdit(i);
         expect(reply.content).toContain('<@u1> ✅ **OSINT Enumeration Complete**');
+        expect(reply.allowedMentions).toEqual({ users: ['u1'] }); // pings the requester only
         expect(reply.content).toContain('2 potential profiles found');
         expect(reply.content).toContain('https://github.com/johndoe');
         expect(reply.files[0].attachment).toBe(outFiles[0]);
@@ -117,7 +119,7 @@ describe('bob-nuclei scan', () => {
     it('keeps every message under the Discord limit for large outputs', async () => {
         const big = Array.from({ length: 200 }, (_, n) => `[t:site${n}] [http] [info] https://site${n}.example.com/johndoe`).join('\n');
         spawn.mockImplementation(findings(big));
-        const i = makeInteraction({ username: 'johndoe', tags: 'social,gaming,dev,professional,academic' });
+        const i = makeInteraction({ username: 'johndoe', tags: 'social,gaming,coding,tech,business' });
         await cmd.execute(i);
         const sent = [...i.editReply.mock.calls, ...i.followUp.mock.calls].map(([m]) => m.content);
         expect(sent.length).toBeGreaterThan(2);
@@ -126,11 +128,11 @@ describe('bob-nuclei scan', () => {
 
     it('builds the nuclei argv with the username as one -var element', async () => {
         spawn.mockImplementation(findings(OUTPUT));
-        await cmd.execute(makeInteraction({ username: 'john.doe_1', tags: 'Social, dev,social', timeout: 90 }));
+        await cmd.execute(makeInteraction({ username: 'john.doe_1', tags: 'Social, osint-coding,social,', timeout: 90 }));
         const [, args, opts] = spawn.mock.calls[0];
         expect(args).toEqual([
             '-t', TEMPLATES,
-            '-tags', 'osint-social,osint-dev',
+            '-tags', 'osint-social,osint-coding',
             '-etags', 'osint-porn',
             '-var', 'user=john.doe_1',
             '-o', outFiles[0],

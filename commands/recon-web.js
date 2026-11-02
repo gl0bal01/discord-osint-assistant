@@ -329,7 +329,7 @@ module.exports = {
                                             };
                                             break;
                                         } catch (_e) {
-                                            logger.error({ href }, 'invalid url');
+                                            logger.debug({ href }, 'invalid url');
                                         }
                                     }
                                 }
