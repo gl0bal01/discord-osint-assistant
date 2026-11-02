@@ -16,6 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { URL } = require('url');
+const logger = require('../utils/logger').child({ command: 'bob-rekognition' });
 // Import AWS SDK v3 modules
 const { RekognitionClient, DetectLabelsCommand, DetectTextCommand,
   DetectFacesCommand, DetectModerationLabelsCommand,
@@ -119,7 +120,7 @@ module.exports = {
                 await handleCompare(interaction, tempDir, created);
             }
         } catch (error) {
-            console.error('Error in rekognition command:', error);
+            logger.error({ err: error }, 'rekognition command failed');
             
             let errorMessage = 'An error occurred while processing your request.';
             
@@ -166,7 +167,7 @@ module.exports = {
                         fs.unlinkSync(path.join(tempDir, file));
                     }
                 } catch (cleanupError) {
-                    console.error('Error cleaning up files:', cleanupError);
+                    logger.error({ err: cleanupError }, 'file cleanup failed');
                 }
             }, 5000); // Wait 5 seconds before cleaning up
         }
@@ -232,7 +233,7 @@ async function handleAnalyze(interaction, tempDir, created) {
                     description: 'Original uploaded image'
                 });
             } catch (error) {
-                console.error('Error downloading attachment:', error);
+                logger.error({ err: error }, 'attachment download failed');
                 throw new Error('Failed to download the uploaded image. Please try again or provide an image URL instead.');
             }
         } else {
@@ -261,7 +262,7 @@ async function handleAnalyze(interaction, tempDir, created) {
                     description: 'Original image from URL'
                 });
             } catch (error) {
-                console.error('Error downloading image:', error);
+                logger.error({ err: error }, 'image download failed');
                 throw new Error(`Failed to download image from URL: ${error.message}`);
             }
         }
@@ -406,7 +407,7 @@ async function handleAnalyze(interaction, tempDir, created) {
         });
         
     } catch (error) {
-        console.error('Error analyzing image:', error);
+        logger.error({ err: error }, 'image analysis failed');
         throw error;
     }
 }
@@ -485,7 +486,7 @@ async function handleCompare(interaction, tempDir, created) {
                     description: 'Source image'
                 });
             } catch (error) {
-                console.error('Error downloading source attachment:', error);
+                logger.error({ err: error }, 'source attachment download failed');
                 throw new Error('Failed to download the uploaded source image.');
             }
         } else {
@@ -508,7 +509,7 @@ async function handleCompare(interaction, tempDir, created) {
                     description: 'Source image from URL'
                 });
             } catch (error) {
-                console.error('Error downloading source image:', error);
+                logger.error({ err: error }, 'source image download failed');
                 throw new Error(`Failed to download source image from URL: ${error.message}`);
             }
         }
@@ -549,7 +550,7 @@ async function handleCompare(interaction, tempDir, created) {
                     description: 'Target image'
                 });
             } catch (error) {
-                console.error('Error downloading target attachment:', error);
+                logger.error({ err: error }, 'target attachment download failed');
                 throw new Error('Failed to download the uploaded target image.');
             }
         } else {
@@ -572,7 +573,7 @@ async function handleCompare(interaction, tempDir, created) {
                     description: 'Target image from URL'
                 });
             } catch (error) {
-                console.error('Error downloading target image:', error);
+                logger.error({ err: error }, 'target image download failed');
                 throw new Error(`Failed to download target image from URL: ${error.message}`);
             }
         }
@@ -658,7 +659,7 @@ async function handleCompare(interaction, tempDir, created) {
             files: files
         });
     } catch (error) {
-        console.error('Error comparing faces:', error);
+        logger.error({ err: error }, 'face comparison failed');
         
         // Handle specific error cases
         if (error.code === 'InvalidParameterException' && error.message.includes('no face')) {
@@ -708,7 +709,7 @@ async function downloadImage(url, tempDir, prefix = '', created = []) {
         
         return filePath;
     } catch (error) {
-        console.error('Error downloading image:', error);
+        logger.error({ err: error }, 'image download failed');
         
         if (error.response) {
             throw new Error(`Failed to download image: HTTP status ${error.response.status}`);

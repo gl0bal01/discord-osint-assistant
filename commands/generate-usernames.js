@@ -19,6 +19,7 @@
 
 const { SlashCommandBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
 const { sanitizeInput } = require('../utils/validation');
+const logger = require('../utils/logger').child({ command: 'bob-generate-usernames' });
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -100,7 +101,7 @@ module.exports = {
             });
         }
         
-        console.log(`👤 [USERNAME-GEN] Generating usernames for: ${cleanFirstName} ${cleanLastName}`);
+        logger.debug({ firstName: cleanFirstName, lastName: cleanLastName }, 'generating usernames');
         
         try {
             // Generate username variations
@@ -126,10 +127,10 @@ module.exports = {
                 flags: MessageFlags.Ephemeral // Keep results private for OSINT work
             });
             
-            console.log(`✅ [USERNAME-GEN] Generated ${usernames.length} username variations`);
+            logger.debug({ count: usernames.length }, 'usernames generated');
             
         } catch (error) {
-            console.error('[USERNAME-GEN] Error generating usernames:', error);
+            logger.error({ err: error }, 'username generation failed');
             await interaction.reply({
                 content: '❌ **Generation Failed**\n' +
                         'An error occurred while generating username variations.',

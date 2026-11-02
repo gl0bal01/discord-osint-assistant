@@ -20,6 +20,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const axios = require('axios');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { isValidDomain, sanitizeInput } = require('../utils/validation');
+const logger = require('../utils/logger').child({ command: 'bob-dns' });
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -64,7 +65,7 @@ module.exports = {
         }
         
         try {
-            console.log(`🔍 [DNS] Starting DNS lookup for domain: ${domain}`);
+            logger.debug({ domain }, 'dns lookup starting');
             
             // Make API request to DNSDumpster with timeout
             const response = await axios.get(`https://api.dnsdumpster.com/domain/${domain}`, {
@@ -116,10 +117,10 @@ module.exports = {
                 }
             }
 
-            console.log(`✅ [DNS] Successfully completed DNS lookup for: ${domain}`);
+            logger.debug({ domain }, 'dns lookup completed');
 
         } catch (error) {
-            console.error(`❌ [DNS] Error during DNS lookup for ${domain}:`, error.message);
+            logger.error({ err: error, domain }, 'dns lookup failed');
             
             // Handle different types of errors
             let errorMessage = '❌ **DNS Lookup Failed**\n';
@@ -149,11 +150,7 @@ module.exports = {
                 }
                 
                 // Log detailed error for debugging
-                console.error(`[DNS] API Error Details:`, {
-                    status: statusCode,
-                    statusText: error.response.statusText,
-                    data: error.response.data
-                });
+                logger.error({ err: error, statusText: error.response.statusText }, 'dns api error');
                 
             } else if (error.code === 'ECONNABORTED') {
                 errorMessage += 'Request timed out. The DNS service may be slow or unavailable.';
@@ -188,7 +185,7 @@ function formatDnsData(data, domain) {
         
         return JSON.stringify(formatted, null, 2);
     } catch (error) {
-        console.error('[DNS] Error formatting data:', error);
+        logger.error({ err: error }, 'dns format failed');
         return JSON.stringify(data, null, 2);
     }
 }

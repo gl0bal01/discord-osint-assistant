@@ -31,6 +31,7 @@ const path = require('path');
 const { isValidUsername, sanitizeInput, isValidUrl } = require('../utils/validation');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-sherlock' });
 
 module.exports = {
     requiresTool: [process.env.SHERLOCK_PATH || 'sherlock'],
@@ -88,7 +89,7 @@ module.exports = {
         // Generate unique output filename to prevent conflicts
         const outputFile = reportFilePath('sherlock', 'txt');
         
-        console.log(`🕵️ [SHERLOCK] Starting username search for: ${username}`);
+        logger.debug({ username }, 'username search starting');
         
         try {
             
@@ -112,7 +113,7 @@ module.exports = {
             await processSherlockResults(interaction, outputFile, username);
             
         } catch (error) {
-            console.error(`❌ [SHERLOCK] Error during scan for ${username}:`, error.message);
+            logger.error({ err: error, username }, 'sherlock scan failed');
             await handleSherlockError(interaction, error, username);
         } finally {
             // Clean up output file
@@ -156,11 +157,11 @@ async function processSherlockResults(interaction, outputFile, username) {
         try {
             fileContent = await fs.readFile(outputFile, 'utf8');
         } catch (readError) {
-            console.warn('[SHERLOCK] Could not read output file:', readError.message);
+            logger.warn({ err: readError }, 'could not read output file');
             fileContent = '';
         }
         
-        console.log(`📊 [SHERLOCK] Processing results for ${username} (${fileContent.length} characters)`);
+        logger.debug({ username, chars: fileContent.length }, 'processing results');
         
         if (!fileContent.trim()) {
             return await interaction.editReply({
@@ -223,10 +224,10 @@ async function processSherlockResults(interaction, outputFile, username) {
             files: [attachment]
         });
         
-        console.log(`✅ [SHERLOCK] Successfully completed scan for ${username} - ${foundProfiles.length} profiles found`);
+        logger.info({ username, profiles: foundProfiles.length }, 'scan completed');
         
     } catch (error) {
-        console.error('[SHERLOCK] Error processing results:', error);
+        logger.error({ err: error }, 'result processing failed');
         await interaction.editReply({
             content: `❌ **Error Processing Results**\n` +
                     `The scan completed but there was an error processing the output.\n` +
@@ -335,8 +336,8 @@ async function handleSherlockError(interaction, error, username) {
 async function cleanupOutputFile(outputFile) {
     try {
         await cleanupFile(outputFile);
-        console.log(`🗑️ [SHERLOCK] Cleaned up output file: ${path.basename(outputFile)}`);
+        logger.debug({ file: path.basename(outputFile) }, 'cleaned up output file');
     } catch (error) {
-        console.warn(`⚠️ [SHERLOCK] Failed to cleanup file ${outputFile}:`, error.message);
+        logger.warn({ err: error, outputFile }, 'output file cleanup failed');
     }
 }

@@ -114,6 +114,7 @@ let logger;
 try {
     logger = pino(_pinoOptions);
 } catch (err) {
+    // eslint-disable-next-line no-console
     console.error('FATAL: logger init failed', err);
     process.exit(1);
 }

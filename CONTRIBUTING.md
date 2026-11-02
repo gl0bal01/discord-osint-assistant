@@ -26,9 +26,9 @@
 - Never expose `error.message` to Discord users — log via `utils/logger.js`, show generic messages
 - Clean up temporary files in `finally` blocks
 - Use `??` (nullish coalescing) for boolean defaults, not `||`
-- Boot orchestration (command loading, guild whitelist, shutdown handler, temp sweep) lives in `utils/bootstrap.js` — keep `index.js` under 120 lines
+- Boot orchestration (command loading, guild whitelist, shutdown handler, temp sweep) lives in `utils/bootstrap.js` — keep `index.js` thin
 - Per-command observability (duration timer, error counter) is wired in `index.js` routing layer, not inside `commands/*.js`. Do not import `utils/metrics.js` from a command file
-- `commands/*.js` may still use `console.*` for now — migration to `utils/logger.js` child loggers is tracked as a follow-up. New utility modules outside `commands/` should use the logger directly
+- Never use `console.*` in `commands/`, `utils/` or `index.js` (ESLint `no-console` enforces it). Commands log through a child logger: `const logger = require('../utils/logger').child({ command: '<data.name>' });`. Log errors as `logger.error({ err: error }, 'short static message')` so the `err` serializer strips axios config and secrets.
 - When adding a secret-bearing env var, update BOTH `utils/config.js` OPTIONAL and the `redact.paths` list in `utils/logger.js`
 
 ## Testing

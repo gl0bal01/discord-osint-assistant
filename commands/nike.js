@@ -24,6 +24,7 @@ const { archiveReport } = require('../utils/reports');
 const { escapeHtml } = require('../utils/embed');
 const { neutralizeMentions } = require('../utils/discord');
 const { splitIntoChunks } = require('../utils/chunks');
+const logger = require('../utils/logger').child({ command: 'bob-nike' });
 
 let cachedToken = null;
 let tokenExpiry = 0;
@@ -320,10 +321,10 @@ module.exports = {
         cleanupFile(reportPath, 10000);
         
       } catch (err) {
-        console.error('Error creating report file:', err);
+        logger.error({ err }, 'report file creation failed');
         
         // Build a fallback text response
-        console.error('Nike HTML report error:', err);
+        logger.error({ err }, 'html report failed');
         let replyMessage = `Found ${objects.length} results for "${searchString}", but couldn't create HTML report.\n\n`;
         
         objects.forEach((account, i) => {
@@ -377,7 +378,7 @@ module.exports = {
       }
 
     } catch (err) {
-      console.error('Nike lookup error:', { status: err.response?.status, message: err.message });
+      logger.error({ err }, 'nike lookup failed');
 
       // Check if it's a 401 error (Unauthorized - likely expired token)
       if (err.response && err.response.status === 401) {

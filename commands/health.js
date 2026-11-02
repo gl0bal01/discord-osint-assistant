@@ -25,6 +25,7 @@ const path = require('path');
 const os = require('os');
 const { safeSpawn } = require('../utils/process');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
+const logger = require('../utils/logger').child({ command: 'bob-health' });
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -54,7 +55,7 @@ module.exports = {
         const checkApis = interaction.options.getBoolean('check-apis') ?? false;
         const checkTools = interaction.options.getBoolean('check-tools') ?? false;
         
-        console.log(`🏥 [HEALTH] Starting health check - detailed: ${detailed}, APIs: ${checkApis}, tools: ${checkTools}`);
+        logger.debug({ detailed, checkApis, checkTools }, 'health check starting');
         
         try {
             // Gather all health information
@@ -65,10 +66,10 @@ module.exports = {
             
             await interaction.editReply({ embeds: [embed] });
             
-            console.log(`✅ [HEALTH] Health check completed - Status: ${healthData.overall.status}`);
+            logger.debug({ status: healthData.overall.status }, 'health check completed');
             
         } catch (error) {
-            console.error('[HEALTH] Error during health check:', error);
+            logger.error({ err: error }, 'health check failed');
             await interaction.editReply({
                 content: '❌ **Health Check Failed**\n' +
                         'An error occurred while gathering system information. Check server logs for details.',
@@ -170,7 +171,7 @@ async function getSystemInfo(detailed) {
             }
             
         } catch (error) {
-            console.warn('[HEALTH] Error gathering detailed system info:', error.message);
+            logger.warn({ err: error }, 'detailed system info gathering failed');
         }
     }
     

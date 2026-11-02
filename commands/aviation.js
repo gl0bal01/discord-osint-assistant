@@ -10,6 +10,7 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
+const logger = require('../utils/logger').child({ command: 'bob-flight' });
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('bob-flight')
@@ -44,7 +45,7 @@ module.exports = {
             // Validate the API token
             const apiToken = process.env.AVIATIONSTACK_API_KEY;
             if (!apiToken) {
-                console.error('Missing AVIATIONSTACK_API_KEY in environment variables');
+                logger.error('missing AVIATIONSTACK_API_KEY in environment');
                 return interaction.editReply('API configuration error. Please contact the administrator.');
             }
 
@@ -97,7 +98,7 @@ module.exports = {
                 });
                 
                 if (response.data.error) {
-                    console.error('Aviation Stack API error:', { message: String(response.data.error) });
+                    logger.error({ apiError: String(response.data.error) }, 'aviationstack api error');
                     return interaction.editReply('The aviation API returned an error. Please try again later.');
                 }
 
@@ -149,7 +150,7 @@ module.exports = {
                         if (isNaN(date.getTime())) return 'Invalid Date';
                         return date.toLocaleString();
                     } catch (error) {
-                        console.error('Date formatting error:', { message: error.message });
+                        logger.error({ err: error }, 'date formatting failed');
                         return 'Date Error';
                     }
                 }
@@ -168,12 +169,12 @@ module.exports = {
                     }
                 }
             } catch (apiError) {
-                console.error('Error fetching flight data:', { status: apiError.response?.status, message: apiError.message });
+                logger.error({ err: apiError }, 'flight data fetch failed');
                 
                 // Provide informative error message based on the error type
                 if (apiError.response) {
                     // API responded with an error status code
-                    console.error('API error response:', { status: apiError.response.status });
+                    logger.error({ status: apiError.response.status }, 'api error response');
                     
                     if (apiError.response.status === 401) {
                         return interaction.editReply('Authentication error: Invalid API key. Please contact the administrator.');
@@ -183,20 +184,20 @@ module.exports = {
                         return interaction.editReply('Rate limit exceeded. Please try again later.');
                     }
                     
-                    console.error('Aviation API error:', { status: apiError.response?.status, message: apiError.message });
+                    logger.error({ err: apiError }, 'aviation api error');
                     return interaction.editReply('The aviation API returned an error. Please try again later.');
                 } else if (apiError.request) {
                     // No response received
                     return interaction.editReply('Could not connect to flight data service. Please try again later.');
                 } else {
                     // Other error
-                    console.error('Aviation fetch error:', { message: apiError.message });
+                    logger.error({ err: apiError }, 'aviation fetch error');
                     return interaction.editReply('An error occurred while fetching flight data. Please try again later.');
                 }
             }
         } catch (commandError) {
             // Handle any unexpected errors in the command execution
-            console.error('Command execution error:', { message: commandError.message });
+            logger.error({ err: commandError }, 'command execution error');
             
             // Check if we've already replied (deferred)
             if (interaction.replied || interaction.deferred) {

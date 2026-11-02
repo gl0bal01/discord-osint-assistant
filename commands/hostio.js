@@ -15,6 +15,7 @@ const { isValidDomain } = require('../utils/validation');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-hostio' });
 
 // Available field types for search by field subcommand
 const FIELD_TYPES = [
@@ -210,7 +211,7 @@ module.exports = {
             cleanupFile(filePath, 5000);
             
         } catch (error) {
-            console.error('Hostio command error:', { status: error.response?.status, message: error.message });
+            logger.error({ err: error }, 'hostio command failed');
             await interaction.editReply('An error occurred while processing your request. Please try again later.');
         }
     },
@@ -222,7 +223,7 @@ module.exports = {
  * @param {Object} interaction - Discord interaction object
  */
 function handleApiError(error, interaction) {
-    console.error('Error with host.io API:', { status: error.response?.status, message: error.message });
+    logger.error({ err: error }, 'host.io api request failed');
     
     let errorMessage;
 

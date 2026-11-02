@@ -17,6 +17,7 @@ const { cleanupFile } = require('../utils/temp');
 const { capField, safeAscii } = require('../utils/embed');
 const { archiveReport, saveReport } = require('../utils/reports');
 const ethtrace = require('../utils/ethtrace');
+const logger = require('../utils/logger').child({ command: 'bob-blockchain' });
 
 const MAX_CONTENT = SIZE_10MB;
 
@@ -239,7 +240,7 @@ module.exports = {
             }
 
         } catch (error) {
-            console.error('Blockchain command error:', error.message);
+            logger.error({ err: error }, 'blockchain command failed');
             await interaction.editReply('An error occurred while processing your request. Please try again later.');
         }
     },
@@ -322,7 +323,7 @@ async function handleAddressLookup(interaction, blockchain, blockchainInfo, full
         await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
-        console.error(`Error fetching ${blockchainInfo.name} address:`, error.message);
+        logger.error({ err: error, chain: blockchainInfo.name }, 'address fetch failed');
         await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
 }
@@ -414,7 +415,7 @@ async function handleTransactionLookup(interaction, blockchain, blockchainInfo, 
         await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
-        console.error(`Error fetching ${blockchainInfo.name} transaction:`, error.message);
+        logger.error({ err: error, chain: blockchainInfo.name }, 'transaction fetch failed');
         await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
 }
@@ -505,7 +506,7 @@ async function handleBlockLookup(interaction, blockchain, blockchainInfo, fullDa
         await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
-        console.error(`Error fetching ${blockchainInfo.name} block:`, error.message);
+        logger.error({ err: error, chain: blockchainInfo.name }, 'block fetch failed');
         await interaction.editReply('An error occurred while processing your request. Please try again later.');
     }
 }
@@ -546,7 +547,7 @@ async function handleTrace(interaction) {
     try {
         graph = await ethtrace.crawl({ apiKey, chainId, address, depth, maxTx, direction, types });
     } catch (error) {
-        console.error('blockchain trace error:', error.message);
+        logger.error({ err: error }, 'trace failed');
         return interaction.editReply('Trace failed while querying Etherscan. Verify the address, chain, and that the API key is valid.');
     }
 
@@ -573,7 +574,7 @@ async function handleTrace(interaction) {
     try {
         enriched = await ethtrace.enrich(apiKey, chainId, enrichTargets);
     } catch (error) {
-        console.error('blockchain trace enrich error:', error.message);
+        logger.error({ err: error }, 'trace enrich failed');
     }
     const enrichLine = (a) => {
         const e = enriched.get(a);

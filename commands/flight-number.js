@@ -8,6 +8,7 @@
  */
 
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const logger = require('../utils/logger').child({ command: 'bob-flight-number' });
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -51,7 +52,7 @@ module.exports = {
             
             await interaction.reply({ embeds: [embed] });
         } catch (error) {
-            console.error('Error in flight-number command:', error);
+            logger.error({ err: error }, 'flight-number command failed');
             await interaction.reply({
                 content: 'An error occurred while processing your request. Please try again later.',
                 flags: MessageFlags.Ephemeral

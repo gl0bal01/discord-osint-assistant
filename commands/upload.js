@@ -16,6 +16,7 @@ const FormData = require('form-data');
 const { getSafeAxiosConfig, SIZE_50MB } = require('../utils/ssrf');
 const { sanitizeFilename } = require('../utils/validation');
 const { capField } = require('../utils/embed');
+const logger = require('../utils/logger').child({ command: 'bob-upload' });
 
 const MAX_FILE_SIZE = SIZE_50MB; // 1min.ai limit
 const ASSET_API_URL = 'https://api.1min.ai/api/assets';
@@ -120,7 +121,7 @@ module.exports = {
             await interaction.editReply({ content: null, embeds: [embed] });
 
         } catch (error) {
-            console.error('[UPLOAD] Error:', error.response?.status, error.message);
+            logger.error({ err: error }, 'upload failed');
 
             let message = '❌ **Upload Failed**\n';
 

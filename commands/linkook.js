@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const { reportDirPath, cleanupDir } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-linkook' });
 
 module.exports = {
     requiresTool: ['linkook'],
@@ -65,7 +66,7 @@ module.exports = {
             await runLinkook(args, interaction, outputDir, sanitizedUsername, rawMode);
             
         } catch (error) {
-            console.error('Linkook error:', error);
+            logger.error({ err: error }, 'linkook failed');
             const errorMsg = error.code === 'ENOENT'
                 ? 'Linkook is not installed or not found in PATH. Please contact the administrator.'
                 : 'An error occurred while processing your request. Please try again later.';
@@ -161,7 +162,7 @@ async function runLinkook(args, interaction, outputDir, username, rawMode) {
                     summaryContent += content;
                     summaryContent += '\n\n';
                 } catch (error) {
-                    console.error(`Error reading result file ${file}:`, error);
+                    logger.error({ err: error, file }, 'result file read failed');
                 }
             }
 
@@ -183,7 +184,7 @@ async function runLinkook(args, interaction, outputDir, username, rawMode) {
         // Clean up temporary directory after a delay
         setTimeout(() => {
             cleanupDir(outputDir, 0).catch((error) => {
-                console.error('Error cleaning up output directory:', error);
+                logger.error({ err: error }, 'output directory cleanup failed');
             });
         }, 5000);
     }

@@ -11,6 +11,7 @@ const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const fs = require('fs');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-dork' });
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -98,7 +99,7 @@ Use these URLs with browser extensions like "Open Multiple URLs" to open them al
             });
 
         } catch (error) {
-            console.error('Error in dork command:', error);
+            logger.error({ err: error }, 'dork command failed');
             await interaction.editReply('An error occurred while generating dork URLs.');
         } finally {
             // Clean up temp file after a delay

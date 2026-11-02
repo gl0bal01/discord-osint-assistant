@@ -19,6 +19,7 @@ const dns = require('dns').promises;
 const tls = require('tls');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-redirect-check' });
 
 // Cache for historical comparison
 const redirectCache = new Map();
@@ -191,7 +192,7 @@ module.exports = {
             }
             
         } catch (error) {
-            console.error('Redirect-chain command error:', { status: error.response?.status, message: error.message });
+            logger.error({ err: error }, 'redirect-chain command failed');
             await interaction.editReply('An error occurred while processing your request. Please try again later.');
         }
     },
@@ -1054,7 +1055,7 @@ async function notifyWebhook(url, result, suspiciousIndicators) {
         
         await axios.post(process.env.SECURITY_WEBHOOK_URL, payload, { ...getSafeAxiosConfig(), maxContentLength: 5 * 1024 * 1024, maxBodyLength: 5 * 1024 * 1024 });
     } catch (error) {
-        console.error('Failed to send webhook notification:', error);
+        logger.error({ err: error }, 'webhook notification failed');
     }
 }
 

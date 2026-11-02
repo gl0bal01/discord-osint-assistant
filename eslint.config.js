@@ -32,6 +32,10 @@ module.exports = [
         },
     },
     {
+        files: ['commands/**', 'utils/**', 'index.js'],
+        rules: { 'no-console': 'error' },
+    },
+    {
         ignores: ['node_modules/', 'temp/', 'tests/'],
     },
 ];

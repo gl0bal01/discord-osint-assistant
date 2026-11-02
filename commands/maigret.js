@@ -11,6 +11,7 @@ const { isValidUsername } = require('../utils/validation');
 const fs = require('fs').promises;
 const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-maigret' });
 
 module.exports = {
     requiresTool: [process.env.MAIGRET_PATH || 'maigret'],
@@ -116,7 +117,7 @@ module.exports = {
                 });
             }
         } catch (error) {
-            console.error(`Maigret scan error: ${error.message}`);
+            logger.error({ err: error }, 'maigret scan failed');
 
             const errorDetail = error.code === 'ENOENT'
                 ? 'Maigret is not installed or not found in PATH. Please contact the administrator.'
@@ -138,7 +139,7 @@ module.exports = {
             try {
                 await cleanupFile(outputFile);
             } catch (cleanupError) {
-                console.error(`Error cleaning up file: ${cleanupError.message}`);
+                logger.error({ err: cleanupError }, 'cleanup failed');
             }
         }
     },

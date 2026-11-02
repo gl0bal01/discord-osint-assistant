@@ -28,6 +28,7 @@
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
 const { sanitizeInput } = require('../utils/validation');
 const { saveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-blockchain-detect' });
 
 // Comprehensive blockchain address patterns
 const BLOCKCHAIN_PATTERNS = [
@@ -397,7 +398,7 @@ module.exports = {
         // Sanitize address input
         const address = sanitizeInput(rawAddress);
         
-        console.log(`🔗 [BLOCKCHAIN-DETECT] Analyzing address: ${address}`);
+        logger.debug({ address }, 'analyzing address');
         
         // Validate address format
         if (!address || address.length < 10) {
@@ -437,10 +438,10 @@ module.exports = {
             
             await interaction.editReply(response);
             
-            console.log(`✅ [BLOCKCHAIN-DETECT] Analysis completed for: ${address} - ${detectionResults.matches.length} matches found`);
+            logger.info({ address, matches: detectionResults.matches.length }, 'analysis completed');
             
         } catch (error) {
-            console.error(`❌ [BLOCKCHAIN-DETECT] Analysis failed for ${address}:`, error.message);
+            logger.error({ err: error, address }, 'analysis failed');
             await interaction.editReply({
                 content: '❌ **Detection Failed**\n' +
                         'An error occurred while analyzing the cryptocurrency address.',

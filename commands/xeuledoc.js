@@ -10,6 +10,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
 const { capField } = require('../utils/embed');
+const logger = require('../utils/logger').child({ command: 'bob-xeuledoc' });
 
 module.exports = {
     requiresTool: ['xeuledoc'],
@@ -50,7 +51,7 @@ module.exports = {
             const { stdout, stderr, code } = await safeSpawn('xeuledoc', [parsedUrl.href], { timeout: 60000 });
 
             if (code !== 0) {
-                console.error(`xeuledoc exited with code ${code}: ${stderr}`);
+                logger.error({ code, stderr }, 'xeuledoc exited with error');
                 const embed = new EmbedBuilder()
                     .setTitle('Command Error')
                     .setDescription('xeuledoc encountered an error while processing the link.')
@@ -59,7 +60,7 @@ module.exports = {
             }
 
             if (stderr) {
-                console.error(`xeuledoc stderr: ${stderr}`);
+                logger.error({ stderr }, 'xeuledoc stderr');
             }
 
             const embed = new EmbedBuilder()
@@ -68,7 +69,7 @@ module.exports = {
                 .setColor(0x00ff00);
             await interaction.editReply({ embeds: [embed] });
         } catch (error) {
-            console.error('Error executing xeuledoc:', error);
+            logger.error({ err: error }, 'xeuledoc execution failed');
             const errorMsg = error.code === 'ENOENT'
                 ? 'xeuledoc is not installed or not found in PATH. Please contact the administrator.'
                 : 'An unexpected error occurred while running xeuledoc. Please try again later.';

@@ -29,6 +29,7 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
+const logger = require('../utils/logger').child({ command: 'bob-airport' });
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -61,7 +62,7 @@ module.exports = {
                 await handleIATASearch(interaction, iata);
             }
         } catch (error) {
-            console.error('Error fetching airport data:', { message: error.message, status: error.response?.status });
+            logger.error({ err: error }, 'airport data fetch failed');
             const codeType = icao ? 'ICAO' : 'IATA';
             await interaction.editReply(`Error fetching airport data. Please check the ${codeType} code and try again.`);
         }
@@ -150,7 +151,7 @@ async function handleIATASearch(interaction, rawIata) {
         }
     } catch (error) {
         // Silently ignore any errors here as we already provided basic data
-        console.log(`Could not fetch additional data for IATA ${iata}: ${error.message}`);
+        logger.info({ err: error, iata }, 'additional data fetch failed');
     }
 }
 

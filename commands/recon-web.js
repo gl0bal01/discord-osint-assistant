@@ -31,6 +31,7 @@ const path = require('path');
 const os = require('os');
 const { URL } = require('url');
 const { shodanFaviconHash } = require('../utils/favicon-hash');
+const logger = require('../utils/logger').child({ command: 'bob-web-recon' });
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -106,7 +107,7 @@ module.exports = {
                 try {
                     await interaction.editReply({ embeds: [embed] });
                 } catch (err) {
-                    console.error('Error updating progress:', err);
+                    logger.error({ err }, 'progress update failed');
                     clearInterval(progressInterval);
                 }
             }, 2000); // Update every 2 seconds
@@ -204,7 +205,7 @@ module.exports = {
                                 });
                             }
                         } catch (error) {
-                            console.error('Error fetching crt.sh data:', error);
+                            logger.error({ err: error }, 'crt.sh fetch failed');
                             embed.addFields({ 
                                 name: 'crt.sh', 
                                 value: 'Error fetching certificate data' 
@@ -261,7 +262,7 @@ module.exports = {
                                     .setStyle(ButtonStyle.Link)
                             );
                         } catch (error) {
-                            console.error('Error fetching Wayback Machine data:', error);
+                            logger.error({ err: error }, 'wayback fetch failed');
                             embed.addFields({ 
                                 name: 'Wayback Machine', 
                                 value: 'Error fetching archive data' 
@@ -328,7 +329,7 @@ module.exports = {
                                             };
                                             break;
                                         } catch (_e) {
-                                            console.error(`Invalid URL: ${href}`);
+                                            logger.error({ href }, 'invalid url');
                                         }
                                     }
                                 }
@@ -363,7 +364,7 @@ module.exports = {
 
                                 // Validate the path is within the temp directory
                                 if (!isPathSafe(filePath, tempDir)) {
-                                    console.error('Path traversal attempt detected:', filePath);
+                                    logger.error({ filePath }, 'path traversal attempt detected');
                                     throw new Error('Invalid file path detected');
                                 }
 
@@ -421,7 +422,7 @@ module.exports = {
                                 });
                             }
                         } catch (error) {
-                            console.error('Error in Shodan favicon processing:', error);
+                            logger.error({ err: error }, 'shodan favicon processing failed');
                             embed.addFields({ 
                                 name: 'Shodan Favicon', 
                                 value: 'Failed to extract and hash the favicon.'
@@ -462,7 +463,7 @@ module.exports = {
                         });
                         fs.rmdirSync(interaction.faviconAttachment.tempDir);
                     } catch (e) {
-                        console.error('Error cleaning up temp files:', e);
+                        logger.error({ err: e }, 'temp file cleanup failed');
                     }
                 }, 5000);
             }
@@ -470,7 +471,7 @@ module.exports = {
             await interaction.editReply(replyOptions);
             
         } catch (error) {
-            console.error('Error in recon command:', error);
+            logger.error({ err: error }, 'recon command failed');
             
             await interaction.editReply('An unexpected error occurred while processing your request. Please try again later.');
         }
@@ -517,7 +518,7 @@ function isPathSafe(filePath, expectedDir) {
         return normalizedPath.startsWith(normalizedDir + path.sep) ||
                normalizedPath === normalizedDir;
     } catch (error) {
-        console.error('Error validating path:', error);
+        logger.error({ err: error }, 'path validation failed');
         return false;
     }
 }

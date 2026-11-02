@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-pappers' });
 // Definitions of available fields for company endpoint
 const AVAILABLE_FIELD_GROUPS = {
     'officers': 'Company officers and directors',
@@ -338,7 +339,7 @@ module.exports = {
             // Stop the progress updates
             clearInterval(progressInterval);
             
-            console.error('Unexpected error in pappers command:', { status: error.response?.status, message: error.message });
+            logger.error({ err: error }, 'pappers command failed');
             
             let errorMessage = 'An unexpected error occurred while processing your request.';
             
@@ -356,7 +357,7 @@ module.exports = {
 function handleApiError(error, interaction, interval) {
     clearInterval(interval);
     
-    console.error('Error with Pappers API:', { status: error.response?.status, message: error.message });
+    logger.error({ err: error }, 'pappers api request failed');
     
     let errorMessage;
 

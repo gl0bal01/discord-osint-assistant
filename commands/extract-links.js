@@ -25,6 +25,7 @@ const cheerio = require('cheerio');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { reportDirPath, cleanupDir } = require('../utils/temp');
 const { escapeHtml } = require('../utils/embed');
+const logger = require('../utils/logger').child({ command: 'bob-extract-links' });
 
 /**
  * Analyzes a list of links to count the number of unique domains.
@@ -131,7 +132,7 @@ module.exports = {
                             href: absoluteUrl
                         });
                     } catch (_e) {
-                        console.error(`Skipping invalid href: ${href}`);
+                        logger.error({ href }, 'skipping invalid href');
                     }
                 }
             });
@@ -276,7 +277,7 @@ module.exports = {
             });
 
         } catch (error) {
-            console.error('Error in extract-links command:', error);
+            logger.error({ err: error }, 'extract-links command failed');
             let errorMessage = 'An unexpected error occurred. Please try again later.';
 
             if (axios.isAxiosError(error)) {
@@ -299,7 +300,7 @@ module.exports = {
             // 6. Clean up temporary files
             if (tempDir) {
                 cleanupDir(tempDir, 0).catch((err) => {
-                    console.error(`Failed to clean up temporary directory ${tempDir}:`, err);
+                    logger.error({ err, tempDir }, 'temp directory cleanup failed');
                 });
             }
         }

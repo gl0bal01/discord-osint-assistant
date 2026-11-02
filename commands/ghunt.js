@@ -21,6 +21,7 @@ const path = require('path');
 const os = require('os');
 const { reportDirPath, cleanupDir } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-ghunt' });
 
 /* -------------------------------------------------------------------------- */
 /*                               Auth helpers                                 */
@@ -322,7 +323,7 @@ module.exports = {
                         '**Test it:** `/bob-ghunt type:check-login`'
                 });
             } catch (error) {
-                console.error('[GHUNT] Login error:', error.message);
+                logger.error({ err: error }, 'ghunt login failed');
                 let reason = error.message;
                 if (error.message.includes('Invalid base64')) {
                     reason = 'The token is not valid base64. Make sure you copied the entire string from GHunt Companion.';
@@ -546,7 +547,7 @@ module.exports = {
                             });
                         }
                     } catch (jsonError) {
-                        console.error(`[GHUNT] JSON parse error: ${jsonError.message}`);
+                        logger.error({ err: jsonError }, 'ghunt json parse failed');
                     }
                 }
 
@@ -578,7 +579,7 @@ module.exports = {
                 await interaction.editReply({ embeds: [embed] });
             }
         } catch (error) {
-            console.error(`[GHUNT] Execution error: ${error.message}`);
+            logger.error({ err: error }, 'ghunt execution failed');
 
             // Detect expired/invalid credentials from GHunt stderr
             if (error.code === 'EAUTH') {
@@ -598,7 +599,7 @@ module.exports = {
         } finally {
             setTimeout(() => {
                 cleanupDir(resultsDir, 0).catch((err) => {
-                    console.error('[GHUNT] Cleanup error:', err.message);
+                    logger.error({ err }, 'ghunt cleanup failed');
                 });
             }, 30000);
         }

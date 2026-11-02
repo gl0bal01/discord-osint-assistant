@@ -55,6 +55,7 @@ const crypto = require('crypto');
 const { shodanFaviconHash } = require('../utils/favicon-hash');
 const { reportDirPath, cleanupDir } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
+const logger = require('../utils/logger').child({ command: 'bob-favicon' });
 
 // Configuration constants
 const CONFIG = {
@@ -142,9 +143,9 @@ const cleanupTempDirectory = async (tempDir) => {
     if (!tempDir) return;
     try {
         await cleanupDir(tempDir);
-        console.log(`Cleaned up temporary directory: ${tempDir}`);
+        logger.debug({ tempDir }, 'cleaned up temp directory');
     } catch (error) {
-        console.error(`Error cleaning up temp directory ${tempDir}:`, error);
+        logger.error({ err: error, tempDir }, 'temp directory cleanup failed');
     }
 };
 
@@ -189,7 +190,7 @@ const extractFaviconCandidates = (html, baseUrl) => {
                         });
                     }
                 } catch (_urlError) {
-                    console.warn(`Invalid favicon URL: ${faviconUrl}`);
+                    logger.warn({ faviconUrl }, 'invalid favicon url');
                 }
             }
         });
@@ -209,7 +210,7 @@ const extractFaviconCandidates = (html, baseUrl) => {
             });
         }
     } catch (_error) {
-        console.warn('Could not create default favicon URL');
+        logger.warn('could not create default favicon url');
     }
     
     // Sort by priority (lower number = higher priority)
@@ -431,9 +432,9 @@ module.exports = {
             const faviconCandidates = extractFaviconCandidates(html, url);
             
             if (verbose) {
-                console.log(`Found ${faviconCandidates.length} favicon candidates for ${domain}`);
+                logger.debug({ domain, count: faviconCandidates.length }, 'favicon candidates found');
                 faviconCandidates.forEach((candidate, index) => {
-                    console.log(`  ${index + 1}. ${candidate.url} (${candidate.rel}, ${candidate.sizes})`);
+                    logger.debug({ rank: index + 1, url: candidate.url, rel: candidate.rel, sizes: candidate.sizes }, 'favicon candidate');
                 });
             }
             
@@ -449,12 +450,12 @@ module.exports = {
                     faviconData = await downloadFavicon(candidate.url);
                     successfulCandidate = candidate;
                     
-                    console.log(`Successfully downloaded favicon from ${candidate.url}`);
+                    logger.info({ url: candidate.url }, 'favicon downloaded');
                     break;
                     
                 } catch (error) {
                     if (verbose) {
-                        console.log(`Failed to download ${candidate.url}: ${error.message}`);
+                        logger.info({ err: error, url: candidate.url }, 'favicon download failed');
                     }
                     continue;
                 }
@@ -583,7 +584,7 @@ module.exports = {
             }
             
         } catch (error) {
-            console.error('Error in favicon command:', error);
+            logger.error({ err: error }, 'favicon command failed');
             
             const errorEmbed = new EmbedBuilder()
                 .setTitle('❌ Unexpected Error')
@@ -599,7 +600,7 @@ module.exports = {
             try {
                 await interaction.editReply({ embeds: [errorEmbed] });
             } catch (replyError) {
-                console.error('Failed to send error response:', replyError);
+                logger.error({ err: replyError }, 'error response failed');
             }
             
         } finally {

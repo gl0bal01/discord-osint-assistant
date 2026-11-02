@@ -31,6 +31,7 @@ const axios = require('axios');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { sanitizeChatInput } = require('../utils/validation');
 const { neutralizeMentions } = require('../utils/discord');
+const logger = require('../utils/logger').child({ command: 'bob-chat' });
 
 const QWEN3_ASR_LANGUAGE_CODES = new Set([
     'zh', 'yue', 'en', 'ja', 'de', 'ko', 'ru', 'fr', 'pt', 'ar', 'it', 'es',
@@ -309,7 +310,7 @@ module.exports = {
             userConversations.get(userId).lastActivity = Date.now();
         }
 
-        console.log(`🤖 [CHAT] Processing ${subcommand} request for user: ${userId}`);
+        logger.debug({ subcommand, userId }, 'processing request');
 
         // Validate API key
         const apiKey = process.env.AI_API_KEY;
@@ -354,7 +355,7 @@ module.exports = {
 
             await interaction.editReply(response);
 
-            console.log(`✅ [CHAT] Successfully processed ${subcommand} request`);
+            logger.debug({ subcommand }, 'request processed');
 
         } catch (error) {
             await handleChatError(interaction, error, subcommand);
@@ -885,7 +886,7 @@ function formatAIResponse(aiResponse, model, responseType, isCode = false) {
  */
 async function handleChatError(interaction, error, subcommand) {
     const apiCode = error.apiCode ?? error.response?.data?.errorCode ?? error.response?.data?.code;
-    console.error('Chat error:', { status: error.response?.status, apiCode, message: error.message });
+    logger.error({ err: error, apiCode }, 'chat request failed');
 
     let errorMessage = `❌ **AI ${subcommand.charAt(0).toUpperCase() + subcommand.slice(1)} Failed**\n\n`;
 

@@ -8,6 +8,7 @@
  */
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const logger = require('../utils/logger').child({ command: 'bob-vessel' });
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -52,7 +53,7 @@ module.exports = {
                 try {
                     vesselInfo = await fetchVesselInfo(imoNumber);
                 } catch (error) {
-                    console.error('Error fetching vessel info:', error);
+                    logger.error({ err: error }, 'vessel info fetch failed');
                     // Continue without vessel info - links will still work
                 }
                 
@@ -89,7 +90,7 @@ module.exports = {
                 await interaction.editReply({ embeds: [embed] });
             }
         } catch (error) {
-            console.error('Error in vessel command:', error);
+            logger.error({ err: error }, 'vessel command failed');
             await interaction.editReply('An error occurred while processing your request. Please try again later.');
         }
     },

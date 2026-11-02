@@ -14,6 +14,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const { neutralizeMentions } = require('../utils/discord');
 const { validateUrlNotInternal, getSafeAxiosConfig, SIZE_5MB } = require('../utils/ssrf');
+const logger = require('../utils/logger').child({ command: 'bob-monitor' });
 
 const MONITOR_CHANNEL_ID = process.env.MONITOR_CHANNEL_ID;
 
@@ -47,12 +48,12 @@ async function checkWebsite(url, client) {
             if (channel && channel.permissionsFor(client.user).has(PermissionFlagsBits.SendMessages)) {
                 await channel.send(`Changes detected on ${neutralizeMentions(url)}`);
             } else {
-                console.error('Missing permissions to send messages in monitoring channel');
+                logger.error('missing permissions to send messages in monitoring channel');
             }
         }
         entry.hash = newHash;
     } catch (error) {
-        console.error('Error checking website:', { status: error.response?.status, message: error.message });
+        logger.error({ err: error }, 'website check failed');
     }
 }
 
@@ -139,7 +140,7 @@ module.exports = {
                 } catch (err) {
                     if (entry.timer) clearInterval(entry.timer);
                     monitors.delete(url);
-                    console.error('Failed to start monitor:', { url, message: err.message });
+                    logger.error({ err, url }, 'failed to start monitor');
                     return interaction.editReply({ content: 'The provided URL is not allowed or the monitor could not be started.' });
                 }
                 break;

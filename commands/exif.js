@@ -33,6 +33,7 @@ const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { tempFilePath, cleanupFile } = require('../utils/temp');
 const { saveReport } = require('../utils/reports');
 const fsPromises = require('fs').promises;
+const logger = require('../utils/logger').child({ command: 'bob-exif' });
 
 module.exports = {
     requiresTool: [process.env.EXIFTOOL_PATH || 'exiftool'],
@@ -106,7 +107,7 @@ module.exports = {
                 });
             }
 
-            console.log(`📸 [EXIF] Starting metadata extraction for: ${imageUrl}`);
+            logger.debug({ imageUrl }, 'metadata extraction starting');
 
             let imagePath;
             try {
@@ -119,7 +120,7 @@ module.exports = {
                 
                 // Verify downloaded file
                 const fileStats = await validateDownloadedFile(imagePath);
-                console.log(`📁 [EXIF] Downloaded file: ${path.basename(imagePath)} (${fileStats.size} bytes)`);
+                logger.debug({ file: path.basename(imagePath), bytes: fileStats.size }, 'downloaded file');
                 
                 // Verify it's actually an image file
                 if (!await isImageFile(imagePath)) {
@@ -148,17 +149,17 @@ module.exports = {
                 // Clean up temporary file
                 await cleanupFile(imagePath);
                 
-                console.log(`✅ [EXIF] Successfully extracted metadata from: ${imageUrl}`);
+                logger.debug({ imageUrl }, 'metadata extracted');
                 
             } catch (error) {
-                console.error(`❌ [EXIF] Error processing image from ${imageUrl}:`, error.message);
+                logger.error({ err: error, imageUrl }, 'image processing failed');
                 await handleExifError(interaction, error, imageUrl);
             } finally {
                 if (imagePath) await cleanupFile(imagePath);
             }
             
         } catch (unexpectedError) {
-            console.error('❌ [EXIF] Unexpected error:', unexpectedError);
+            logger.error({ err: unexpectedError }, 'unexpected error');
             
             const errorResponse = {
                 content: '❌ **Unexpected Error**\n' +
@@ -182,7 +183,7 @@ module.exports = {
  * @returns {Promise<void>} Resolved when download is complete
  */
 async function downloadImageFromUrl(url, filePath) {
-    console.log(`⬇️ [EXIF] Downloading image from: ${url}`);
+    logger.debug({ url }, 'downloading image');
 
     const response = await axios.get(url, {
         responseType: 'stream',
@@ -202,7 +203,7 @@ async function downloadImageFromUrl(url, filePath) {
     // Check content type if available
     const contentType = response.headers['content-type'] || '';
     if (contentType && !contentType.startsWith('image/')) {
-        console.warn(`⚠️ [EXIF] Unexpected content type: ${contentType}`);
+        logger.warn({ contentType }, 'unexpected content type');
     }
 
     await new Promise((resolve, reject) => {
@@ -213,7 +214,7 @@ async function downloadImageFromUrl(url, filePath) {
         response.data.on('error', reject);
     });
 
-    console.log(`✅ [EXIF] Successfully downloaded to: ${filePath}`);
+    logger.debug({ filePath }, 'download completed');
 }
 
 /**
@@ -283,14 +284,14 @@ async function isImageFile(filePath) {
             }
             
             if (matches) {
-                console.log(`🖼️ [EXIF] Detected image format: ${magic.format}`);
+                logger.debug({ format: magic.format }, 'detected image format');
                 return true;
             }
         }
         
         return false;
     } catch (error) {
-        console.error('[EXIF] Error checking image format:', error);
+        logger.error({ err: error }, 'image format check failed');
         return false;
     }
 }
@@ -314,19 +315,19 @@ async function extractExifData(imagePath, includeDetailed = false) {
 
         args.push(imagePath);
 
-        console.log(`🔧 [EXIF] Running ExifTool: ${exiftoolPath} ${args.join(' ')}`);
+        logger.debug({ exiftoolPath, args }, 'running exiftool');
 
         const { stdout, stderr } = await safeSpawn(exiftoolPath, args, { timeout: 30000 });
 
         if (stderr && !stderr.includes('Warning')) {
-            console.warn('[EXIF] ExifTool warnings:', stderr);
+            logger.warn({ stderr }, 'exiftool warnings');
         }
 
         // Parse JSON output
         const metadata = JSON.parse(stdout);
         const exifData = metadata[0] || {};
 
-        console.log(`📊 [EXIF] Extracted ${Object.keys(exifData).length} metadata fields`);
+        logger.debug({ fields: Object.keys(exifData).length }, 'metadata fields extracted');
 
         return exifData;
 
