@@ -139,37 +139,8 @@ module.exports = {
             for (const file of created) {
                 try { fs.unlinkSync(file); } catch { /* already removed */ }
             }
-            // Clean up temp files after a delay (don't delete the entire temp directory)
-            setTimeout(() => {
-                try {
-                    // Just clean up the files we created in this command execution
-                    // Get all files that match our timestamp or command-specific naming
-                    const currentTime = Date.now();
-
-                    const files = fs.readdirSync(tempDir).filter(file => {
-                        // Only delete files created by this command that are older than a few seconds
-                        if (file.includes('rekognition_') || file.includes('face_comparison') || 
-                            file.startsWith('source_') || file.startsWith('target_') || 
-                            file.startsWith('original_')) {
-                            
-                            const filePath = path.join(tempDir, file);
-                            const stats = fs.statSync(filePath);
-                            const fileAge = currentTime - stats.mtime.getTime();
-                            
-                            // Only delete files older than a few seconds to avoid race conditions
-                            return fileAge > 10000; // 10 seconds
-                        }
-                        return false;
-                    });
-                    
-                    // Delete matching files
-                    for (const file of files) {
-                        fs.unlinkSync(path.join(tempDir, file));
-                    }
-                } catch (cleanupError) {
-                    logger.error({ err: cleanupError }, 'file cleanup failed');
-                }
-            }, 5000); // Wait 5 seconds before cleaning up
+            // Only this run's files: a shared-dir sweep deleted other runs' in-flight files.
+            // Orphans (crash mid-run) age out through the hourly temp sweep.
         }
     },
 };

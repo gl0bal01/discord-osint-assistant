@@ -349,19 +349,16 @@ describe('bob-rekognition compare', () => {
 });
 
 describe('bob-rekognition temp file cleanup', () => {
-    it('deletes this command\'s stale files after the delay and leaves unrelated files alone', async () => {
+    it('never deletes another run\'s files, even old ones with the same prefixes', async () => {
         downloadOk();
         awsReturns();
         const old = Date.now() - 60_000;
-        vfs.set(path.join(TEMP, 'rekognition_old.json'), { data: Buffer.from('{}'), mtime: old });
-        vfs.set(path.join(TEMP, 'original_old.jpg'), { data: Buffer.from('x'), mtime: old });
-        vfs.set(path.join(TEMP, 'notes.txt'), { data: Buffer.from('keep'), mtime: old });
+        vfs.set(path.join(TEMP, 'rekognition_other-run.json'), { data: Buffer.from('{}'), mtime: old });
+        vfs.set(path.join(TEMP, 'original_other-run.jpg'), { data: Buffer.from('x'), mtime: old });
         await run({ image: attachment(), features: 'labels' });
-        await vi.advanceTimersByTimeAsync(5000);
-        const left = [...vfs.keys()].map((p) => path.basename(p));
-        expect(left).not.toContain('rekognition_old.json');
-        expect(left).not.toContain('original_old.jpg');
-        expect(left).toContain('notes.txt');
+        await vi.advanceTimersByTimeAsync(60_000);
+        const left = [...vfs.keys()].map((p) => path.basename(p)).sort();
+        expect(left).toEqual(['original_other-run.jpg', 'rekognition_other-run.json']);
     });
 
     it('removes the image and report it created for this run', async () => {
