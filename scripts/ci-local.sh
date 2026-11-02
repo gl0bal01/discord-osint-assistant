@@ -42,6 +42,7 @@ in_node() {
 # Scan a saved image tarball: Trivy never sees the Docker socket. Last arg = image ref.
 trivy() {
     local img=${!#} tar="$LOGS/scan.tar"
+    [[ $img == *:* ]] || img="$img:latest"   # an untagged repo name would save every tag
     docker save "$img" -o "$tar" || return 1
     docker run --rm -v "$tar:/in/scan.tar:ro" -v ci-local-trivy:/root/.cache "$TRIVY_IMAGE" \
         image --quiet "${@:1:$#-1}" --input /in/scan.tar
