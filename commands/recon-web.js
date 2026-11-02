@@ -24,6 +24,7 @@ const axios = require('axios');
 const { validateUrlNotInternal, getSafeAxiosConfig } = require('../utils/ssrf');
 const { isValidDomain, sanitizeFilename } = require('../utils/validation');
 const { archiveReport } = require('../utils/reports');
+const { capField } = require('../utils/embed');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
@@ -171,18 +172,22 @@ module.exports = {
                                 });
                                 
                                 // Add the 5 most recent certificates
+                                // crt.sh dropped entry_timestamp; not_before is the issue date
+                                const issued = cert => cert.entry_timestamp ?? cert.not_before ?? '';
                                 const recentCerts = certs
-                                    .sort((a, b) => new Date(b.entry_timestamp) - new Date(a.entry_timestamp))
+                                    .sort((a, b) => issued(b).localeCompare(issued(a)))
                                     .slice(0, 5);
-                                
+
                                 const certsDetails = recentCerts.map(cert => {
-                                    const issuer = cert.issuer_name.split(' ')[0];
-                                    return `• ${new Date(cert.entry_timestamp).toISOString().split('T')[0]} - ${issuer}`;
+                                    // O= may be quoted when it contains a comma: O="Cloudflare, Inc."
+                                    const org = /(?:^|,\s*)O=(?:"([^"]*)"|([^,]+))/.exec(cert.issuer_name ?? '');
+                                    const issuer = org?.[1] ?? org?.[2] ?? cert.issuer_name ?? 'unknown';
+                                    return `• ${issued(cert).slice(0, 10) || 'unknown date'} - ${issuer}`;
                                 }).join('\n');
                                 
-                                embed.addFields({ 
-                                    name: 'Recent Certificates', 
-                                    value: certsDetails 
+                                embed.addFields({
+                                    name: 'Recent Certificates',
+                                    value: capField(certsDetails)
                                 });
                                 
                                 row.addComponents(
