@@ -36,7 +36,8 @@
  */
 
 const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { safeSpawn, safeSpawnToFile } = require('../utils/process');
+const { safeSpawnToFile } = require('../utils/process');
+const { isToolAvailable } = require('../utils/tools');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
@@ -81,20 +82,14 @@ const cleanupOldFiles = async () => {
 const cleanupInterval = setInterval(cleanupOldFiles, CONFIG.CLEANUP_INTERVAL);
 cleanupInterval.unref();
 
-const findJwtTool = async () => {
-    try {
-        await safeSpawn('test', ['-x', CONFIG.JWT_TOOL_PATH], { timeout: 5000 });
-        return CONFIG.JWT_TOOL_PATH;
-    } catch { /* binary not found, try next */ }
-    try {
-        const { stdout } = await safeSpawn('which', ['jwt_tool'], { timeout: 5000 });
-        if (stdout.trim()) return 'jwt_tool';
-    } catch { /* binary not found, try next */ }
+// Returns the argv prefix that runs jwt_tool: an executable at JWT_TOOL_PATH,
+// `jwt_tool` on PATH, or the repo's jwt_tool.py run by its own venv python.
+const findJwtTool = () => {
+    if (isToolAvailable([CONFIG.JWT_TOOL_PATH])) return [CONFIG.JWT_TOOL_PATH];
+    if (isToolAvailable(['jwt_tool'])) return ['jwt_tool'];
     const pyScript = `${CONFIG.JWT_TOOL_PATH}/jwt_tool.py`;
-    try {
-        await safeSpawn('test', ['-f', pyScript], { timeout: 5000 });
-        return `${CONFIG.JWT_TOOL_PATH}/venv/bin/python3`;
-    } catch { /* binary not found, try next */ }
+    const venvPython = `${CONFIG.JWT_TOOL_PATH}/venv/bin/python3`;
+    if (fsSync.existsSync(pyScript) && isToolAvailable([venvPython])) return [venvPython, pyScript];
     throw new Error('jwt_tool not found.');
 };
 
@@ -223,7 +218,7 @@ module.exports = {
             }
 
             // Find jwt_tool
-            const jwtToolCmd = await findJwtTool();
+            const [jwtToolCmd, ...jwtToolArgs] = findJwtTool();
 
             // Create secure output file
             outputFile = reportFilePath(`jwt-${subcommand}`, 'txt');
@@ -330,7 +325,7 @@ module.exports = {
             await interaction.editReply({ embeds: [progressEmbed] });
 
             // Execute command using safe spawn (no shell interpolation)
-            await executeJwtCommand(jwtToolCmd, jwtArgs, outputFile, spawnOptions);
+            await executeJwtCommand(jwtToolCmd, [...jwtToolArgs, ...jwtArgs], outputFile, spawnOptions);
 
             // Read and process output
             const outputContent = await fs.readFile(outputFile, 'utf8');

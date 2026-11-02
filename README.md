@@ -247,7 +247,7 @@ GHunt requires a valid Google session before it can perform lookups. The bot can
 | Operation | Parameter | Description |
 |-----------|-----------|-------------|
 | `type:check-login` | — | Verify whether GHunt credentials exist and are valid |
-| `type:login` | `query` or `token` | Save a new base64 token from GHunt Companion |
+| `type:login` | `query` or `token` | Save a new base64 token from GHunt Companion (Administrator only) |
 | `type:email` | `query` | Lookup an email address |
 | `type:gaia` | `query` | Lookup a Gaia ID |
 | `type:drive` | `query` | Analyze a Google Drive file/folder URL |

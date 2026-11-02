@@ -12,7 +12,7 @@
  *   /bob-ghunt type:email query:test@gmail.com
  */
 
-const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { safeSpawn } = require('../utils/process');
 const { isValidEmail, isValidUrl } = require('../utils/validation');
 const { capField, escapeHtml } = require('../utils/embed');
@@ -56,7 +56,7 @@ function saveCredentials(base64Token) {
     const credsPath = getGhuntCredsPath();
     const credsDir = path.dirname(credsPath);
     if (!fs.existsSync(credsDir)) {
-        fs.mkdirSync(credsDir, { recursive: true });
+        fs.mkdirSync(credsDir, { recursive: true, mode: 0o700 });
     }
 
     // Validate it's base64 before writing
@@ -289,6 +289,14 @@ module.exports = {
 
         /* ------------------------------- Login ------------------------------- */
         if (searchType === 'login') {
+            // Replacing the bot's Google session is admin-only: ManageGuild or an
+            // OSINT_ALLOWED_ROLES role is enough for lookups, not for swapping credentials
+            if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+                return interaction.reply({
+                    content: '❌ **Administrator only**\nOnly server administrators can change the GHunt login.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
             const base64Token = token || query;
             if (!base64Token) {
                 return interaction.reply({

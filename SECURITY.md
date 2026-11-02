@@ -29,6 +29,7 @@ URL-accepting commands validate resolved IPs against private ranges (10.x, 172.1
 - Nuclei requires Administrator permission
 - Sherlock, Maigret, GHunt, JWT, Rekognition, Monitor, Linkook, and xeuledoc require ManageGuild
 - Additional roles can be granted access via `OSINT_ALLOWED_ROLES`
+- `/bob-ghunt type:login` (replaces the bot's Google session) always requires Administrator; ManageGuild or `OSINT_ALLOWED_ROLES` is not enough
 - Guild whitelist (`ALLOWED_GUILD_IDS`) restricts which servers the bot operates in — it auto-leaves unauthorized servers
 
 See [`utils/permissions.js`](utils/permissions.js).

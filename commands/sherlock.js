@@ -135,7 +135,7 @@ module.exports = {
 async function executeSherlockScan(sherlockPath, username, outputFile, timeout, verbose, includeNsfw, _interaction) {
     const args = [username];
     if (verbose) args.push('--verbose');
-    if (!includeNsfw) args.push('--nsfw');
+    if (includeNsfw) args.push('--nsfw');
 
     return safeSpawnToFile(sherlockPath, args, outputFile, {
         timeout: timeout * 1000,

@@ -185,6 +185,7 @@ module.exports = {
                 '-var', `user=${username}`,
                 '-o', outputFile,
                 '-disable-update-check',
+                '-esc', // OSINT username templates are self-contained; nuclei 3.x skips them by default
                 verbose ? '-v' : '-silent'
             ];
 
