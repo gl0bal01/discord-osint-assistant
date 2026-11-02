@@ -94,7 +94,7 @@ module.exports = {
  * @param {boolean} returnRaw - Whether to return raw JSON data
  */
 async function handleVinDecode(interaction, returnRaw) {
-    const vin = interaction.options.getString('vin');
+    const vin = interaction.options.getString('vin')?.replace(/\s+/g, '').toUpperCase();
     
     // Validate VIN format
     if (!isValidVin(vin)) {

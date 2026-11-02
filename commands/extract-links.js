@@ -137,7 +137,7 @@ module.exports = {
             });
             
             // Remove duplicates based on the 'href' property, preserving the first occurrence.
-            const uniqueLinks = [...new Map(allLinks.map(link => [link.href, link])).values()];
+            const uniqueLinks = [...new Map(allLinks.slice().reverse().map(link => [link.href, link])).values()];
             uniqueLinks.sort((a, b) => a.href.localeCompare(b.href)); // Sort alphabetically
 
             if (uniqueLinks.length === 0) {

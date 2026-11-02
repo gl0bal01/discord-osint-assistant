@@ -52,7 +52,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { URL } = require('url');
 const crypto = require('crypto');
-const murmurhash = require('murmurhash');
+const { shodanFaviconHash } = require('../utils/favicon-hash');
 const { reportDirPath, cleanupDir } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
 
@@ -222,6 +222,8 @@ const extractFaviconCandidates = (html, baseUrl) => {
  * @returns {Promise<Buffer>} - Favicon data buffer
  */
 const downloadFavicon = async (faviconUrl) => {
+    // Page-derived URL: reject internal targets before any request (callers skip on throw)
+    await validateUrlNotInternal(faviconUrl);
     const response = await axios.get(faviconUrl, {
         responseType: 'arraybuffer',
         timeout: CONFIG.FAVICON_TIMEOUT,
@@ -258,7 +260,7 @@ const calculateHashes = (faviconBuffer) => {
     const base64 = faviconBuffer.toString('base64');
     
     return {
-        murmurhash3: murmurhash.v3(base64),
+        murmurhash3: shodanFaviconHash(faviconBuffer),
         md5: crypto.createHash('md5').update(faviconBuffer).digest('hex'),
         sha1: crypto.createHash('sha1').update(faviconBuffer).digest('hex'),
         sha256: crypto.createHash('sha256').update(faviconBuffer).digest('hex'),
@@ -286,6 +288,13 @@ const generateSearchUrls = (hashes) => {
  * @param {string} filename - Attachment filename
  * @returns {EmbedBuilder} - Discord embed object
  */
+const formatMurmur = (hash, format) => {
+    const hex = `0x${(hash >>> 0).toString(16)}`;
+    if (format === 'hex') return hex;
+    if (format === 'both') return `${hash} (${hex})`;
+    return `${hash}`;
+};
+
 const createResultEmbed = (data, filename) => {
     const embed = new EmbedBuilder()
         .setTitle(`🔍 Favicon Analysis: ${data.domain}`)
@@ -302,7 +311,7 @@ const createResultEmbed = (data, filename) => {
             },
             {
                 name: '🔢 Hash Values',
-                value: `**MurmurHash3:** \`${data.hashes.murmurhash3}\`\n**MD5:** \`${data.hashes.md5.substring(0, 16)}...\`\n**SHA256:** \`${data.hashes.sha256.substring(0, 16)}...\``,
+                value: `**MurmurHash3:** \`${formatMurmur(data.hashes.murmurhash3, data.format)}\`\n**MD5:** \`${data.hashes.md5.substring(0, 16)}...\`\n**SHA256:** \`${data.hashes.sha256.substring(0, 16)}...\``,
                 inline: true
             },
             {
@@ -360,6 +369,7 @@ module.exports = {
             const url = interaction.options.getString('url').trim();
             const returnRaw = interaction.options.getBoolean('raw') ?? false;
             const verbose = interaction.options.getBoolean('verbose') ?? false;
+            const format = interaction.options.getString('format') ?? 'decimal';
             // Validate URL
             const parsedUrl = validateUrl(url);
             const domain = parsedUrl.hostname;
@@ -504,6 +514,7 @@ module.exports = {
                 extension,
                 hashes,
                 searchUrls,
+                format,
                 timestamp: new Date().toISOString(),
                 candidatesFound: faviconCandidates.length,
                 metadata: {

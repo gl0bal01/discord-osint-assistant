@@ -12,6 +12,7 @@
 const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const axios = require('axios');
 const crypto = require('crypto');
+const { neutralizeMentions } = require('../utils/discord');
 const { validateUrlNotInternal, getSafeAxiosConfig, SIZE_5MB } = require('../utils/ssrf');
 
 const MONITOR_CHANNEL_ID = process.env.MONITOR_CHANNEL_ID;
@@ -44,7 +45,7 @@ async function checkWebsite(url, client) {
         if (entry.hash !== null && entry.hash !== newHash) {
             const channel = await client.channels.fetch(MONITOR_CHANNEL_ID);
             if (channel && channel.permissionsFor(client.user).has(PermissionFlagsBits.SendMessages)) {
-                await channel.send(`Changes detected on ${url}`);
+                await channel.send(`Changes detected on ${neutralizeMentions(url)}`);
             } else {
                 console.error('Missing permissions to send messages in monitoring channel');
             }

@@ -436,6 +436,10 @@ async function handleBlockLookup(interaction, blockchain, blockchainInfo, fullDa
     const isHeight = /^\d+$/.test(block);
     const blockIdentifier = isHeight ? 'height' : 'hash';
 
+    if (!isHeight && !/^(0x)?[a-fA-F0-9]{64}$/.test(block)) {
+        return interaction.editReply(`Invalid ${blockchainInfo.name}${netLabel} block. Provide a height (digits) or a 64-character hex hash.`);
+    }
+
     try {
         // Fetch block data using appropriate API for the blockchain
         const data = await fetchBlockData(blockchain, block, isHeight, network);
@@ -933,8 +937,8 @@ async function fetchBlockData(blockchain, block, isHeight, network = 'mainnet') 
     switch (blockchain) {
         case 'btc': {
             const url = isHeight
-                ? `https://blockchain.info/block-height/${block}?format=json`
-                : `https://blockchain.info/rawblock/${block}`;
+                ? `https://blockchain.info/block-height/${encodeURIComponent(block)}?format=json`
+                : `https://blockchain.info/rawblock/${encodeURIComponent(block)}`;
             const response = await axios.get(url, safeConfig);
             return response.data;
         }
@@ -949,7 +953,7 @@ async function fetchBlockData(blockchain, block, isHeight, network = 'mainnet') 
         case 'bch':
         case 'dash':
         case 'doge': {
-            const blockParam = isHeight ? `height/${block}` : `hash/${block}`;
+            const blockParam = isHeight ? `height/${encodeURIComponent(block)}` : `hash/${encodeURIComponent(block)}`;
             const response = await axios.get(
                 `https://api.blockchair.com/${getBlockchairChain(blockchain)}/dashboards/block/${blockParam}`,
                 safeConfig
@@ -972,7 +976,7 @@ async function fetchBlockData(blockchain, block, isHeight, network = 'mainnet') 
         }
         case 'zec': {
             const response = await axios.get(
-                `https://api.zcha.in/v2/mainnet/blocks/${block}`,
+                `https://api.zcha.in/v2/mainnet/blocks/${encodeURIComponent(block)}`,
                 safeConfig
             );
             return response.data;
@@ -1072,7 +1076,7 @@ async function fetchTestnetBlockData(blockchain, block, isHeight, safeConfig) {
         return response.data;
     }
 
-    const blockParam = isHeight ? `height/${block}` : `hash/${block}`;
+    const blockParam = isHeight ? `height/${encodeURIComponent(block)}` : `hash/${encodeURIComponent(block)}`;
     const response = await axios.get(
         `https://api.blockchair.com/${cfg.chair}/dashboards/block/${blockParam}`,
         safeConfig
@@ -1088,6 +1092,13 @@ async function fetchTestnetBlockData(blockchain, block, isHeight, safeConfig) {
  * @returns {Object} - Extracted summary data
  */
 function extractAddressSummary(blockchain, data, blockchainInfo, network = 'mainnet') {
+    // Etherscan-family APIs report errors (rate limit, bad key) as status "0"; never show that as an empty wallet
+    const etherscanFamily = network === 'testnet'
+        ? TESTNETS[blockchain]?.provider === 'etherscan'
+        : ['eth', 'bsc', 'matic'].includes(blockchain);
+    if (etherscanFamily && data?.status === '0') {
+        throw new Error('Explorer API returned an error status');
+    }
     if (network === 'testnet') {
         return extractTestnetAddressSummary(blockchain, data, blockchainInfo);
     }
@@ -1388,7 +1399,7 @@ function extractBlockSummary(blockchain, data, blockchainInfo, network = 'mainne
                 if (coinbase) {
                     try {
                         // Try to extract ASCII text from coinbase script
-                        const hex = coinbase.replace(/^[0-9a-f]+/, ''); // Remove length byte
+                        const hex = coinbase;
                         let text = '';
                         for (let i = 0; i < hex.length; i += 2) {
                             const charCode = parseInt(hex.substr(i, 2), 16);
