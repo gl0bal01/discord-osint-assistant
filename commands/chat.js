@@ -16,15 +16,14 @@
  * - Report generation assistance
  * - Investigation planning support
  *
- * Supported Models:
- * - OpenAI GPT-4o, GPT-4o Mini
- * - Anthropic Claude 3.5/4 Sonnet
- * - Google Gemini Pro
- * - DeepSeek models
- * - Perplexity reasoning models
+ * Supported Models (1min.ai roster, see CHAT_MODELS / CODE_MODELS):
+ * - Anthropic Claude Haiku/Sonnet/Opus 5.5, Fable 5.1
+ * - OpenAI GPT-6, Google Gemini 4 / 3.8, xAI Grok 4.7
+ * - DeepSeek V4, Qwen3.8, Kimi, GLM, Mistral, Muse
+ * - Perplexity Sonar models (with live web search)
  *
- * Usage: /bob-chat message:"Analyze this OSINT data" model:gpt-4o
- *        /bob-chat message:"Generate Python script for data parsing" type:code
+ * Usage: /bob-chat ask message:"Analyze this OSINT data" model:sonar-pro
+ *        /bob-chat code request:"Generate Python script for data parsing"
  */
 
 const { SlashCommandBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
@@ -39,6 +38,112 @@ const QWEN3_ASR_LANGUAGE_CODES = new Set([
     'no', 'pl', 'sv'
 ]);
 const PHONE_CALL_LANGUAGE_CODE_PATTERN = /^[a-z]{2,3}-[A-Z]{2}$/;
+
+// Model roster from https://api.1min.ai/models?feature=UNIFY_CHAT_WITH_AI|CODE_GENERATOR
+// (same lineup as discord-ai-assistant). Discord allows max 25 choices per option.
+const CHAT_MODELS = [
+    { name: 'Claude Haiku 5.5', value: 'us.anthropic.claude-haiku-5-5' },
+    { name: 'Claude Sonnet 5.5', value: 'us.anthropic.claude-sonnet-5-5' },
+    { name: 'Claude Opus 5.5', value: 'us.anthropic.claude-opus-5-5' },
+    { name: 'Claude Fable 5.1', value: 'us.anthropic.claude-fable-5-1' },
+    { name: 'GPT-6 Luna', value: 'gpt-6-luna' },
+    { name: 'GPT-6.1 Sol', value: 'gpt-6.1-sol' },
+    { name: 'GPT-6 Astra', value: 'gpt-6-astra' },
+    { name: 'Gemini 3.8 Flash', value: 'gemini-3.8-flash' },
+    { name: 'Gemini 4 Argon', value: 'gemini-4-argon' },
+    { name: 'Grok 4.7', value: 'grok-4.7' },
+    { name: 'DeepSeek V4.1 Flash', value: 'deepseek-flash' },
+    { name: 'DeepSeek V4 Pro', value: 'deepseek-v4-pro' },
+    { name: 'Qwen3.8 Max', value: 'qwen3.8-max' },
+    { name: 'Kimi K3', value: 'moonshotai/kimi-k3' },
+    { name: 'GLM-5.3', value: 'glm-5.3' },
+    { name: 'Mistral Medium 3.5', value: 'mistral-medium-3-5' },
+    { name: 'Muse Wonder', value: 'meta/muse-wonder' },
+    { name: 'Sonar', value: 'sonar' },
+    { name: 'Sonar Pro', value: 'sonar-pro' },
+    { name: 'Sonar Reasoning Pro', value: 'sonar-reasoning-pro' },
+    { name: 'Sonar Deep Research', value: 'sonar-deep-research' }
+];
+const CODE_MODELS = [
+    { name: 'Claude Sonnet 5.5', value: 'us.anthropic.claude-sonnet-5-5' },
+    { name: 'Claude Opus 5.5', value: 'us.anthropic.claude-opus-5-5' },
+    { name: 'Gemini 4 Argon', value: 'gemini-4-argon' },
+    { name: 'Grok 4.7', value: 'grok-4.7' },
+    { name: 'Kimi K2.7 Code', value: 'moonshotai/kimi-k2.7-code' },
+    { name: 'DeepSeek V4 Pro', value: 'deepseek-v4-pro' },
+    { name: 'GLM-5.3', value: 'glm-5.3' }
+];
+const CHAT_DEFAULT_MODEL = 'us.anthropic.claude-haiku-5-5';
+const CODE_DEFAULT_MODEL = 'us.anthropic.claude-sonnet-5-5';
+const ANALYSIS_MODEL = 'us.anthropic.claude-sonnet-5-5';
+const MODEL_LABELS = new Map([...CHAT_MODELS, ...CODE_MODELS].map(m => [m.value, m.name]));
+const WEB_SEARCH_MODELS = new Set(['sonar', 'sonar-pro', 'sonar-reasoning-pro', 'sonar-deep-research']);
+const AI_TIMEOUT_MS = 120000; // 1min.ai generation deadline is two minutes
+
+// Next real <tag> opener (tag name followed by whitespace or ">") at or after `from`
+function findTag(text, tag, from) {
+    const open = `<${tag}`;
+    for (let i = text.indexOf(open, from); i !== -1; i = text.indexOf(open, i + 1)) {
+        if (/[\s>]/.test(text.charAt(i + open.length))) return i;
+    }
+    return -1;
+}
+
+// Index of the ">" ending the tag that starts at `start`, skipping quoted attribute values
+function findTagEnd(text, start) {
+    let quoted = false;
+    for (let i = start; i < text.length; i++) {
+        if (text[i] === '"') quoted = !quoted;
+        else if (text[i] === '>' && !quoted) return i;
+    }
+    return -1;
+}
+
+// CODE_GENERATOR replies use 1min.ai's web UI format: <thinking>...</thinking>
+// blocks and <artifact language="js">code</artifact> blocks. Drop the reasoning and
+// turn artifacts into Discord code blocks. One forward pass with indexOf (no lazy
+// regexes), so hostile output stays linear-time; tags inside an artifact are code.
+// ponytail: a literal </artifact> or ``` inside code ends the block early, like 1min.ai's own UI.
+function formatCodeReply(text) {
+    let out = '';
+    let pos = 0;
+    let thinking = findTag(text, 'thinking', 0);
+    let artifact = findTag(text, 'artifact', 0);
+
+    while (thinking !== -1 || artifact !== -1) {
+        const isThinking = thinking !== -1 && (artifact === -1 || thinking < artifact);
+        const start = isThinking ? thinking : artifact;
+        const closeTag = isThinking ? '</thinking>' : '</artifact>';
+        const openEnd = findTagEnd(text, start);
+        const close = openEnd === -1 ? -1 : text.indexOf(closeTag, openEnd);
+
+        if (close === -1) {
+            // Unclosed reasoning before an artifact: treat it as ending where the code starts
+            if (isThinking && artifact !== -1) {
+                out += text.slice(pos, start);
+                pos = artifact;
+                thinking = -1;
+                continue;
+            }
+            // Unclosed reasoning with nothing before it means the reply was cut off mid-thought
+            if (isThinking && !(out + text.slice(pos, start)).trim()) pos = text.length;
+            break;
+        }
+
+        out += text.slice(pos, start);
+        pos = close + closeTag.length;
+        if (isThinking) {
+            while (/\s/.test(text.charAt(pos))) pos++;
+        } else {
+            const lang = text.slice(start, openEnd).match(/language="([^"]*)"/)?.[1] ?? '';
+            out += '```' + lang + '\n' + text.slice(openEnd + 1, close).replace(/^\n|\n$/g, '') + '\n```';
+        }
+
+        if (thinking !== -1 && thinking < pos) thinking = findTag(text, 'thinking', pos);
+        if (artifact !== -1 && artifact < pos) artifact = findTag(text, 'artifact', pos);
+    }
+    return out + text.slice(pos);
+}
 
 // Store conversation contexts for users
 const userConversations = new Map();
@@ -78,14 +183,9 @@ module.exports = {
                         .setMaxLength(2000))
                 .addStringOption(option =>
                     option.setName('model')
-                        .setDescription('AI model to use (default: Qwen3 VL Flash)')
+                        .setDescription(`AI model to use (default: ${MODEL_LABELS.get(CHAT_DEFAULT_MODEL)})`)
                         .setRequired(false)
-                        .addChoices(
-                            { name: 'Qwen3 VL Flash', value: 'qwen3-vl-flash' },
-                            { name: 'GPT-5.4 Mini', value: 'gpt-5.4-mini' },
-                            { name: 'Sonar Reasoning Pro', value: 'sonar-reasoning-pro' },
-                            { name: 'Grok 4 Fast Reasoning', value: 'grok-4-fast-reasoning' }
-                        ))
+                        .addChoices(...CHAT_MODELS))
                 .addStringOption(option =>
                     option.setName('context')
                         .setDescription('Specialized context for the request')
@@ -121,15 +221,9 @@ module.exports = {
                         ))
                 .addStringOption(option =>
                     option.setName('model')
-                        .setDescription('Code model to use (default: Qwen3 Coder Plus)')
+                        .setDescription(`Code model to use (default: ${MODEL_LABELS.get(CODE_DEFAULT_MODEL)})`)
                         .setRequired(false)
-                        .addChoices(
-                            { name: 'Qwen3 Coder Plus', value: 'qwen3-coder-plus' },
-                            { name: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6' },
-                            { name: 'Gemini 3.1 Pro Preview', value: 'gemini-3.1-pro-preview' },
-                            { name: 'GPT-5.4', value: 'gpt-5.4' },
-                            { name: 'Grok Code Fast 1', value: 'grok-code-fast-1' }
-                        ))
+                        .addChoices(...CODE_MODELS))
                 .addBooleanOption(option =>
                     option.setName('new-context')
                         .setDescription('Start fresh code generation context (default: false)')
@@ -263,12 +357,13 @@ module.exports = {
             console.log(`✅ [CHAT] Successfully processed ${subcommand} request`);
 
         } catch (error) {
-            console.error('Chat error:', { status: error.response?.status, message: error.message });
             await handleChatError(interaction, error, subcommand);
         }
     },
 
-    shutdown() { clearInterval(pruneInterval); }
+    shutdown() { clearInterval(pruneInterval); },
+
+    formatCodeReply
 };
 
 /**
@@ -280,7 +375,7 @@ module.exports = {
  */
 async function handleChatRequest(interaction, userId, apiKey) {
     const message = interaction.options.getString('message');
-    const model = interaction.options.getString('model') || 'qwen3-vl-flash';
+    const model = interaction.options.getString('model') || CHAT_DEFAULT_MODEL;
     const context = interaction.options.getString('context') || 'general';
 
     // Sanitize message using chat-friendly sanitizer (preserves brackets/parens)
@@ -314,7 +409,7 @@ async function handleChatRequest(interaction, userId, apiKey) {
 async function handleCodeRequest(interaction, userId, apiKey) {
     const request = interaction.options.getString('request');
     const language = interaction.options.getString('language') || 'python';
-    const model = interaction.options.getString('model') || 'qwen3-coder-plus';
+    const model = interaction.options.getString('model') || CODE_DEFAULT_MODEL;
     const newContext = interaction.options.getBoolean('new-context') ?? false;
 
     // Get or create code conversation
@@ -346,7 +441,7 @@ async function handleAnalysisRequest(interaction, userId, apiKey) {
     const data = interaction.options.getString('data');
     const analysisType = interaction.options.getString('analysis-type') || 'summary';
 
-    const model = 'claude-sonnet-4-20250514'; // Use Claude for analysis tasks
+    const model = ANALYSIS_MODEL;
 
     // Get or create analysis conversation
     const conversations = userConversations.get(userId);
@@ -526,7 +621,15 @@ async function sendAIRequest(type, model, conversationId, prompt, apiKey) {
                     historySettings: {
                         isMixed: false,
                         historyMessageLimit: 10
-                    }
+                    },
+                    // Perplexity Sonar models answer from live web results
+                    ...(WEB_SEARCH_MODELS.has(model) && {
+                        webSearchSettings: {
+                            webSearch: true,
+                            numOfSite: model === 'sonar-deep-research' ? 10 : 5,
+                            maxWord: 1000
+                        }
+                    })
                 }
             }
         }
@@ -549,7 +652,7 @@ async function sendAIRequest(type, model, conversationId, prompt, apiKey) {
                 'API-KEY': apiKey,
                 'Content-Type': 'application/json'
             },
-            timeout: 60000, // 60 second timeout for AI processing
+            timeout: AI_TIMEOUT_MS,
             maxContentLength: 10 * 1024 * 1024,
             maxBodyLength: 10 * 1024 * 1024
         }
@@ -727,31 +830,28 @@ Format your response for an OSINT investigation context.`;
  * @returns {Object} Formatted Discord response
  */
 function formatAIResponse(aiResponse, model, responseType, isCode = false) {
-    // Extract response content
-    let content;
+    // resultObject is a list of strings (chat, code and speech-to-text alike)
+    const resultObject = aiResponse?.aiRecord?.aiRecordDetail?.resultObject ??
+        aiResponse?.result?.response;
 
-    if (aiResponse.aiRecord?.aiRecordDetail?.resultObject) {
-        const resultObject = aiResponse.aiRecord.aiRecordDetail.resultObject;
-
-        if (Array.isArray(resultObject)) {
-            content = resultObject.join('\n');
-        } else if (typeof resultObject === 'object') {
-            content = JSON.stringify(resultObject, null, 2);
-        } else {
-            content = resultObject.toString();
-        }
-    } else if (aiResponse.result?.response) {
-        content = aiResponse.result.response;
-    } else {
-        content = JSON.stringify(aiResponse, null, 2);
+    // 1min.ai can report errors (e.g. INSUFFICIENT_CREDITS) with a 2xx status,
+    // either as the whole body or as an object in place of resultObject
+    if (resultObject == null || (typeof resultObject === 'object' && !Array.isArray(resultObject))) {
+        const noResult = new Error('AI API response has no result');
+        noResult.apiCode = resultObject?.code ?? aiResponse?.code ?? aiResponse?.errorCode;
+        throw noResult;
     }
+
+    let content = Array.isArray(resultObject) ? resultObject.join('\n') : String(resultObject);
+    if (isCode) content = formatCodeReply(content);
+    if (!content.trim()) throw new Error('AI API response is empty');
 
     // Neutralize Discord mentions in LLM content before embedding in response
     content = neutralizeMentions(content);
 
     // Create response object
     const response = {
-        content: `🤖 **${responseType} from ${model}**\n\n`
+        content: `🤖 **${responseType} from ${MODEL_LABELS.get(model) ?? model}**\n\n`
     };
 
     // Handle long responses
@@ -763,11 +863,14 @@ function formatAIResponse(aiResponse, model, responseType, isCode = false) {
         // Create attachment for long responses
         const attachment = new AttachmentBuilder(
             Buffer.from(content, 'utf8'),
-            { name: `ai_response_${responseType.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.${isCode ? 'py' : 'txt'}` }
+            { name: `ai_response_${responseType.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.${isCode ? 'md' : 'txt'}` }
         );
 
         response.content += `*Response too long for Discord message. See attached file.*\n\n`;
-        response.content += `**Preview:**\n${content.substring(0, 500)}...`;
+        const preview = content.substring(0, 500);
+        // Close a code fence the cut left open, or Discord renders the code as markdown
+        const openFence = (preview.match(/```/g) ?? []).length % 2 ? '\n```' : '';
+        response.content += `**Preview:**\n${preview}...${openFence}`;
         response.files = [attachment];
     }
 
@@ -781,9 +884,15 @@ function formatAIResponse(aiResponse, model, responseType, isCode = false) {
  * @param {string} subcommand - Subcommand that failed
  */
 async function handleChatError(interaction, error, subcommand) {
+    const apiCode = error.apiCode ?? error.response?.data?.errorCode ?? error.response?.data?.code;
+    console.error('Chat error:', { status: error.response?.status, apiCode, message: error.message });
+
     let errorMessage = `❌ **AI ${subcommand.charAt(0).toUpperCase() + subcommand.slice(1)} Failed**\n\n`;
 
-    if (error.response) {
+    if (apiCode === 'INSUFFICIENT_CREDITS') {
+        errorMessage += '**💳 Out of Credits**\n';
+        errorMessage += 'The AI service is out of credits. Please contact the administrator.';
+    } else if (error.response) {
         const status = error.response.status;
 
         switch (status) {

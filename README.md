@@ -94,8 +94,10 @@ General AI assistance with optional context presets.
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `message` | **Yes** | Your question or request (max 2000 chars) |
-| `model`   | No       | `qwen3-vl-flash` (default), `gpt-5.4-mini`, `sonar-reasoning-pro`, `grok-4-fast-reasoning` |
+| `model`   | No       | Claude Haiku 5.5 (default), Sonnet 5.5, Opus 5.5, Fable 5.1; GPT-6 Luna / 6.1 Sol / 6 Astra; Gemini 3.8 Flash / 4 Argon; Grok 4.7; DeepSeek V4.1 Flash / V4 Pro; Qwen3.8 Max; Kimi K3; GLM-5.3; Mistral Medium 3.5; Muse Wonder; Sonar / Sonar Pro / Sonar Reasoning Pro / Sonar Deep Research |
 | `context` | No       | `general` (default), `osint`, `data`, `investigation`, `technical`, `report` |
+
+Sonar models answer with live web search (5 sites, 10 for Deep Research).
 
 **Example**
 ```
@@ -112,19 +114,21 @@ Generate code for OSINT automation and data analysis.
 |--------------|----------|-------------|
 | `request`    | **Yes**  | Describe the code you need (max 2000 chars) |
 | `language`   | No       | `python` (default), `javascript`, `bash`, `powershell`, `sql`, `other` |
-| `model`      | No       | `qwen3-coder-plus` (default), `claude-sonnet-4-6`, `gemini-3.1-pro-preview`, `gpt-5.4`, `grok-code-fast-1` |
+| `model`      | No       | Claude Sonnet 5.5 (default), Claude Opus 5.5, Gemini 4 Argon, Grok 4.7, Kimi K2.7 Code, DeepSeek V4 Pro, GLM-5.3 |
 | `new-context`| No       | Start a fresh code conversation (`false` by default) |
+
+Code is returned as Discord code blocks; the model's reasoning is stripped.
 
 **Example**
 ```
-/bob-chat code request:"Script that fetches subdomains from crt.sh" language:python model:qwen3-coder-plus
+/bob-chat code request:"Script that fetches subdomains from crt.sh" language:python
 ```
 
 ---
 
 #### `analyze`
 
-Structured OSINT analysis of findings or raw data.
+Structured OSINT analysis of findings or raw data (Claude Sonnet 5.5).
 
 | Parameter       | Required | Description |
 |-----------------|----------|-------------|
