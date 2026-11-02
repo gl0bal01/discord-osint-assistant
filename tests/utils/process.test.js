@@ -81,6 +81,10 @@ describe('safeSpawnToFile', () => {
         expect(content.trim()).toBe('written');
     });
 
+    it('rejects instead of crashing when the output file cannot be written', async () => {
+        await expect(safeSpawnToFile('echo', ['x'], '/nonexistent-dir/out.txt')).rejects.toThrow(/ENOENT/);
+    });
+
     it('rejects when output exceeds maxFileSize', async () => {
         const out = mkTmp();
         cleanups.push(out);

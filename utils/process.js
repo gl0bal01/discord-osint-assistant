@@ -151,12 +151,22 @@ function safeSpawnToFile(command, args = [], outputFilePath, options = {}) {
             reject(new Error(`Process timed out after ${timeout / 1000} seconds`));
         }, timeout);
 
+        // A write failure (e.g. full tmpfs) must reject, not crash the process
+        outStream.on('error', (error) => {
+            clearTimeout(timeoutId);
+            killed = true;
+            proc.kill('SIGTERM');
+            reject(error);
+        });
+
         proc.on('close', (code) => {
             clearTimeout(timeoutId);
-            outStream.end();
-            if (!killed) {
-                resolve({ stderr, code: code ?? 0 });
-            }
+            // Resolve only once the file is flushed, or callers can read it empty/truncated
+            outStream.end((error) => {
+                if (killed) return;
+                if (error) reject(error);
+                else resolve({ stderr, code: code ?? 0 });
+            });
         });
 
         proc.on('error', (error) => {
