@@ -148,6 +148,7 @@ describe('bob-ghunt searches', () => {
         expect(i.sentFiles[0].name).toMatch(/^email_john@gmail\.com_\d+\.json$/);
         expect(JSON.parse(i.sentFiles[0].body)).toEqual({ personId: '1234567890' });
         expect(i.sentFiles[1].name).toMatch(/^GHunt_Report_email_\d+\.html$/);
+        expect(embedOf(i).description).toBe('Results for `john@gmail.com`');
         expect(i.sentFiles[1].body).toContain('GHunt OSINT Report');
     });
 

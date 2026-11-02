@@ -39,6 +39,18 @@ describe('bob-ghunt login', () => {
         expect(fs.existsSync(credsPath)).toBe(false);
     });
 
+    it('answers a bad token with a fixed message, never the exception text', async () => {
+        const interaction = {
+            options: { getString: (k) => ({ type: 'login', token: '%%%' })[k] ?? null, getBoolean: () => null },
+            memberPermissions: { has: (p) => p === PermissionFlagsBits.Administrator },
+            reply: vi.fn(), deferReply: vi.fn(), editReply: vi.fn()
+        };
+        await ghunt.execute(interaction);
+        const content = interaction.editReply.mock.calls[0][0].content;
+        expect(content).toContain('not valid base64');
+        expect(content).not.toContain('Invalid base64 token');
+    });
+
     it('lets administrators save credentials, owner-only', async () => {
         await ghunt.execute(loginAs(PermissionFlagsBits.Administrator));
         expect(fs.readFileSync(credsPath, 'utf8')).toBe(token);

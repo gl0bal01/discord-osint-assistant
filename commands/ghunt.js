@@ -467,7 +467,7 @@ module.exports = {
                 const domain = query.slice(at + 1);
                 const q = urlPart(query);
                 embed.setTitle('Email Lookup Results')
-                    .setDescription(`Results for ${query}`);
+                    .setDescription(`Results for \`${query.replace(/`/g, '')}\``);
                 if (domain.toLowerCase() === 'gmail.com') {
                     embed.addFields({ name: 'Gmail OSINT Tool', value: `[View Results](https://gmail-osint.activetk.jp/${urlPart(uname)})` });
                 }
@@ -498,7 +498,7 @@ module.exports = {
                 outputFilePath = path.join(resultsDir, `drive_${driveFileId}_${timestamp}.json`);
                 ghuntArgs = ['drive', sanitizedQuery, '--json', outputFilePath];
                 embed.setTitle('Google Drive Analysis')
-                    .setDescription(`Results for Drive URL: ${query}`);
+                    .setDescription(`Results for Drive URL: \`${query.replace(/`/g, '')}\``);
                 embed.addFields(
                     { name: 'Google Maps Reviews', value: 'Use with Gaia ID when available' },
                     { name: 'Google Calendar ICS', value: 'Use with email when available' }
