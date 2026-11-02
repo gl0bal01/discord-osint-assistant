@@ -34,6 +34,7 @@ jobs:
       - run: npm install --package-lock-only
       - run: npm audit --audit-level=moderate
 
+  # Mirrored by scripts/ci-local.sh (bun run ci): keep both in step.
   docker:
     runs-on: ubuntu-latest
     needs: [test]
@@ -41,15 +42,37 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build Docker image
         run: docker build -t discord-osint-assistant .
-      - name: Scan Docker image (informational)
+      - name: Scan Docker image (blocking)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PKG_TYPES: library
         with:
+          version: v0.76.1
           image-ref: discord-osint-assistant
           severity: CRITICAL,HIGH
-          exit-code: 0
-          vuln-type: library
+          exit-code: 1
           ignore-unfixed: true
       - name: Scan project dependencies (blocking)
         run: |
           npm install --package-lock-only
           npm audit --omit=dev --audit-level=high
+
+  docker-full:
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build full image
+        run: docker build --target full -t discord-osint-assistant:full .
+      - name: Every tool present
+        run: docker run --rm -e DISCORD_TOKEN=ci -e CLIENT_ID=0 --entrypoint bun discord-osint-assistant:full scripts/check-tools.js
+      - name: Scan full image (report only; third-party tools)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PKG_TYPES: library
+        with:
+          version: v0.76.1
+          image-ref: discord-osint-assistant:full
+          severity: CRITICAL,HIGH
+          exit-code: 0
+          ignore-unfixed: true

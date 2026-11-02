@@ -19,7 +19,10 @@
     "test:watch": "vitest",
     "smoke": "node scripts/smoke-test.js",
     "lint": "eslint .",
-    "clean": "rm -rf temp/* || rmdir /s /q temp 2>nul || true"
+    "ci": "bash scripts/ci-local.sh",
+    "ci:fast": "bash scripts/ci-local.sh --fast",
+    "clean": "rm -rf temp/* || rmdir /s /q temp 2>nul || true",
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "keywords": [
     "discord",

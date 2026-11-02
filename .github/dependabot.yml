@@ -29,6 +29,15 @@ updates:
       - "dependencies"
       - "ci"
 
+  - package-ecosystem: "pip"
+    directory: "/docker/osint"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "docker"
+
   - package-ecosystem: "docker"
     directory: "/"
     schedule:

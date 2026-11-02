@@ -7,7 +7,7 @@
 # seconds; `docker compose build --pull --no-cache` refreshes the tools and base image.
 
 # Production dependencies + app code
-FROM oven/bun:1-slim AS app
+FROM oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4 AS app
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --production --frozen-lockfile
@@ -18,7 +18,7 @@ COPY scripts/ ./scripts/
 COPY addons/ ./addons/
 
 # Runtime shared by both images
-FROM oven/bun:1-slim AS runtime
+FROM oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4 AS runtime
 WORKDIR /app
 
 # Non-root user (uid 999, matches the compose tmpfs mounts). The app code copied
@@ -32,19 +32,25 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 
 CMD ["bun", "run", "start"]
 
-# Every external OSINT tool the CLI-backed commands need
+# Every external OSINT tool the CLI-backed commands need, pinned. Python tools:
+# docker/osint/requirements.txt (Dependabot). The ARGs below are bumped by hand.
 FROM runtime AS tools
 ARG NUCLEI_VERSION=3.11.1
+ARG NUCLEI_TEMPLATES_VERSION=v10.5.1
+ARG JWT_TOOL_COMMIT=3bc7407cf2222d6a821dcc19c776e5a1b1cb9a9b
 ARG TARGETARCH
+COPY docker/osint/requirements.txt /opt/osint-requirements.txt
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         python3 python3-venv libimage-exiftool-perl ca-certificates git curl unzip \
     # Python tools in one venv, exposed on PATH
     && python3 -m venv /opt/osint \
-    && /opt/osint/bin/pip install --no-cache-dir sherlock-project maigret ghunt xeuledoc linkook \
+    && /opt/osint/bin/pip install --no-cache-dir -r /opt/osint-requirements.txt \
     && for t in sherlock maigret ghunt xeuledoc linkook; do ln -s /opt/osint/bin/$t /usr/local/bin/$t; done \
     # jwt_tool at the default JWT_TOOL_PATH, with its own venv
-    && git clone --depth 1 https://github.com/ticarpi/jwt_tool /opt/tools/jwt_tool \
+    && git init -q /opt/tools/jwt_tool \
+    && git -C /opt/tools/jwt_tool fetch -q --depth 1 https://github.com/ticarpi/jwt_tool "${JWT_TOOL_COMMIT}" \
+    && git -C /opt/tools/jwt_tool checkout -q FETCH_HEAD \
     && python3 -m venv /opt/tools/jwt_tool/venv \
     && /opt/tools/jwt_tool/venv/bin/pip install --no-cache-dir -r /opt/tools/jwt_tool/requirements.txt \
     # Nuclei binary + templates at the default NUCLEI_TEMPLATE_PATH root
@@ -54,7 +60,7 @@ RUN apt-get update \
     && sha256sum -c --ignore-missing "nuclei_${NUCLEI_VERSION}_checksums.txt" \
     && unzip -q "nuclei_${NUCLEI_VERSION}_linux_${TARGETARCH:-amd64}.zip" nuclei -d /usr/local/bin \
     && rm -f /tmp/nuclei_* && cd / \
-    && git clone --depth 1 https://github.com/projectdiscovery/nuclei-templates /opt/nuclei-templates \
+    && git clone -q --depth 1 --branch "${NUCLEI_TEMPLATES_VERSION}" https://github.com/projectdiscovery/nuclei-templates /opt/nuclei-templates \
     && rm -rf /opt/nuclei-templates/.git /opt/tools/jwt_tool/.git \
     && apt-get purge -y git curl unzip && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 

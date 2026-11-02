@@ -1,0 +1,4 @@
+#!/bin/sh
+# Run the local CI mirror first; CI must be green locally before code leaves the machine.
+# Logs land in a temp dir printed at the end. Emergency bypass: --no-verify
+exec bun run ci

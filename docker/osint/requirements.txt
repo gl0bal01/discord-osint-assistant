@@ -1,0 +1,7 @@
+# Python OSINT tools for the full image, pinned so builds are reproducible.
+# Dependabot (pip, /docker/osint) proposes upgrades. Transitive deps float.
+sherlock-project==0.16.2
+maigret==0.6.6
+ghunt==2.3.4
+xeuledoc==2.1
+linkook==1.1.3

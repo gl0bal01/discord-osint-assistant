@@ -18,3 +18,5 @@ SECURITY.md
 REPOSITORY_SUMMARY.md
 CITATION.cff
 zenodo.json
+reports/
+.omc/
