@@ -44,20 +44,48 @@ const NETWORKS = [
 const EVM_CHAIN_CHOICES = ethtrace.EVM_CHAINS.map(c => ({ name: `${c.name} (chainid ${c.id})`, value: String(c.id) }));
 
 // Per-chain testnet configuration. Chains absent here reject network:testnet.
-// EVM testnets share the mainnet Etherscan-family API shape (host swap only, same
-// JSON). BTC and the alt-coins route through Blockchair's {chain}/testnet
+// EVM chains (mainnet and testnet) go through Etherscan API V2: one endpoint and
+// one ETHERSCAN_API_KEY, the chain picked by `chainid` (the V1 hosts are shut down). BTC and the alt-coins route through Blockchair's {chain}/testnet
 // dashboards, which return the same JSON shape the mainnet Blockchair branches
 // already parse — so testnet extraction reuses that logic.
 const TESTNETS = {
-    eth:   { label: 'Sepolia',              provider: 'etherscan',  api: 'https://api-sepolia.etherscan.io/api',  keyEnv: 'ETHERSCAN_API_KEY',   explorer: 'https://sepolia.etherscan.io/' },
-    bsc:   { label: 'BSC Testnet',          provider: 'etherscan',  api: 'https://api-testnet.bscscan.com/api',   keyEnv: 'BSCSCAN_API_KEY',     explorer: 'https://testnet.bscscan.com/' },
-    matic: { label: 'Amoy',                 provider: 'etherscan',  api: 'https://api-amoy.polygonscan.com/api',  keyEnv: 'POLYGONSCAN_API_KEY', explorer: 'https://amoy.polygonscan.com/' },
+    eth:   { label: 'Sepolia',              provider: 'etherscan',  chainId: 11155111, explorer: 'https://sepolia.etherscan.io/' },
+    bsc:   { label: 'BSC Testnet',          provider: 'etherscan',  chainId: 97,       explorer: 'https://testnet.bscscan.com/' },
+    matic: { label: 'Amoy',                 provider: 'etherscan',  chainId: 80002,    explorer: 'https://amoy.polygonscan.com/' },
     btc:   { label: 'Bitcoin Testnet',      provider: 'blockchair', chair: 'bitcoin/testnet',      explorer: 'https://blockchair.com/bitcoin/testnet/' },
     ltc:   { label: 'Litecoin Testnet',     provider: 'blockchair', chair: 'litecoin/testnet',     explorer: 'https://blockchair.com/litecoin/testnet/' },
     bch:   { label: 'Bitcoin Cash Testnet', provider: 'blockchair', chair: 'bitcoin-cash/testnet', explorer: 'https://blockchair.com/bitcoin-cash/testnet/' },
     dash:  { label: 'Dash Testnet',         provider: 'blockchair', chair: 'dash/testnet',         explorer: 'https://blockchair.com/dash/testnet/' },
     doge:  { label: 'Dogecoin Testnet',     provider: 'blockchair', chair: 'dogecoin/testnet',     explorer: 'https://blockchair.com/dogecoin/testnet/' }
 };
+
+const ETHERSCAN_V2 = 'https://api.etherscan.io/v2/api';
+const EVM_CHAIN_IDS = { eth: 1, bsc: 56, matic: 137 };
+
+// userMessage is ours, safe to show; upstream error text never is.
+const explorerError = (userMessage) => Object.assign(new Error(userMessage), { userMessage });
+
+async function etherscan(chainId, params, safeConfig) {
+    if (!process.env.ETHERSCAN_API_KEY) {
+        throw explorerError('EVM lookups need ETHERSCAN_API_KEY (one Etherscan API V2 key covers every chain). Contact the administrator.');
+    }
+    const response = await axios.get(ETHERSCAN_V2, {
+        params: { chainid: String(chainId), ...params, apikey: process.env.ETHERSCAN_API_KEY },
+        ...safeConfig
+    });
+    // Errors (bad key, rate limit, unsupported chain) arrive as HTTP 200 with status "0"
+    if (response.data?.status === '0' && !/no transactions found/i.test(response.data?.message ?? '')) {
+        if (/not supported for this chain/i.test(String(response.data.result))) {
+            throw explorerError('This chain needs a paid Etherscan API plan (free keys cover Ethereum, Polygon and their testnets).');
+        }
+        throw explorerError('The block explorer rejected the request (rate limit or API key). Please try again later.');
+    }
+    return response.data;
+}
+
+const evmBlockParams = (block, isHeight) => (isHeight
+    ? { module: 'proxy', action: 'eth_getBlockByNumber', tag: `0x${parseInt(block).toString(16)}`, boolean: 'true' }
+    : { module: 'proxy', action: 'eth_getBlockByHash', hash: block, boolean: 'true' });
 
 /**
  * Build a testnet block-explorer URL for a given chain and resource kind.
@@ -241,7 +269,7 @@ module.exports = {
 
         } catch (error) {
             logger.error({ err: error }, 'blockchain command failed');
-            await interaction.editReply('An error occurred while processing your request. Please try again later.');
+            await interaction.editReply(error.userMessage ?? 'An error occurred while processing your request. Please try again later.');
         }
     },
 };
@@ -324,7 +352,7 @@ async function handleAddressLookup(interaction, blockchain, blockchainInfo, full
 
     } catch (error) {
         logger.error({ err: error, chain: blockchainInfo.name }, 'address fetch failed');
-        await interaction.editReply('An error occurred while processing your request. Please try again later.');
+        await interaction.editReply(error.userMessage ?? 'An error occurred while processing your request. Please try again later.');
     }
 }
 
@@ -338,7 +366,8 @@ async function handleAddressLookup(interaction, blockchain, blockchainInfo, full
  * @param {string} requestId - Unique request ID
  */
 async function handleTransactionLookup(interaction, blockchain, blockchainInfo, fullData, tempDir, requestId, network = 'mainnet') {
-    const txid = interaction.options.getString('txid');
+    // Explorers show EVM hashes as 0x…; the providers take the bare 64-hex form
+    const txid = (interaction.options.getString('txid') ?? '').trim().replace(/^0x/i, '');
     const netLabel = network === 'testnet' ? ` (${TESTNETS[blockchain].label})` : '';
 
     // Basic transaction ID validation
@@ -416,7 +445,7 @@ async function handleTransactionLookup(interaction, blockchain, blockchainInfo, 
 
     } catch (error) {
         logger.error({ err: error, chain: blockchainInfo.name }, 'transaction fetch failed');
-        await interaction.editReply('An error occurred while processing your request. Please try again later.');
+        await interaction.editReply(error.userMessage ?? 'An error occurred while processing your request. Please try again later.');
     }
 }
 
@@ -507,7 +536,7 @@ async function handleBlockLookup(interaction, blockchain, blockchainInfo, fullDa
 
     } catch (error) {
         logger.error({ err: error, chain: blockchainInfo.name }, 'block fetch failed');
-        await interaction.editReply('An error occurred while processing your request. Please try again later.');
+        await interaction.editReply(error.userMessage ?? 'An error occurred while processing your request. Please try again later.');
     }
 }
 
@@ -767,19 +796,10 @@ async function fetchAddressData(blockchain, address, network = 'mainnet') {
             const response = await axios.get(`https://blockchain.info/rawaddr/${address}`, safeConfig);
             return response.data;
         }
-        case 'eth': {
-            const response = await axios.get('https://api.etherscan.io/api', {
-                params: {
-                    module: 'account',
-                    action: 'balance',
-                    address,
-                    tag: 'latest',
-                    apikey: process.env.ETHERSCAN_API_KEY || ''
-                },
-                ...safeConfig
-            });
-            return response.data;
-        }
+        case 'eth':
+        case 'bsc':
+        case 'matic':
+            return etherscan(EVM_CHAIN_IDS[blockchain], { module: 'account', action: 'balance', address, tag: 'latest' }, safeConfig);
         case 'ltc':
         case 'bch':
         case 'dash': {
@@ -794,32 +814,6 @@ async function fetchAddressData(blockchain, address, network = 'mainnet') {
                 `https://dogechain.info/api/v1/address/balance/${address}`,
                 safeConfig
             );
-            return response.data;
-        }
-        case 'bsc': {
-            const response = await axios.get('https://api.bscscan.com/api', {
-                params: {
-                    module: 'account',
-                    action: 'balance',
-                    address,
-                    tag: 'latest',
-                    apikey: process.env.BSCSCAN_API_KEY || ''
-                },
-                ...safeConfig
-            });
-            return response.data;
-        }
-        case 'matic': {
-            const response = await axios.get('https://api.polygonscan.com/api', {
-                params: {
-                    module: 'account',
-                    action: 'balance',
-                    address,
-                    tag: 'latest',
-                    apikey: process.env.POLYGONSCAN_API_KEY || ''
-                },
-                ...safeConfig
-            });
             return response.data;
         }
         case 'zec': {
@@ -857,18 +851,10 @@ async function fetchTransactionData(blockchain, txid, network = 'mainnet') {
             const response = await axios.get(`https://blockchain.info/rawtx/${txid}`, safeConfig);
             return response.data;
         }
-        case 'eth': {
-            const response = await axios.get('https://api.etherscan.io/api', {
-                params: {
-                    module: 'proxy',
-                    action: 'eth_getTransactionByHash',
-                    txhash: txid,
-                    apikey: process.env.ETHERSCAN_API_KEY || ''
-                },
-                ...safeConfig
-            });
-            return response.data;
-        }
+        case 'eth':
+        case 'bsc':
+        case 'matic':
+            return etherscan(EVM_CHAIN_IDS[blockchain], { module: 'proxy', action: 'eth_getTransactionByHash', txhash: txid }, safeConfig);
         case 'ltc':
         case 'bch':
         case 'dash':
@@ -878,30 +864,6 @@ async function fetchTransactionData(blockchain, txid, network = 'mainnet') {
                 `https://api.blockchair.com/${chain}/dashboards/transaction/${txid}`,
                 safeConfig
             );
-            return response.data;
-        }
-        case 'bsc': {
-            const response = await axios.get('https://api.bscscan.com/api', {
-                params: {
-                    module: 'proxy',
-                    action: 'eth_getTransactionByHash',
-                    txhash: txid,
-                    apikey: process.env.BSCSCAN_API_KEY || ''
-                },
-                ...safeConfig
-            });
-            return response.data;
-        }
-        case 'matic': {
-            const response = await axios.get('https://api.polygonscan.com/api', {
-                params: {
-                    module: 'proxy',
-                    action: 'eth_getTransactionByHash',
-                    txhash: txid,
-                    apikey: process.env.POLYGONSCAN_API_KEY || ''
-                },
-                ...safeConfig
-            });
             return response.data;
         }
         case 'zec': {
@@ -943,13 +905,10 @@ async function fetchBlockData(blockchain, block, isHeight, network = 'mainnet') 
             const response = await axios.get(url, safeConfig);
             return response.data;
         }
-        case 'eth': {
-            const params = isHeight
-                ? { module: 'proxy', action: 'eth_getBlockByNumber', tag: `0x${parseInt(block).toString(16)}`, boolean: 'true', apikey: process.env.ETHERSCAN_API_KEY || '' }
-                : { module: 'proxy', action: 'eth_getBlockByHash', hash: block, boolean: 'true', apikey: process.env.ETHERSCAN_API_KEY || '' };
-            const response = await axios.get('https://api.etherscan.io/api', { params, ...safeConfig });
-            return response.data;
-        }
+        case 'eth':
+        case 'bsc':
+        case 'matic':
+            return etherscan(EVM_CHAIN_IDS[blockchain], evmBlockParams(block, isHeight), safeConfig);
         case 'ltc':
         case 'bch':
         case 'dash':
@@ -959,20 +918,6 @@ async function fetchBlockData(blockchain, block, isHeight, network = 'mainnet') 
                 `https://api.blockchair.com/${getBlockchairChain(blockchain)}/dashboards/block/${blockParam}`,
                 safeConfig
             );
-            return response.data;
-        }
-        case 'bsc': {
-            const params = isHeight
-                ? { module: 'proxy', action: 'eth_getBlockByNumber', tag: `0x${parseInt(block).toString(16)}`, boolean: 'true', apikey: process.env.BSCSCAN_API_KEY || '' }
-                : { module: 'proxy', action: 'eth_getBlockByHash', hash: block, boolean: 'true', apikey: process.env.BSCSCAN_API_KEY || '' };
-            const response = await axios.get('https://api.bscscan.com/api', { params, ...safeConfig });
-            return response.data;
-        }
-        case 'matic': {
-            const params = isHeight
-                ? { module: 'proxy', action: 'eth_getBlockByNumber', tag: `0x${parseInt(block).toString(16)}`, boolean: 'true', apikey: process.env.POLYGONSCAN_API_KEY || '' }
-                : { module: 'proxy', action: 'eth_getBlockByHash', hash: block, boolean: 'true', apikey: process.env.POLYGONSCAN_API_KEY || '' };
-            const response = await axios.get('https://api.polygonscan.com/api', { params, ...safeConfig });
             return response.data;
         }
         case 'zec': {
@@ -1017,11 +962,7 @@ async function fetchTestnetAddressData(blockchain, address, safeConfig) {
     if (!cfg) throw new Error(`Testnet not supported for ${blockchain}`);
 
     if (cfg.provider === 'etherscan') {
-        const response = await axios.get(cfg.api, {
-            params: { module: 'account', action: 'balance', address, tag: 'latest', apikey: process.env[cfg.keyEnv] || '' },
-            ...safeConfig
-        });
-        return response.data;
+        return etherscan(cfg.chainId, { module: 'account', action: 'balance', address, tag: 'latest' }, safeConfig);
     }
 
     const response = await axios.get(
@@ -1043,11 +984,7 @@ async function fetchTestnetTransactionData(blockchain, txid, safeConfig) {
     if (!cfg) throw new Error(`Testnet not supported for ${blockchain}`);
 
     if (cfg.provider === 'etherscan') {
-        const response = await axios.get(cfg.api, {
-            params: { module: 'proxy', action: 'eth_getTransactionByHash', txhash: txid, apikey: process.env[cfg.keyEnv] || '' },
-            ...safeConfig
-        });
-        return response.data;
+        return etherscan(cfg.chainId, { module: 'proxy', action: 'eth_getTransactionByHash', txhash: txid }, safeConfig);
     }
 
     const response = await axios.get(
@@ -1070,11 +1007,7 @@ async function fetchTestnetBlockData(blockchain, block, isHeight, safeConfig) {
     if (!cfg) throw new Error(`Testnet not supported for ${blockchain}`);
 
     if (cfg.provider === 'etherscan') {
-        const params = isHeight
-            ? { module: 'proxy', action: 'eth_getBlockByNumber', tag: `0x${parseInt(block).toString(16)}`, boolean: 'true', apikey: process.env[cfg.keyEnv] || '' }
-            : { module: 'proxy', action: 'eth_getBlockByHash', hash: block, boolean: 'true', apikey: process.env[cfg.keyEnv] || '' };
-        const response = await axios.get(cfg.api, { params, ...safeConfig });
-        return response.data;
+        return etherscan(cfg.chainId, evmBlockParams(block, isHeight), safeConfig);
     }
 
     const blockParam = isHeight ? `height/${encodeURIComponent(block)}` : `hash/${encodeURIComponent(block)}`;

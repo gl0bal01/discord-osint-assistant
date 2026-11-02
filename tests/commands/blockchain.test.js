@@ -162,9 +162,27 @@ describe('bob-blockchain address lookups', () => {
         const i = await run('address', { blockchain: 'eth', address: ETH_ADDR });
 
         const [url, config] = getSpy.mock.calls[0];
-        expect(url).toBe('https://api.etherscan.io/api');
-        expect(config.params).toMatchObject({ module: 'account', action: 'balance', address: ETH_ADDR, apikey: 'k-eth' });
+        expect(url).toBe('https://api.etherscan.io/v2/api');
+        expect(config.params).toMatchObject({ chainid: '1', module: 'account', action: 'balance', address: ETH_ADDR, apikey: 'k-eth' });
         expect(field(i, 'Balance')).toBe('1.50000000 ETH');
+    });
+
+    it('explains when a chain needs a paid Etherscan plan, and when no key is set', async () => {
+        getSpy.mockResolvedValue({ data: { status: '0', message: 'NOTOK', result: 'Free API access is not supported for this chain. Please upgrade' } });
+        let i = await run('address', { blockchain: 'bsc', address: ETH_ADDR });
+        expect(last(i)).toMatch(/paid Etherscan API plan/);
+        expect(last(i)).not.toMatch(/upgrade/i);
+
+        const key = process.env.ETHERSCAN_API_KEY;
+        delete process.env.ETHERSCAN_API_KEY;
+        try {
+            getSpy.mockClear();
+            i = await run('address', { blockchain: 'eth', address: ETH_ADDR });
+            expect(last(i)).toMatch(/ETHERSCAN_API_KEY/);
+            expect(getSpy).not.toHaveBeenCalled();
+        } finally {
+            process.env.ETHERSCAN_API_KEY = key;
+        }
     });
 
     it('does not present an Etherscan rate-limit error as an empty wallet', async () => {
@@ -174,12 +192,13 @@ describe('bob-blockchain address lookups', () => {
     });
 
     it.each([
-        ['bsc', 'https://api.bscscan.com/api', 'BNB', 'BscScan.com'],
-        ['matic', 'https://api.polygonscan.com/api', 'MATIC', 'PolygonScan.com']
-    ])('queries the %s explorer API', async (blockchain, api, symbol, source) => {
+        ['bsc', '56', 'BNB', 'BscScan.com'],
+        ['matic', '137', 'MATIC', 'PolygonScan.com']
+    ])('queries %s through Etherscan API V2 (chainid %s)', async (blockchain, chainid, symbol, source) => {
         getSpy.mockResolvedValue({ data: { status: '1', result: '2000000000000000000' } });
         const i = await run('address', { blockchain, address: ETH_ADDR });
-        expect(getSpy.mock.calls[0][0]).toBe(api);
+        expect(getSpy.mock.calls[0][0]).toBe('https://api.etherscan.io/v2/api');
+        expect(getSpy.mock.calls[0][1].params).toMatchObject({ chainid, apikey: 'k-eth' });
         expect(field(i, 'Balance')).toBe(`2.00000000 ${symbol}`);
         expect(edata(i).footer.text).toContain(source);
     });
@@ -229,7 +248,8 @@ describe('bob-blockchain address lookups', () => {
     it('queries Sepolia for an Ethereum testnet address', async () => {
         getSpy.mockResolvedValue({ data: { status: '1', result: '1000000000000000000' } });
         const i = await run('address', { blockchain: 'eth', address: ETH_ADDR, network: 'testnet' });
-        expect(getSpy.mock.calls[0][0]).toBe('https://api-sepolia.etherscan.io/api');
+        expect(getSpy.mock.calls[0][0]).toBe('https://api.etherscan.io/v2/api');
+        expect(getSpy.mock.calls[0][1].params.chainid).toBe('11155111');
         expect(edata(i).title).toBe('Ethereum (Sepolia) Address Information');
         expect(edata(i).url).toBe(`https://sepolia.etherscan.io/address/${ETH_ADDR}`);
     });
@@ -286,12 +306,18 @@ describe('bob-blockchain transaction lookups', () => {
         const i = await run('transaction', { blockchain: 'eth', txid: TXID });
 
         const [url, config] = getSpy.mock.calls[0];
-        expect(url).toBe('https://api.etherscan.io/api');
-        expect(config.params).toMatchObject({ module: 'proxy', action: 'eth_getTransactionByHash', txhash: TXID });
+        expect(url).toBe('https://api.etherscan.io/v2/api');
+        expect(config.params).toMatchObject({ chainid: '1', module: 'proxy', action: 'eth_getTransactionByHash', txhash: TXID });
         expect(field(i, 'Block')).toBe('68943');
         expect(field(i, 'Amount')).toBe('1.00000000 ETH');
         expect(field(i, 'Fee')).toBe('0.00042000 ETH');
         expect(field(i, 'From')).toBe(ETH_ADDR);
+    });
+
+    it('accepts a 0x-prefixed hash, as explorers display it', async () => {
+        getSpy.mockResolvedValue({ data: { result: { hash: `0x${TXID}`, blockNumber: hex(1), value: hex(0), from: 'a', to: 'b' } } });
+        await run('transaction', { blockchain: 'eth', txid: ` 0x${TXID} ` });
+        expect(getSpy.mock.calls[0][1].params.txhash).toBe(TXID);
     });
 
     it('shows a Litecoin transaction from Blockchair', async () => {
@@ -308,7 +334,8 @@ describe('bob-blockchain transaction lookups', () => {
     it('queries Sepolia for an Ethereum testnet transaction and links the testnet explorer', async () => {
         getSpy.mockResolvedValue({ data: { result: { hash: `0x${TXID}`, blockNumber: hex(5), value: hex(0), from: 'a', to: 'b' } } });
         const i = await run('transaction', { blockchain: 'eth', txid: TXID, network: 'testnet' });
-        expect(getSpy.mock.calls[0][0]).toBe('https://api-sepolia.etherscan.io/api');
+        expect(getSpy.mock.calls[0][0]).toBe('https://api.etherscan.io/v2/api');
+        expect(getSpy.mock.calls[0][1].params.chainid).toBe('11155111');
         expect(edata(i).url).toBe(`https://sepolia.etherscan.io/tx/0x${TXID}`);
     });
 
@@ -456,8 +483,7 @@ describe('bob-blockchain: failures and request safety', () => {
             expect(config.maxContentLength).toBeGreaterThan(0);
         }
         expect([...hosts].sort()).toEqual([
-            'api-testnet.bscscan.com', 'api.blockchair.com', 'api.etherscan.io', 'api.polygonscan.com',
-            'api.zcha.in', 'blockchain.info', 'dogechain.info'
+            'api.blockchair.com', 'api.etherscan.io', 'api.zcha.in', 'blockchain.info', 'dogechain.info'
         ].sort());
     });
 });

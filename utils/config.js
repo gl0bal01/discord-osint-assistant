@@ -28,8 +28,6 @@ const OPTIONAL = {
     DNSDUMPSTER_TOKEN: { desc: 'DNSDumpster API token', default: null },
     PAPPERS_API_KEY: { desc: 'Pappers API key for French company data', default: null },
     ETHERSCAN_API_KEY: { desc: 'Etherscan API key for Ethereum', default: null },
-    BSCSCAN_API_KEY: { desc: 'BscScan API key for Binance Smart Chain', default: null },
-    POLYGONSCAN_API_KEY: { desc: 'PolygonScan API key for Polygon', default: null },
     AVIATIONSTACK_API_KEY: { desc: 'AviationStack API key for flight data', default: null },
     AIRPORTDB_API_KEY: { desc: 'AirportDB API key for airport data', default: null },
     NIKE_TOKEN: { desc: 'Nike API token', default: null },

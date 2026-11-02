@@ -70,9 +70,7 @@ Copy `.env.example` to `.env` and fill in your values. Here's what each variable
 | `AI_API_KEY` | [1min.ai](https://1min.ai/) | `/bob-chat` |
 | `VIRUSTOTAL_API_KEY` | [VirusTotal](https://www.virustotal.com/) | `/bob-web-recon` |
 | `NIKE_TOKEN` | Nike Run Club | `/bob-nike` |
-| `ETHERSCAN_API_KEY` | [Etherscan](https://etherscan.io/) | `/bob-blockchain` |
-| `BSCSCAN_API_KEY` | [BscScan](https://bscscan.com/) | `/bob-blockchain` |
-| `POLYGONSCAN_API_KEY` | [PolygonScan](https://polygonscan.com/) | `/bob-blockchain` |
+| `ETHERSCAN_API_KEY` | [Etherscan](https://etherscan.io/apis) (API V2: one key for every EVM chain; BNB Chain needs a paid plan) | `/bob-blockchain` (ETH, BSC, Polygon, testnets, trace) |
 | `AWS_ACCESS_KEY_ID` | AWS | `/bob-rekognition` |
 | `AWS_SECRET_ACCESS_KEY` | AWS | `/bob-rekognition` |
 | `AWS_REGION` | AWS (default: `us-east-1`) | `/bob-rekognition` |
