@@ -32,9 +32,6 @@ module.exports = [
         },
     },
     {
-        // etherscan-tx-graph is a standalone browser addon (vis-network/jsPDF,
-        // DOM globals) — not part of the bot's Node source, so it's out of scope
-        // for this CommonJS/Node lint config.
-        ignores: ['node_modules/', 'temp/', 'tests/', 'etherscan-tx-graph/'],
+        ignores: ['node_modules/', 'temp/', 'tests/'],
     },
 ];
