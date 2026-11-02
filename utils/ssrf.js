@@ -5,34 +5,29 @@ const http = require('http');
 const https = require('https');
 const dnsCallback = require('dns');
 
-const PRIVATE_RANGES = [
-    { start: '10.0.0.0', end: '10.255.255.255' },
-    { start: '172.16.0.0', end: '172.31.255.255' },
-    { start: '192.168.0.0', end: '192.168.255.255' },
-    { start: '127.0.0.0', end: '127.255.255.255' },
-    { start: '169.254.0.0', end: '169.254.255.255' },
-    { start: '0.0.0.0', end: '0.255.255.255' }
-];
-
-function ipToLong(ip) {
-    return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
-}
+// Every non-globally-routable range (IANA special-purpose registries). net.BlockList
+// also matches IPv4-mapped IPv6 (::ffff:127.0.0.1, ::ffff:7f00:1) against the IPv4 rules.
+const BLOCKED = new net.BlockList();
+for (const [addr, prefix] of [
+    ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16],
+    ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.88.99.0', 24], ['192.168.0.0', 16],
+    ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 3]
+]) BLOCKED.addSubnet(addr, prefix, 'ipv4');
+for (const [addr, prefix] of [
+    ['::', 96], ['64:ff9b::', 96], ['64:ff9b:1::', 48], ['100::', 64], ['2001:db8::', 32],
+    ['2002::', 16], ['fc00::', 7], ['fe80::', 10], ['fec0::', 10], ['ff00::', 8]
+]) BLOCKED.addSubnet(addr, prefix, 'ipv6');
 
 function isPrivateIp(ip) {
-    // Handle IPv4-mapped IPv6 addresses (e.g., ::ffff:127.0.0.1)
-    if (ip.startsWith('::ffff:')) {
-        const mappedIpv4 = ip.slice(7);
-        if (net.isIPv4(mappedIpv4)) {
-            return isPrivateIp(mappedIpv4);  // Recursively check the embedded IPv4
-        }
-    }
+    const family = net.isIP(ip);
+    if (!family) return true; // Block unknown formats
+    return BLOCKED.check(ip, family === 6 ? 'ipv6' : 'ipv4');
+}
 
-    if (net.isIPv6(ip)) {
-        return ip === '::1' || ip.startsWith('fe80:') || ip.startsWith('fd') || ip.startsWith('fc');
-    }
-    if (!net.isIPv4(ip)) return true; // Block unknown formats
-    const long = ipToLong(ip);
-    return PRIVATE_RANGES.some(range => long >= ipToLong(range.start) && long <= ipToLong(range.end));
+const stripBrackets = (host) => String(host ?? '').replace(/^\[|\]$/g, '');
+
+function blockedError() {
+    return Object.assign(new Error('Connection to private/internal IP address blocked'), { code: 'ESSRF' });
 }
 
 /**
@@ -48,6 +43,12 @@ async function validateUrlNotInternal(url) {
 
     if (!['http:', 'https:'].includes(parsed.protocol)) {
         throw new Error('Only HTTP and HTTPS URLs are allowed');
+    }
+
+    const literal = stripBrackets(hostname);
+    if (net.isIP(literal)) {
+        if (isPrivateIp(literal)) throw new Error('URL resolves to a private/internal IP address');
+        return;
     }
 
     // Check both IPv4 and IPv6 records
@@ -72,7 +73,7 @@ async function validateUrlNotInternal(url) {
  */
 function createSafeAgent(protocol) {
     const AgentClass = protocol === 'https:' ? https.Agent : http.Agent;
-    return new AgentClass({
+    const agent = new AgentClass({
         keepAlive: true,
         lookup(hostname, options, callback) {
             // Always resolve with all:true so we can validate every record,
@@ -91,7 +92,7 @@ function createSafeAgent(protocol) {
                 }
                 for (const a of valid) {
                     if (isPrivateIp(a.address)) {
-                        return callback(new Error('Connection to private/internal IP address blocked'));
+                        return callback(blockedError());
                     }
                 }
                 if (wantsAll) {
@@ -105,6 +106,19 @@ function createSafeAgent(protocol) {
             });
         }
     });
+    // Node never calls `lookup` for an IP-literal host (http://127.0.0.1/, or a redirect
+    // to one), so check literals here, before any socket opens.
+    const createConnection = agent.createConnection;
+    agent.createConnection = function (options, callback) {
+        const host = stripBrackets(options?.host ?? options?.hostname);
+        if (net.isIP(host) && isPrivateIp(host)) {
+            const err = blockedError();
+            if (typeof callback === 'function') { callback(err); return undefined; }
+            throw err;
+        }
+        return createConnection.call(this, options, callback);
+    };
+    return agent;
 }
 
 // Singletons. Lookup hook is stateless; reusing the agents keeps the
