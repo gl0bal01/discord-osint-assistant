@@ -10,9 +10,11 @@ ENV_FILE       ?= /etc/$(SERVICE_NAME).env
 BOT_USER       ?= botuser
 COMPOSE        ?= docker compose
 
-# Code only: secrets come from $(ENV_FILE), runtime data never leaves the host it was made on
-SYNC = sudo rsync -a --delete --exclude=node_modules --exclude=.git --exclude=temp \
-       --exclude=reports --exclude=.env ./ $(INSTALL_DIR)/
+# Ship the committed tree (HEAD, what CI tested), never the working tree: no
+# untracked secrets, data or uncommitted code. Secrets come from $(ENV_FILE).
+SYNC = tmp=$$(mktemp -d) && git archive HEAD | tar -x -C $$tmp && \
+       sudo rsync -a --delete --exclude=node_modules --exclude=temp --exclude=reports $$tmp/ $(INSTALL_DIR)/; \
+       status=$$?; rm -rf $$tmp; exit $$status
 
 .DEFAULT_GOAL := help
 
