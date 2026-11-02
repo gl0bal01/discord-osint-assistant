@@ -6,7 +6,7 @@ function splitIntoChunks(text, maxSize = DISCORD_MAX) {
     while (i < text.length) {
         let breakPoint = Math.min(i + maxSize, text.length);
         if (breakPoint < text.length) {
-            const newlineIndex = text.lastIndexOf('\n', breakPoint);
+            const newlineIndex = text.lastIndexOf('\n', breakPoint - 1);
             if (newlineIndex > i && newlineIndex > breakPoint - 300) {
                 breakPoint = newlineIndex + 1;
             }

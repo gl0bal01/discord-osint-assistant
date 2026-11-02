@@ -69,13 +69,18 @@ module.exports = {
 };
 
 async function handleICAOSearch(interaction, icao) {
+    if (!/^[A-Za-z0-9]{4}$/.test(icao)) {
+        await interaction.editReply('Invalid ICAO code. Please provide a 4-character ICAO code (e.g., EGLL).');
+        return;
+    }
+
     const apiToken = process.env.AIRPORTDB_API_KEY;
     if (!apiToken) {
         await interaction.editReply('Error: API token not found. Please check the .env file.');
         return;
     }
 
-    const response = await axios.get(`https://airportdb.io/api/v1/airport/${icao}`, {
+    const response = await axios.get(`https://airportdb.io/api/v1/airport/${encodeURIComponent(icao.toUpperCase())}`, {
         params: { apiToken },
         timeout: 15000,
         maxContentLength: 5 * 1024 * 1024,
@@ -88,7 +93,8 @@ async function handleICAOSearch(interaction, icao) {
     await interaction.editReply({ embeds: [embed] });
 }
 
-async function handleIATASearch(interaction, iata) {
+async function handleIATASearch(interaction, rawIata) {
+    const iata = rawIata.toUpperCase();
     // Fetch airports data from TravelPayouts API
     const response = await axios.get('https://api.travelpayouts.com/data/en/airports.json', {
         timeout: 15000,

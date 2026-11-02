@@ -56,11 +56,18 @@ module.exports = {
 
             // Add query parameters based on user input
             if (flightNumber) {
-                // Validate flight number format (basic check)
-                if (!/^[A-Z0-9]{2,8}$/i.test(flightNumber)) {
+                // AviationStack takes the numeric part in flight_number, a full IATA code (BA123) in
+                // flight_iata and a full ICAO code (BAW123) in flight_icao.
+                const code = flightNumber.toUpperCase();
+                if (/^\d{1,4}$/.test(code)) {
+                    params.flight_number = code;
+                } else if (/^[A-Z]{3}\d{1,4}$/.test(code)) {
+                    params.flight_icao = code;
+                } else if (/^[A-Z0-9]{2}\d{1,4}$/.test(code) && /[A-Z]/.test(code.slice(0, 2))) {
+                    params.flight_iata = code;
+                } else {
                     return interaction.editReply('Invalid flight number format. Please provide a valid flight number (e.g., BA123).');
                 }
-                params.flight_number = flightNumber;
             }
             
             if (airline) {

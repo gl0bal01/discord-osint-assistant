@@ -299,11 +299,27 @@ function redactSensitiveInfo(record) {
         'registrant_contact_postal_code', 'admin_contact_postal_code', 'tech_contact_postal_code'
     ];
     
+    // Nested contact blocks (registrant_contact, administrative_contact, ...) in the real API shape
+    const sensitiveContactFields = ['phone_number', 'fax_number', 'mailing_address', 'zip_code'];
+    
     const redacted = { ...record };
     
     sensitiveFields.forEach(field => {
         if (redacted[field]) {
             redacted[field] = '[REDACTED]';
+        }
+    });
+    
+    Object.keys(redacted).forEach(key => {
+        const block = redacted[key];
+        if (key.endsWith('_contact') && block && typeof block === 'object' && !Array.isArray(block)) {
+            const copy = { ...block };
+            sensitiveContactFields.forEach(field => {
+                if (copy[field]) {
+                    copy[field] = '[REDACTED]';
+                }
+            });
+            redacted[key] = copy;
         }
     });
     
@@ -347,11 +363,11 @@ function analyzeWHOISHistory(records) {
     sortedRecords.forEach((record, _index) => {
         if (previousRecord) {
             // Check for registrant changes
-            if (record.registrant_contact_email !== previousRecord.registrant_contact_email) {
+            if (record.registrant_contact?.email_address !== previousRecord.registrant_contact?.email_address) {
                 analysis.emailChanges++;
             }
             
-            if (record.registrant_contact_name !== previousRecord.registrant_contact_name) {
+            if (record.registrant_contact?.full_name !== previousRecord.registrant_contact?.full_name) {
                 analysis.registrantChanges++;
             }
             
@@ -364,8 +380,8 @@ function analyzeWHOISHistory(records) {
         // Build timeline entry
         analysis.timeline.push({
             date: record.create_date || record.date_created,
-            registrant: record.registrant_contact_name,
-            email: record.registrant_contact_email,
+            registrant: record.registrant_contact?.full_name,
+            email: record.registrant_contact?.email_address,
             nameservers: record.name_servers || []
         });
         
@@ -452,12 +468,12 @@ function createWhoxyEmbed(data, type) {
     switch (type) {
         case 'balance':
             embed.setDescription('Account balance and API usage information');
-            if (data.data.available_credits !== undefined) {
+            if (data.data.live_whois_balance !== undefined || data.data.whois_history_balance !== undefined || data.data.reverse_whois_balance !== undefined) {
                 embed.addFields({
                     name: '💰 Account Status',
-                    value: `**Available Credits:** ${data.data.available_credits}\n` +
-                           `**Total Queries:** ${data.data.total_queries || 'N/A'}\n` +
-                           `**Account Type:** ${data.data.account_type || 'Standard'}`,
+                    value: `**Live WHOIS Balance:** ${data.data.live_whois_balance ?? 'N/A'}\n` +
+                           `**WHOIS History Balance:** ${data.data.whois_history_balance ?? 'N/A'}\n` +
+                           `**Reverse WHOIS Balance:** ${data.data.reverse_whois_balance ?? 'N/A'}`,
                     inline: false
                 });
             }
@@ -544,9 +560,9 @@ async function createDetailedReport(data, type) {
     
     if (type === 'balance') {
         report += `## Account Information\n`;
-        report += `Available Credits: ${data.data.available_credits || 'N/A'}\n`;
-        report += `Total Queries: ${data.data.total_queries || 'N/A'}\n`;
-        report += `Account Type: ${data.data.account_type || 'N/A'}\n\n`;
+        report += `Live WHOIS Balance: ${data.data.live_whois_balance ?? 'N/A'}\n`;
+        report += `WHOIS History Balance: ${data.data.whois_history_balance ?? 'N/A'}\n`;
+        report += `Reverse WHOIS Balance: ${data.data.reverse_whois_balance ?? 'N/A'}\n\n`;
         
     } else if (type === 'history') {
         report += `## Domain: ${data.domain}\n`;

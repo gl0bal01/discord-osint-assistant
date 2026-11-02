@@ -362,7 +362,6 @@ function handleApiError(error, interaction, interval) {
 
     if (error.response) {
         const statusCode = error.response.status;
-        const responseData = error.response.data;
         
         if (statusCode === 404) {
             errorMessage = 'No results found. Please check your search criteria.';
@@ -373,7 +372,7 @@ function handleApiError(error, interaction, interval) {
         } else if (statusCode === 402) {
             errorMessage = 'Insufficient credits. Please recharge your Pappers API account.';
         } else {
-            errorMessage = `API error: ${statusCode} - ${responseData?.error || 'Unknown error'}`;
+            errorMessage = `API error: ${statusCode}. Please try again later.`;
         }
     } else if (error.code === 'ECONNABORTED') {
         errorMessage = 'The request timed out. The API may be experiencing issues.';

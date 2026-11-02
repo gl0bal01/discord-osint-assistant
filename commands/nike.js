@@ -22,6 +22,7 @@ const { getSafeAxiosConfig } = require('../utils/ssrf');
 const { reportFilePath, cleanupFile } = require('../utils/temp');
 const { archiveReport } = require('../utils/reports');
 const { escapeHtml } = require('../utils/embed');
+const { neutralizeMentions } = require('../utils/discord');
 const { splitIntoChunks } = require('../utils/chunks');
 
 let cachedToken = null;
@@ -249,7 +250,7 @@ module.exports = {
         setToken('', 0);
 
         return interaction.editReply({
-          content: '❌ Token expired. Please provide a new token using the `/nike-lookup token:your_new_token` command.',
+          content: '❌ Token expired. Please provide a new token using the `/bob-nike token:your_new_token` command.',
           ephemeral: false,
         });
       } else if (response.status !== 200) {
@@ -280,7 +281,7 @@ module.exports = {
 
         // Send the report file as an attachment
         await interaction.editReply({
-          content: `Found ${objects.length} results for "${searchString}".`,
+          content: neutralizeMentions(`Found ${objects.length} results for "${searchString}".`),
           files: [reportPath],
           ephemeral: false,
         });
@@ -311,7 +312,7 @@ module.exports = {
         
         // Send the preview as a follow-up message
         await interaction.followUp({
-          content: previewMessage,
+          content: neutralizeMentions(previewMessage),
           ephemeral: false,
         });
         
@@ -358,7 +359,7 @@ module.exports = {
         });
         
         // Now break down the replyMessage if it's > 2000 chars
-        const messageChunks = splitIntoChunks(replyMessage, 2000);
+        const messageChunks = splitIntoChunks(neutralizeMentions(replyMessage), 2000);
         
         // Edit our deferred reply with the first chunk and error message
         await interaction.editReply({
@@ -384,7 +385,7 @@ module.exports = {
         setToken('', 0);
 
         return interaction.editReply({
-          content: '❌ Token expired. Please provide a new token using the `/nike-lookup token:your_new_token` command.',
+          content: '❌ Token expired. Please provide a new token using the `/bob-nike token:your_new_token` command.',
           ephemeral: false,
         });
       }

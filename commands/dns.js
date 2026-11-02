@@ -94,15 +94,14 @@ module.exports = {
             // Format the response data
             const formattedData = formatDnsData(dnsData, domain);
             
-            // Check Discord message limits
-            if (formattedData.length <= 2000) {
+            // Check Discord message limits against the final message (header and fence included)
+            const singleMessage = `🔍 **DNS Analysis Results for \`${domain}\`**\n\`\`\`json\n${formattedData}\n\`\`\``;
+            if (singleMessage.length <= 2000) {
                 // Send as single message
-                return interaction.editReply({
-                    content: `🔍 **DNS Analysis Results for \`${domain}\`**\n\`\`\`json\n${formattedData}\n\`\`\``
-                });
+                return interaction.editReply({ content: singleMessage });
             } else {
                 // Split into multiple messages
-                const chunks = splitIntoChunks(formattedData, 1900); // Leave room for formatting
+                const chunks = splitIntoChunks(formattedData, 1900 - domain.length); // Leave room for header and fence
                 
                 // Send first chunk as edit
                 await interaction.editReply({
