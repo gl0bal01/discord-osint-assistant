@@ -199,6 +199,10 @@ describe('logger — error serializer: nested and non-axios shapes', () => {
         expect(out).toContain('/webhooks/123456789/[REDACTED]');
     });
 
+    it('serializes { reason } (unhandledRejection) like err', () => {
+        expect(capture({ reason: axiosErr() })).not.toContain(secret);
+    });
+
     it('survives circular references', () => {
         const err = new Error('loop');
         err.self = err;

@@ -121,7 +121,8 @@ function errSerializer(err) {
     }
     return out;
 }
-_pinoOptions.serializers = { err: errSerializer, error: errSerializer };
+// `reason`: index.js logs unhandledRejection as { reason }, often an axios error
+_pinoOptions.serializers = { err: errSerializer, error: errSerializer, reason: errSerializer };
 
 // Use pino-pretty in dev (non-production + interactive TTY)
 if (process.env.NODE_ENV !== 'production' && process.stdout.isTTY) {
