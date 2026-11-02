@@ -4,8 +4,8 @@
 
 | Version | Supported |
 | --- | --- |
-| 2.x | Yes |
-| 1.x | No |
+| 3.x | Yes |
+| < 3.0 | No |
 
 ## Reporting a Vulnerability
 
@@ -53,7 +53,7 @@ All boot, lifecycle, and routing logs go through pino in JSON format ([`utils/lo
 `SECURITY_WEBHOOK_URL` is consumed by exactly one call site: `commands/redirect-chain.js notifyWebhook()`. It is intentionally not generalized into a global event sink because doing so without a per-event cooldown would create a webhook-fanout DDoS amplifier (a user spamming a command could exhaust the webhook). Per-URL throttling for that single consumer is tracked as follow-up work. Do not import this env var from any other module.
 
 ### Data Handling
-- Temporary files are cleaned up automatically after use; an hourly sweep removes anything older than 24h from `temp/` (excluding `.health/` and `.monitor/`)
+- Temporary files are cleaned up automatically after use; an hourly sweep removes anything older than 24h from `temp/` (excluding `.health/`)
 - Command exports are copied to `reports/`, which is owner-only (`0700`/`0600`) and ephemeral by default: a tmpfs under Docker, and the service's private `/tmp` under systemd. Files older than `REPORTS_RETENTION_DAYS` (30) are pruned. Nothing survives a restart unless the operator mounts persistent storage there.
 - API keys are loaded from environment variables, never hardcoded; child processes spawned via `safeSpawn` receive a stripped environment so secrets never leak to subprocesses
 - Error messages shown to users are generic; detailed errors are logged server-side only via the structured logger
