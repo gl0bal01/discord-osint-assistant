@@ -10,6 +10,10 @@ ENV_FILE       ?= /etc/$(SERVICE_NAME).env
 BOT_USER       ?= botuser
 COMPOSE        ?= docker compose
 
+# Code only: secrets come from $(ENV_FILE), runtime data never leaves the host it was made on
+SYNC = sudo rsync -a --delete --exclude=node_modules --exclude=.git --exclude=temp \
+       --exclude=reports --exclude=.env ./ $(INSTALL_DIR)/
+
 .DEFAULT_GOAL := help
 
 .PHONY: help \
@@ -40,18 +44,19 @@ install: ## Install bot under $(INSTALL_DIR) and enable systemd unit
 	@test -f .env || (echo "missing .env in repo root" && exit 1)
 	id -u $(BOT_USER) >/dev/null 2>&1 || sudo useradd -r -s /bin/false $(BOT_USER)
 	sudo mkdir -p $(INSTALL_DIR)
-	sudo rsync -a --delete --exclude=node_modules --exclude=.git --exclude=temp ./ $(INSTALL_DIR)/
+	$(SYNC)
 	sudo mkdir -p $(INSTALL_DIR)/temp
 	sudo chown -R $(BOT_USER):$(BOT_USER) $(INSTALL_DIR)
 	sudo install -m 600 -o root -g $(BOT_USER) .env $(ENV_FILE)
-	cd $(INSTALL_DIR) && sudo -u $(BOT_USER) bun install --production
+	cd $(INSTALL_DIR) && sudo -u $(BOT_USER) bun install --production --frozen-lockfile
 	sudo install -m 644 $(SERVICE_FILE) /etc/systemd/system/$(SERVICE_NAME).service
 	sudo systemctl daemon-reload
 	sudo systemctl enable --now $(SERVICE_NAME)
 
-update: ## Pull, install deps, restart service (run inside $(INSTALL_DIR))
-	sudo -u $(BOT_USER) git -C $(INSTALL_DIR) pull
-	cd $(INSTALL_DIR) && sudo -u $(BOT_USER) bun install --production
+update: ## Sync this checkout to $(INSTALL_DIR), install deps, restart service
+	$(SYNC)
+	sudo chown -R $(BOT_USER):$(BOT_USER) $(INSTALL_DIR)
+	cd $(INSTALL_DIR) && sudo -u $(BOT_USER) bun install --production --frozen-lockfile
 	sudo systemctl restart $(SERVICE_NAME)
 
 uninstall: ## Disable + remove systemd unit (keeps $(INSTALL_DIR) and env)

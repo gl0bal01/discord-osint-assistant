@@ -36,9 +36,12 @@ RestrictRealtime=true
 RestrictSUIDSGID=true
 LockPersonality=true
 ReadWritePaths=/opt/discord-osint-assistant/temp
-
-# Healthcheck (systemd 240+)
-WatchdogSec=60
+# Reports are ephemeral: kept in the private /tmp, wiped when the service stops.
+# Set REPORTS_DIR in the env file to keep them on disk (add it to ReadWritePaths).
+Environment=REPORTS_DIR=/tmp/reports
+# No WatchdogSec: the bot doesn't send sd_notify keep-alives, so systemd would
+# kill it every interval. Crashes are covered by Restart=always; gateway health
+# is in temp/.health/health.json (bun run scripts/healthcheck.js).
 
 [Install]
 WantedBy=multi-user.target
