@@ -144,7 +144,8 @@ make logs-tail          # follow journald
 
 - **Code**: `make install` and `make update` ship this checkout's committed `HEAD` (`git archive`), never uncommitted changes or untracked files.
 - **Updates**: `make update` does not run `git pull`. Run `git pull` yourself, then `make update`: it syncs `HEAD` to the install directory, runs `bun install --production`, and restarts the service.
-- **Secrets**: the service reads `/etc/discord-osint-assistant.env` (mode `0600`). `make install` copies it from `./.env`; `make update` does not, so after the first install edit `/etc/discord-osint-assistant.env` and run `make restart`.
+- **Ownership**: the code tree is root-owned and read-only to the bot; only `temp/` belongs to `botuser`.
+- **Secrets**: the service reads `/etc/discord-osint-assistant.env` (mode `0600`, root only). `make install` copies it from `./.env`; `make update` does not, so after the first install edit `/etc/discord-osint-assistant.env` and run `make restart`.
 - **Install path**: `INSTALL_DIR` defaults to `/opt/discord-osint-assistant`. The unit's `WorkingDirectory` and `ReadWritePaths` use that path too, so changing `INSTALL_DIR` means editing the unit as well.
 - **Reports**: they go to the service's private `/tmp` and are wiped when it stops; see [Reports Archive](../README.md#reports-archive) to keep them.
 - **Tool state**: `botuser` has no home and the unit sets `ProtectHome=true`, so the unit gives the service a private, persistent `HOME` at `/var/lib/discord-osint-assistant` (`StateDirectory`). The GHunt login (`/bob-ghunt type:login`, read by the `ghunt` CLI from `$HOME/.malfrats`) survives restarts there; leave `GHUNT_CREDS_PATH` unset.

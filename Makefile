@@ -16,6 +16,16 @@ SYNC = tmp=$$(mktemp -d) && git archive HEAD | tar -x -C $$tmp && \
        sudo rsync -a --delete --exclude=node_modules --exclude=temp --exclude=reports $$tmp/ $(INSTALL_DIR)/; \
        status=$$?; rm -rf $$tmp; exit $$status
 
+# Code is root-owned and read-only to the bot (like the Docker image); only temp/ is
+# the bot's. systemd reads $(ENV_FILE) as root, so it stays root-only (0600).
+OWN = sudo chown -R root:root $(INSTALL_DIR) && \
+      sudo install -d -o $(BOT_USER) -g $(BOT_USER) -m 0700 $(INSTALL_DIR)/temp
+
+# Run a package.json script as $(BOT_USER) with the root-only env file loaded by root:
+# secrets go in, but root never executes the (deployable) code.
+RUN_AS_BOT = sudo sh -c 'set -a; . $(ENV_FILE); set +a; cd $(INSTALL_DIR) && \
+      exec setpriv --reuid=$(BOT_USER) --regid=$(BOT_USER) --init-groups env HOME=$(INSTALL_DIR)/temp bun run $(1)'
+
 .DEFAULT_GOAL := help
 
 .PHONY: help \
@@ -47,18 +57,17 @@ install: ## Install bot under $(INSTALL_DIR) and enable systemd unit
 	id -u $(BOT_USER) >/dev/null 2>&1 || sudo useradd -r -s /bin/false $(BOT_USER)
 	sudo mkdir -p $(INSTALL_DIR)
 	$(SYNC)
-	sudo mkdir -p $(INSTALL_DIR)/temp
-	sudo chown -R $(BOT_USER):$(BOT_USER) $(INSTALL_DIR)
-	sudo install -m 600 -o root -g $(BOT_USER) .env $(ENV_FILE)
-	cd $(INSTALL_DIR) && sudo -u $(BOT_USER) bun install --production --frozen-lockfile
+	$(OWN)
+	sudo install -m 600 -o root -g root .env $(ENV_FILE)
+	cd $(INSTALL_DIR) && sudo bun install --production --frozen-lockfile
 	sudo install -m 644 $(SERVICE_FILE) /etc/systemd/system/$(SERVICE_NAME).service
 	sudo systemctl daemon-reload
 	sudo systemctl enable --now $(SERVICE_NAME)
 
 update: ## Sync this checkout to $(INSTALL_DIR), install deps, restart service
 	$(SYNC)
-	sudo chown -R $(BOT_USER):$(BOT_USER) $(INSTALL_DIR)
-	cd $(INSTALL_DIR) && sudo -u $(BOT_USER) bun install --production --frozen-lockfile
+	$(OWN)
+	cd $(INSTALL_DIR) && sudo bun install --production --frozen-lockfile
 	sudo systemctl restart $(SERVICE_NAME)
 
 uninstall: ## Disable + remove systemd unit (keeps $(INSTALL_DIR) and env)
@@ -86,16 +95,15 @@ logs-tail: ## Follow journal
 
 ## ── slash command registration ──────────────────────────────────────────────
 
-# One-shot REST CLIs: they need the root-only $(ENV_FILE), so load it as root and run
-# from the install dir (which has no .env by design).
+# One-shot REST CLIs: the install dir has no .env by design, so they use $(ENV_FILE).
 deploy-cmds: ## Register slash cmds to GUILD_ID (run on install host)
-	sudo sh -c 'set -a; . $(ENV_FILE); set +a; cd $(INSTALL_DIR) && exec bun run deploy'
+	$(call RUN_AS_BOT,deploy)
 
 deploy-cmds-global: ## Register slash cmds globally (~1h propagation)
-	sudo sh -c 'set -a; . $(ENV_FILE); set +a; cd $(INSTALL_DIR) && exec bun run deploy:global'
+	$(call RUN_AS_BOT,deploy:global)
 
 clear-cmds: ## Clear guild slash cmds
-	sudo sh -c 'set -a; . $(ENV_FILE); set +a; cd $(INSTALL_DIR) && exec bun run clear'
+	$(call RUN_AS_BOT,clear)
 
 ## ── docker compose lifecycle ────────────────────────────────────────────────
 
