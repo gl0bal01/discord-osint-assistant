@@ -19,20 +19,26 @@ SYNC = tmp=$$(mktemp -d) && git archive HEAD | tar -x -C $$tmp && \
 # Code is root-owned and read-only to the bot (like the Docker image); only temp/ is
 # the bot's. Deps install as root with --ignore-scripts: no package code runs as root
 # (the only native deps, bufferutil/utf-8-validate, ship prebuilds and are optional). systemd reads $(ENV_FILE) as root, so it stays root-only (0600).
-OWN = sudo chown -R root:root $(INSTALL_DIR) && \
-      sudo install -d -o $(BOT_USER) -g $(BOT_USER) -m 0700 $(INSTALL_DIR)/temp
+OWN = sudo find $(INSTALL_DIR) -path $(INSTALL_DIR)/temp -prune -o -exec chown root:root {} + && \
+      sudo install -d -o $(BOT_USER) -g $(BOT_USER) -m 0700 $(INSTALL_DIR)/temp && \
+      sudo chown -R $(BOT_USER):$(BOT_USER) $(INSTALL_DIR)/temp
 
-# Run a package.json script as $(BOT_USER) with the root-only env file loaded by root:
-# secrets go in, but root never executes the (deployable) code.
-RUN_AS_BOT = sudo sh -c 'set -a; . $(ENV_FILE); set +a; cd $(INSTALL_DIR) && \
-      exec setpriv --reuid=$(BOT_USER) --regid=$(BOT_USER) --init-groups env HOME=$(INSTALL_DIR)/temp bun run $(1)'
+# Tools the install targets and the unit (ExecStart=/usr/bin/bun) rely on.
+PREFLIGHT = test -x /usr/bin/bun || { echo "bun must be at /usr/bin/bun (the unit's ExecStart)"; exit 1; }; \
+      for t in git rsync sudo systemctl systemd-run; do command -v $$t >/dev/null || { echo "missing: $$t"; exit 1; }; done
+
+# Run a package.json script as $(BOT_USER) in a transient unit: systemd parses the root-only
+# env file exactly as the service does, and root never executes the (deployable) code.
+RUN_AS_BOT = sudo systemd-run --quiet --wait --pipe --collect --uid=$(BOT_USER) --gid=$(BOT_USER) \
+      -p EnvironmentFile=$(ENV_FILE) -p WorkingDirectory=$(INSTALL_DIR) -p PrivateTmp=yes \
+      -E HOME=/tmp /usr/bin/bun run $(1)
 
 .DEFAULT_GOAL := help
 
 .PHONY: help \
         install update uninstall \
         start stop restart status logs logs-tail enable disable \
-        deploy-cmds deploy-cmds-global clear-cmds \
+        deploy-cmds deploy-cmds-global clear-cmds clear-cmds-global \
         up down rebuild ps dlogs dhealth dexec-deploy \
         ci smoke check
 
@@ -55,6 +61,7 @@ check: ## Print resolved config without doing anything
 
 install: ## Install bot under $(INSTALL_DIR) and enable systemd unit
 	@test -f .env || (echo "missing .env in repo root" && exit 1)
+	@$(PREFLIGHT)
 	id -u $(BOT_USER) >/dev/null 2>&1 || sudo useradd -r -s /bin/false $(BOT_USER)
 	sudo mkdir -p $(INSTALL_DIR)
 	$(SYNC)
@@ -66,6 +73,7 @@ install: ## Install bot under $(INSTALL_DIR) and enable systemd unit
 	sudo systemctl enable --now $(SERVICE_NAME)
 
 update: ## Sync this checkout to $(INSTALL_DIR), install deps, restart service
+	@$(PREFLIGHT)
 	$(SYNC)
 	$(OWN)
 	cd $(INSTALL_DIR) && sudo bun install --production --frozen-lockfile --ignore-scripts
@@ -105,6 +113,9 @@ deploy-cmds-global: ## Register slash cmds globally (~1h propagation)
 
 clear-cmds: ## Clear guild slash cmds
 	$(call RUN_AS_BOT,clear)
+
+clear-cmds-global: ## Clear global slash cmds
+	$(call RUN_AS_BOT,clear:global)
 
 ## ── docker compose lifecycle ────────────────────────────────────────────────
 
