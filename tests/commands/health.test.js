@@ -2,29 +2,28 @@ import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest
 
 let health;
 let axios;
-let proc;
-let realSafeSpawn;
-const unstubbed = () => Promise.reject(new Error('unstubbed safeSpawn'));
-const spawn = vi.fn(unstubbed); // stable reference: health.js destructures safeSpawn once at load
+let tools;
+let realIsToolAvailable;
+const available = vi.fn(() => false); // stable reference: health.js destructures isToolAvailable once at load
 
 beforeAll(() => {
     process.env.DISCORD_TOKEN ||= 'test-token';
     process.env.CLIENT_ID ||= 'test-client-id';
     axios = require('axios');
-    proc = require('../../utils/process.js');
-    // vi.mock does not intercept CJS require(): spy before health.js destructures safeSpawn
-    realSafeSpawn = proc.safeSpawn;
-    proc.safeSpawn = spawn;
+    tools = require('../../utils/tools.js');
+    // vi.mock does not intercept CJS require(): swap before health.js destructures isToolAvailable
+    realIsToolAvailable = tools.isToolAvailable;
+    tools.isToolAvailable = available;
     health = require('../../commands/health.js');
 });
 
 afterEach(() => {
-    spawn.mockReset().mockImplementation(unstubbed);
+    available.mockReset().mockImplementation(() => false);
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
 });
 
-afterAll(() => { proc.safeSpawn = realSafeSpawn; });
+afterAll(() => { tools.isToolAvailable = realIsToolAvailable; });
 
 const makeClient = (over = {}) => ({
     isReady: () => true,
@@ -78,7 +77,7 @@ describe('bob-health basic status', () => {
     it('does not run API or tool checks, or show detailed info, unless asked', async () => {
         const { fields } = await run({});
         expect(Object.keys(fields)).toEqual(['📊 Overall Status', '💻 System', '🤖 Discord Bot']);
-        expect(spawn).not.toHaveBeenCalled();
+        expect(available).not.toHaveBeenCalled();
     });
 
     it('reports unhealthy when the Discord client is not ready', async () => {
@@ -151,36 +150,36 @@ describe('bob-health check-apis', () => {
 });
 
 describe('bob-health check-tools', () => {
-    it('shows versions of available tools and degrades overall when one is missing', async () => {
+    const CLI = ['exif', 'ghunt', 'jwt', 'linkook', 'maigret', 'nuclei', 'sherlock', 'xeuledoc'];
+
+    it('lists every CLI-backed command, a missing tool as hidden rather than unhealthy', async () => {
         vi.stubEnv('SHERLOCK_PATH', '/opt/private/bin/sherlock');
-        spawn.mockImplementation(async (bin) => {
-            if (bin === 'exiftool') return { stdout: '12.76\n', stderr: '' };
-            if (bin === 'nuclei') return { stdout: '', stderr: 'Nuclei Engine Version: v3.1.0' };
-            throw new Error(`Failed to start process: ${bin} ENOENT`);
-        });
+        available.mockImplementation((candidates) => candidates.some((c) => /nuclei|jwt_tool/.test(c)));
         const { fields, data } = await run({ 'check-tools': true });
-        expect(fields['🔧 External Tools']).toBe('🟢 ExifTool v12.76\n🔴 Sherlock\n🟢 Nuclei v3.1.0');
-        expect(fields['📊 Overall Status']).toBe('🟡 **DEGRADED** (75/100)\n⚠️ Issues: 1 tool(s) unavailable');
-        expect(JSON.stringify(data)).not.toMatch(/ENOENT|\/opt\/private/);
+        expect(fields['🔧 External Tools']).toBe([
+            '⚪ exiftool: not installed, /bob-exif hidden',
+            '⚪ ghunt: not installed, /bob-ghunt hidden',
+            '🟢 jwt_tool: /bob-jwt',
+            '⚪ linkook: not installed, /bob-linkook hidden',
+            '⚪ maigret: not installed, /bob-maigret hidden',
+            '🟢 nuclei: /bob-nuclei',
+            '⚪ sherlock: not installed, /bob-sherlock hidden',
+            '⚪ xeuledoc: not installed, /bob-xeuledoc hidden'
+        ].join('\n'));
+        expect(fields['📊 Overall Status']).toBe('🟢 **HEALTHY** (100/100)\n✅ No issues detected');
+        expect(JSON.stringify(data)).not.toContain('/opt/private');
     });
 
-    it('runs each tool with an argv array and the configured path', async () => {
-        vi.stubEnv('NUCLEI_PATH', '/usr/local/bin/nuclei-custom');
-        spawn.mockResolvedValue({ stdout: '1.0.0', stderr: '' });
+    it('asks the same question bootstrap does: each command\'s own requiresTool', async () => {
         await run({ 'check-tools': true });
-        const calls = spawn.mock.calls.map(([bin, args]) => [bin, args]);
-        expect(calls).toEqual([
-            ['exiftool', ['-ver']],
-            ['sherlock', ['--version']],
-            ['/usr/local/bin/nuclei-custom', ['-version']]
-        ]);
+        expect(available.mock.calls.map(([c]) => c)).toEqual(CLI.map((f) => require(`../../commands/${f}.js`).requiresTool));
     });
 
-    it('stays healthy when every tool responds', async () => {
-        spawn.mockResolvedValue({ stdout: 'version 2.5.1', stderr: '' });
+    it('shows every tool green when all are installed', async () => {
+        available.mockReturnValue(true);
         const { fields } = await run({ 'check-tools': true });
-        expect(fields['🔧 External Tools']).toBe('🟢 ExifTool v2.5.1\n🟢 Sherlock v2.5.1\n🟢 Nuclei v2.5.1');
-        expect(fields['📊 Overall Status']).toContain('HEALTHY');
+        expect(fields['🔧 External Tools'].split('\n')).toHaveLength(CLI.length);
+        expect(fields['🔧 External Tools']).not.toContain('⚪');
     });
 });
 

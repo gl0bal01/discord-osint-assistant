@@ -23,7 +23,7 @@ const axios = require('axios');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
-const { safeSpawn } = require('../utils/process');
+const { isToolAvailable } = require('../utils/tools');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
 const logger = require('../utils/logger').child({ command: 'bob-health' });
 
@@ -103,11 +103,11 @@ async function gatherHealthData(detailed, checkApis, checkTools, client) {
     }
     
     if (checkTools) {
-        toolStatus = await checkToolAvailability();
+        toolStatus = checkToolAvailability();
     }
     
     // Determine overall health status
-    const overall = determineOverallHealth(systemInfo, botInfo, apiStatus, toolStatus, client);
+    const overall = determineOverallHealth(systemInfo, botInfo, apiStatus, client);
     
     const processingTime = Date.now() - startTime;
     
@@ -280,79 +280,23 @@ async function checkApiHealth() {
 }
 
 /**
- * Check external tool availability
- * @returns {Promise<Object>} Tool availability status
+ * One row per CLI-backed command, from its `requiresTool`: the same check
+ * bootstrap.loadCommands uses to load or hide it, so this list covers every tool
+ * and can't drift. A missing tool is not a fault: the slim image ships none, and
+ * the command is simply not registered there.
+ * @returns {Object} tool name -> { command, available }
  */
-async function checkToolAvailability() {
-    const tools = [
-        {
-            name: 'ExifTool',
-            defaultBin: 'exiftool',
-            args: ['-ver'],
-            envVar: 'EXIFTOOL_PATH'
-        },
-        {
-            name: 'Sherlock',
-            defaultBin: 'sherlock',
-            args: ['--version'],
-            envVar: 'SHERLOCK_PATH'
-        },
-        {
-            name: 'Nuclei',
-            defaultBin: 'nuclei',
-            args: ['-version'],
-            envVar: 'NUCLEI_PATH'
-        }
-    ];
-
+function checkToolAvailability() {
     const results = {};
-
-    for (const tool of tools) {
-        try {
-            const toolPath = process.env[tool.envVar] || tool.defaultBin;
-
-            const { stdout, stderr } = await safeSpawn(toolPath, tool.args, { timeout: 10000 });
-
-            results[tool.name] = {
-                available: true,
-                version: extractVersion(stdout || stderr),
-                path: toolPath,
-                status: 'healthy'
-            };
-
-        } catch (error) {
-            results[tool.name] = {
-                available: false,
-                error: error.message.includes('Failed to start process') ? 'Not found in PATH' : error.message,
-                path: process.env[tool.envVar] || 'default',
-                status: 'unhealthy'
-            };
-        }
+    for (const file of require('fs').readdirSync(__dirname).filter((f) => f.endsWith('.js')).sort()) {
+        const command = require(path.join(__dirname, file));
+        if (!command.requiresTool) continue;
+        results[path.basename(command.requiresTool.at(-1))] = {
+            command: command.data.name,
+            available: isToolAvailable(command.requiresTool)
+        };
     }
-
     return results;
-}
-
-/**
- * Extract version from tool output
- * @param {string} output - Tool output string
- * @returns {string} Extracted version or 'unknown'
- */
-function extractVersion(output) {
-    const versionPatterns = [
-        /version\s+(\d+\.\d+(?:\.\d+)?)/i,
-        /v(\d+\.\d+(?:\.\d+)?)/i,
-        /(\d+\.\d+(?:\.\d+)?)/
-    ];
-    
-    for (const pattern of versionPatterns) {
-        const match = output.match(pattern);
-        if (match) {
-            return match[1];
-        }
-    }
-    
-    return 'unknown';
 }
 
 /**
@@ -360,10 +304,9 @@ function extractVersion(output) {
  * @param {Object} systemInfo - System information
  * @param {Object} botInfo - Bot information
  * @param {Object} apiStatus - API status (may be null)
- * @param {Object} toolStatus - Tool status (may be null)
  * @returns {Object} Overall health assessment
  */
-function determineOverallHealth(systemInfo, botInfo, apiStatus, toolStatus, client) {
+function determineOverallHealth(systemInfo, botInfo, apiStatus, client) {
     let status = 'healthy';
     const issues = [];
     
@@ -386,15 +329,6 @@ function determineOverallHealth(systemInfo, botInfo, apiStatus, toolStatus, clie
         if (unhealthyApis.length > 0) {
             if (status === 'healthy') status = 'degraded';
             issues.push(`${unhealthyApis.length} API(s) unhealthy`);
-        }
-    }
-    
-    // Check tool status if available
-    if (toolStatus) {
-        const unavailableTools = Object.values(toolStatus).filter(tool => !tool.available);
-        if (unavailableTools.length > 0) {
-            if (status === 'healthy') status = 'degraded';
-            issues.push(`${unavailableTools.length} tool(s) unavailable`);
         }
     }
     
@@ -481,15 +415,14 @@ function createHealthEmbed(healthData, detailed) {
     
     // Tool Status (if checked)
     if (healthData.tools) {
-        const toolSummary = Object.entries(healthData.tools).map(([name, status]) => {
-            const emoji = status.available ? '🟢' : '🔴';
-            return `${emoji} ${name}${status.version && status.version !== 'unknown' ? ` v${status.version}` : ''}`;
-        }).join('\n');
+        const toolSummary = Object.entries(healthData.tools).map(([tool, { command, available }]) =>
+            (available ? `🟢 ${tool}: /${command}` : `⚪ ${tool}: not installed, /${command} hidden`)
+        ).join('\n');
         
         embed.addFields({
             name: '🔧 External Tools',
-            value: toolSummary || 'No tools checked',
-            inline: true
+            value: toolSummary || 'No CLI-backed commands',
+            inline: false
         });
     }
     

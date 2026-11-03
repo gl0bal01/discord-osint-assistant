@@ -11,7 +11,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
 const commandFiles = fs.readdirSync(path.join(ROOT, 'commands')).filter((f) => f.endsWith('.js'));
-const toolCommands = commandFiles.filter((f) => /\brequiresTool\b/.test(read(`commands/${f}`))).length;
+const toolCommands = commandFiles.filter((f) => /^\s+requiresTool:/m.test(read(`commands/${f}`))).length;
 const total = commandFiles.length;
 
 function envRegistry() {
