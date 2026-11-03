@@ -86,14 +86,16 @@ logs-tail: ## Follow journal
 
 ## ── slash command registration ──────────────────────────────────────────────
 
+# One-shot REST CLIs: they need the root-only $(ENV_FILE), so load it as root and run
+# from the install dir (which has no .env by design).
 deploy-cmds: ## Register slash cmds to GUILD_ID (run on install host)
-	cd $(INSTALL_DIR) && sudo -u $(BOT_USER) bun run deploy
+	sudo sh -c 'set -a; . $(ENV_FILE); set +a; cd $(INSTALL_DIR) && exec bun run deploy'
 
 deploy-cmds-global: ## Register slash cmds globally (~1h propagation)
-	cd $(INSTALL_DIR) && sudo -u $(BOT_USER) bun run deploy:global
+	sudo sh -c 'set -a; . $(ENV_FILE); set +a; cd $(INSTALL_DIR) && exec bun run deploy:global'
 
 clear-cmds: ## Clear guild slash cmds
-	cd $(INSTALL_DIR) && sudo -u $(BOT_USER) bun run clear
+	sudo sh -c 'set -a; . $(ENV_FILE); set +a; cd $(INSTALL_DIR) && exec bun run clear'
 
 ## ── docker compose lifecycle ────────────────────────────────────────────────
 

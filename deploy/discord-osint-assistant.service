@@ -41,6 +41,11 @@ ReadWritePaths=/opt/discord-osint-assistant/temp
 # Reports are ephemeral: kept in the private /tmp, wiped when the service stops.
 # Set REPORTS_DIR in the env file to keep them on disk (add it to ReadWritePaths).
 Environment=REPORTS_DIR=/tmp/reports
+# botuser has no home and ProtectHome=true: give tools a persistent, private $HOME
+# (GHunt login at ~/.malfrats, maigret/nuclei state) under /var/lib.
+StateDirectory=discord-osint-assistant
+StateDirectoryMode=0700
+Environment=HOME=/var/lib/discord-osint-assistant
 # No WatchdogSec: the bot doesn't send sd_notify keep-alives, so systemd would
 # kill it every interval. Crashes are covered by Restart=always; gateway health
 # is in temp/.health/health.json (bun run scripts/healthcheck.js).

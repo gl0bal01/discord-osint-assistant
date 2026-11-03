@@ -4,7 +4,8 @@
 #                    Nuclei (+ templates) and ExifTool
 # Pick one with BOT_TARGET=slim|full (docker-compose.yml) or `docker build --target full`.
 # The tools layer is independent of the app code, so code changes rebuild in
-# seconds; `docker compose build --pull --no-cache` refreshes the tools and base image.
+# seconds. Tools are pinned: bump the pins (requirements.txt, ARGs below, base digest)
+# to upgrade; `--no-cache` only refreshes apt packages and unpinned transitive deps.
 
 # Production dependencies + app code
 FROM oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4 AS app
