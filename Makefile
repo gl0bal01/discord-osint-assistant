@@ -17,7 +17,8 @@ SYNC = tmp=$$(mktemp -d) && git archive HEAD | tar -x -C $$tmp && \
        status=$$?; rm -rf $$tmp; exit $$status
 
 # Code is root-owned and read-only to the bot (like the Docker image); only temp/ is
-# the bot's. systemd reads $(ENV_FILE) as root, so it stays root-only (0600).
+# the bot's. Deps install as root with --ignore-scripts: no package code runs as root
+# (the only native deps, bufferutil/utf-8-validate, ship prebuilds and are optional). systemd reads $(ENV_FILE) as root, so it stays root-only (0600).
 OWN = sudo chown -R root:root $(INSTALL_DIR) && \
       sudo install -d -o $(BOT_USER) -g $(BOT_USER) -m 0700 $(INSTALL_DIR)/temp
 
@@ -59,7 +60,7 @@ install: ## Install bot under $(INSTALL_DIR) and enable systemd unit
 	$(SYNC)
 	$(OWN)
 	sudo install -m 600 -o root -g root .env $(ENV_FILE)
-	cd $(INSTALL_DIR) && sudo bun install --production --frozen-lockfile
+	cd $(INSTALL_DIR) && sudo bun install --production --frozen-lockfile --ignore-scripts
 	sudo install -m 644 $(SERVICE_FILE) /etc/systemd/system/$(SERVICE_NAME).service
 	sudo systemctl daemon-reload
 	sudo systemctl enable --now $(SERVICE_NAME)
@@ -67,7 +68,7 @@ install: ## Install bot under $(INSTALL_DIR) and enable systemd unit
 update: ## Sync this checkout to $(INSTALL_DIR), install deps, restart service
 	$(SYNC)
 	$(OWN)
-	cd $(INSTALL_DIR) && sudo bun install --production --frozen-lockfile
+	cd $(INSTALL_DIR) && sudo bun install --production --frozen-lockfile --ignore-scripts
 	sudo systemctl restart $(SERVICE_NAME)
 
 uninstall: ## Disable + remove systemd unit (keeps $(INSTALL_DIR) and env)
