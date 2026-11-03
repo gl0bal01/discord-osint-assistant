@@ -19,9 +19,10 @@ SYNC = tmp=$$(mktemp -d) && git archive HEAD | tar -x -C $$tmp && \
 # Code is root-owned and read-only to the bot (like the Docker image); only temp/ is
 # the bot's. Deps install as root with --ignore-scripts: no package code runs as root
 # (the only native deps, bufferutil/utf-8-validate, ship prebuilds and are optional). systemd reads $(ENV_FILE) as root, so it stays root-only (0600).
-OWN = sudo find $(INSTALL_DIR) -path $(INSTALL_DIR)/temp -prune -o -exec chown root:root {} + && \
-      sudo install -d -o $(BOT_USER) -g $(BOT_USER) -m 0700 $(INSTALL_DIR)/temp && \
-      sudo chown -R $(BOT_USER):$(BOT_USER) $(INSTALL_DIR)/temp
+# temp/ is pruned (never chowned as root: the bot controls its contents, so a root
+# chown there could be steered by a planted hardlink); -h never follows symlinks.
+OWN = sudo find $(INSTALL_DIR) -path $(INSTALL_DIR)/temp -prune -o -exec chown -h root:root {} + && \
+      sudo install -d -o $(BOT_USER) -g $(BOT_USER) -m 0700 $(INSTALL_DIR)/temp
 
 # Tools the install targets and the unit (ExecStart=/usr/bin/bun) rely on.
 PREFLIGHT = test -x /usr/bin/bun || { echo "bun must be at /usr/bin/bun (the unit's ExecStart)"; exit 1; }; \
