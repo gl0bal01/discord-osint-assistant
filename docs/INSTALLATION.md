@@ -150,6 +150,7 @@ After starting the bot, run `/bob-health` in Discord:
   - ⚪ not installed, command hidden (all of them in the `slim` image); this does not change the overall status
   - 🔴 gone since boot: the command is still loaded and will fail (status degraded)
   - 🟡 installed since boot: restart the bot to load the command
+  - 🔴 `<file>.js: failed to load`: a command file in `commands/` throws when loaded (status degraded)
 
 The boot log's `Commands loaded` line lists the commands hidden at boot under `missingTool`, and `bun scripts/check-tools.js` exits 1 when any CLI-backed command would be hidden for a missing tool.
 

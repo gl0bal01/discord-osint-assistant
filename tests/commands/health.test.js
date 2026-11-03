@@ -208,12 +208,16 @@ describe('bob-health check-tools', () => {
     it('shows only the tool name, never a configured path', async () => {
         vi.stubEnv('SHERLOCK_PATH', '/opt/private/bin/sherlock');
         // requiresTool is computed at load: reload sherlock.js so it picks up the stub
-        delete require.cache[require.resolve('../../commands/sherlock.js')];
-        expect(require('../../commands/sherlock.js').requiresTool).toEqual(['/opt/private/bin/sherlock']);
-        const { fields, data } = await run({ 'check-tools': true });
-        expect(fields['🔧 External Tools']).toContain('⚪ sherlock: not installed, /bob-sherlock hidden');
-        expect(JSON.stringify(data)).not.toContain('/opt/private');
-        delete require.cache[require.resolve('../../commands/sherlock.js')];
+        const sherlock = require.resolve('../../commands/sherlock.js');
+        delete require.cache[sherlock];
+        try {
+            expect(require(sherlock).requiresTool).toEqual(['/opt/private/bin/sherlock']);
+            const { fields, data } = await run({ 'check-tools': true });
+            expect(fields['🔧 External Tools']).toContain('⚪ sherlock: not installed, /bob-sherlock hidden');
+            expect(JSON.stringify(data)).not.toContain('/opt/private');
+        } finally {
+            delete require.cache[sherlock]; // don't leave the stubbed copy for later tests
+        }
     });
 });
 

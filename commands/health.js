@@ -150,7 +150,7 @@ async function getSystemInfo(detailed) {
             
             info.network = os.networkInterfaces();
             
-            // Check disk space for temp directory
+            // Check that the temp directory exists
             const tempDir = path.join(__dirname, '../temp');
             try {
                 await fs.promises.access(tempDir);
