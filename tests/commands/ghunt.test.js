@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, afterAll } 
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { MessageFlags } from 'discord.js';
+import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ghunt-test-'));
 process.env.REPORTS_DIR = path.join(tmp, 'archive');
@@ -309,5 +309,37 @@ describe('bob-ghunt cleanup', () => {
         await vi.advanceTimersByTimeAsync(30_000);
         vi.useRealTimers();
         await vi.waitFor(() => expect(fs.existsSync(outDirs[0])).toBe(false));
+    });
+});
+
+describe('bob-ghunt login', () => {
+    const TOKEN = Buffer.from(JSON.stringify({ cookies: {} })).toString('base64');
+    const loginAs = (perm, token = TOKEN) => {
+        const i = makeInteraction({ type: 'login', token });
+        i.memberPermissions = { has: (p) => p === perm };
+        return i;
+    };
+    beforeEach(() => fs.rmSync(path.dirname(credsPath), { recursive: true, force: true }));
+
+    it('refuses non-administrators and writes no credentials', async () => {
+        const i = loginAs(PermissionFlagsBits.ManageGuild);
+        await cmd.execute(i);
+        expect(i.reply.mock.calls[0][0].content).toMatch(/administrator/i);
+        expect(fs.existsSync(credsPath)).toBe(false);
+    });
+
+    it('answers a bad token with a fixed message, never the exception text', async () => {
+        const i = loginAs(PermissionFlagsBits.Administrator, '%%%');
+        await cmd.execute(i);
+        const content = i.editReply.mock.calls[0][0].content;
+        expect(content).toContain('not valid base64');
+        expect(content).not.toContain('Invalid base64 token');
+    });
+
+    it('lets administrators save credentials, owner-only', async () => {
+        await cmd.execute(loginAs(PermissionFlagsBits.Administrator));
+        expect(fs.readFileSync(credsPath, 'utf8')).toBe(TOKEN);
+        expect(fs.statSync(path.dirname(credsPath)).mode & 0o777).toBe(0o700);
+        expect(fs.statSync(credsPath).mode & 0o777).toBe(0o600);
     });
 });

@@ -325,3 +325,20 @@ describe('bob-web-recon unexpected errors', () => {
         expect(reply).not.toContain('discord-internal-detail');
     });
 });
+
+describe('bob-web-recon crt.sh', () => {
+    it('lists recent certs from the current crt.sh shape (no entry_timestamp)', async () => {
+        vi.spyOn(axios, 'get').mockResolvedValue({
+            data: [
+                { issuer_name: 'C=US, O=Old CA, CN=X', not_before: '2025-01-02T00:00:00' },
+                { issuer_name: 'C=NL, O=eMudhra BV, CN=EM DV TLS CA - G3B', not_before: '2026-10-20T21:19:03' },
+                { issuer_name: 'C=US, O="Cloudflare, Inc.", CN=Cloudflare TLS', entry_timestamp: '2026-11-01T00:00:00.123' },
+                { issuer_name: 'CN=Self Signed' }
+            ]
+        });
+        const { fields } = await run({ service: 'crtsh' });
+        expect(fields['Recent Certificates']).toBe(
+            '• 2026-11-01 - Cloudflare, Inc.\n• 2026-10-20 - eMudhra BV\n• 2025-01-02 - Old CA\n• unknown date - CN=Self Signed'
+        );
+    });
+});
