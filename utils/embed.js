@@ -4,9 +4,7 @@
  */
 
 const FIELD_VALUE_LIMIT = 1024;
-const TITLE_LIMIT = 256;
 const DESCRIPTION_LIMIT = 4096;
-const FOOTER_LIMIT = 2048;
 
 /**
  * Truncate a value to fit a Discord embed field (1024 chars by default).
@@ -40,8 +38,5 @@ module.exports = {
     capField,
     safeAscii,
     escapeHtml,
-    FIELD_VALUE_LIMIT,
-    TITLE_LIMIT,
-    DESCRIPTION_LIMIT,
-    FOOTER_LIMIT
+    DESCRIPTION_LIMIT
 };

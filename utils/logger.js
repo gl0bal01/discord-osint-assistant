@@ -22,22 +22,16 @@ const _pinoOptions = {
             'DISCORD_TOKEN',
             'AWS_ACCESS_KEY_ID',
             'AWS_SECRET_ACCESS_KEY',
-            'OPENAI_API_KEY',
-            'ANTHROPIC_API_KEY',
             'AI_API_KEY',
-            'VIRUSTOTAL_API_KEY',
             'WHOXY_API_KEY',
             'HOSTIO_API_KEY',
             'DNSDUMPSTER_TOKEN',
             'PAPPERS_API_KEY',
             'ETHERSCAN_API_KEY',
-            'BSCSCAN_API_KEY',
-            'POLYGONSCAN_API_KEY',
             'AVIATIONSTACK_API_KEY',
             'AIRPORTDB_API_KEY',
             'NIKE_TOKEN',
             'SECURITY_WEBHOOK_URL',
-            'MARITIME_API_KEY',
             // nested under any single parent object
             '*.token',
             '*.authorization',
@@ -48,22 +42,16 @@ const _pinoOptions = {
             '*.DISCORD_TOKEN',
             '*.AWS_ACCESS_KEY_ID',
             '*.AWS_SECRET_ACCESS_KEY',
-            '*.OPENAI_API_KEY',
-            '*.ANTHROPIC_API_KEY',
             '*.AI_API_KEY',
-            '*.VIRUSTOTAL_API_KEY',
             '*.WHOXY_API_KEY',
             '*.HOSTIO_API_KEY',
             '*.DNSDUMPSTER_TOKEN',
             '*.PAPPERS_API_KEY',
             '*.ETHERSCAN_API_KEY',
-            '*.BSCSCAN_API_KEY',
-            '*.POLYGONSCAN_API_KEY',
             '*.AVIATIONSTACK_API_KEY',
             '*.AIRPORTDB_API_KEY',
             '*.NIKE_TOKEN',
-            '*.SECURITY_WEBHOOK_URL',
-            '*.MARITIME_API_KEY'
+            '*.SECURITY_WEBHOOK_URL'
         ],
         censor: '[REDACTED]'
     }
@@ -142,4 +130,5 @@ try {
 }
 
 module.exports = logger;
+// Test seam: tests/utils/logger.test.js builds isolated loggers from these options.
 module.exports._pinoOptions = _pinoOptions;

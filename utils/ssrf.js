@@ -140,15 +140,13 @@ function getSafeAxiosConfig() {
 }
 
 // Common response-size budgets for axios maxContentLength / maxBodyLength.
-const SIZE_1MB = 1 * 1024 * 1024;
 const SIZE_5MB = 5 * 1024 * 1024;
 const SIZE_10MB = 10 * 1024 * 1024;
-const SIZE_25MB = 25 * 1024 * 1024;
 const SIZE_50MB = 50 * 1024 * 1024;
 
 module.exports = {
     validateUrlNotInternal,
     isPrivateIp,
     getSafeAxiosConfig,
-    SIZE_1MB, SIZE_5MB, SIZE_10MB, SIZE_25MB, SIZE_50MB
+    SIZE_5MB, SIZE_10MB, SIZE_50MB
 };

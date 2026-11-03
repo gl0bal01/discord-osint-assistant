@@ -59,10 +59,10 @@ const logger = require('../utils/logger').child({ command: 'bob-favicon' });
 
 // Configuration constants
 const CONFIG = {
-    REQUEST_TIMEOUT: parseInt(process.env.FAVICON_TIMEOUT) || 15000, // 15 seconds
-    FAVICON_TIMEOUT: parseInt(process.env.FAVICON_DL_TIMEOUT) || 10000, // 10 seconds
-    MAX_FILE_SIZE: parseInt(process.env.MAX_FAVICON_SIZE) || 5 * 1024 * 1024, // 5MB
-    CLEANUP_DELAY: parseInt(process.env.CLEANUP_DELAY) || 30000, // 30 seconds
+    REQUEST_TIMEOUT: 15000, // page fetch
+    FAVICON_TIMEOUT: 10000, // icon download
+    MAX_FILE_SIZE: 5 * 1024 * 1024,
+    CLEANUP_DELAY: 30000, // temp files kept until Discord has the attachment
     USER_AGENT: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     TEMP_PREFIX: 'favicon-analysis'
 };

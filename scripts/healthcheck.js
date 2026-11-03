@@ -12,8 +12,8 @@ const fs = require('fs');
 const path = require('path');
 
 const HEALTH_FILE = process.env.HEALTH_FILE ?? './temp/.health/health.json';
-const HEALTH_READY_MAX_AGE_MS = Number(process.env.HEALTH_READY_MAX_AGE_MS ?? 30000);
-const HEALTH_GRACE_MS = Number(process.env.HEALTH_GRACE_MS ?? 60000);
+const HEALTH_READY_MAX_AGE_MS = 30000; // ready heartbeat must be this fresh (writer runs every 5s)
+const HEALTH_GRACE_MS = 60000; // shutting_down stays healthy this long
 
 let raw;
 try {

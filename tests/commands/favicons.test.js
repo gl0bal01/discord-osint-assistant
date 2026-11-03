@@ -9,7 +9,6 @@ const require = createRequire(import.meta.url);
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'favicons-test-'));
 process.env.REPORTS_DIR = path.join(tmpRoot, 'reports');
-process.env.CLEANUP_DELAY = '10'; // read at module load; keep the delayed cleanup fast
 process.env.DISCORD_TOKEN ||= 'test-token';
 process.env.CLIENT_ID ||= 'test-client-id';
 
@@ -284,17 +283,27 @@ describe('bob-favicon: upstream failures', () => {
 });
 
 describe('bob-favicon: temp file cleanup', () => {
+    // The dir is kept 30s so Discord can read the attachment, then removed.
+    const runAndExpire = async (interaction) => {
+        vi.useFakeTimers({ toFake: ['setTimeout'] });
+        try {
+            await cmd.execute(interaction);
+            expect(createdDirs).toHaveLength(1);
+            expect(fs.existsSync(createdDirs[0])).toBe(true);
+            await vi.advanceTimersByTimeAsync(30_000);
+        } finally {
+            vi.useRealTimers();
+        }
+        await vi.waitFor(() => expect(fs.existsSync(createdDirs[0])).toBe(false));
+    };
+
     it('removes the temp directory after a successful analysis', async () => {
         routeAxios({ pageUrl: PAGE_URL, html: HTML, icons: { [ICON_URL]: { data: PNG, type: 'image/png' } } });
-        await cmd.execute(makeInteraction({ url: PAGE_URL }));
-        expect(createdDirs).toHaveLength(1);
-        await vi.waitFor(() => expect(fs.existsSync(createdDirs[0])).toBe(false));
+        await runAndExpire(makeInteraction({ url: PAGE_URL }));
     });
 
     it('removes the temp directory when the page fetch fails', async () => {
         getSpy.mockRejectedValue(new Error('boom'));
-        await cmd.execute(makeInteraction({ url: PAGE_URL }));
-        expect(createdDirs).toHaveLength(1);
-        await vi.waitFor(() => expect(fs.existsSync(createdDirs[0])).toBe(false));
+        await runAndExpire(makeInteraction({ url: PAGE_URL }));
     });
 });

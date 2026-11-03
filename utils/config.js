@@ -1,6 +1,11 @@
 /**
- * Centralized configuration module.
- * Validates required env vars at startup, provides defaults for optional ones.
+ * Environment variable registry.
+ *
+ * REQUIRED is validated when this module is imported (index.js): the bot exits 1 if
+ * one is missing. OPTIONAL lists every other variable the bot reads and why; each
+ * default lives where the value is read. tests/utils/env-contract.test.js keeps this
+ * registry, the code, .env.example and the logger's redact list in sync, so a variable
+ * can't be read without being documented (or documented without being read).
  */
 
 const logger = require('./logger');
@@ -11,61 +16,55 @@ const REQUIRED = {
 };
 
 const OPTIONAL = {
-    MONITOR_CHANNEL_ID: { desc: 'Channel ID for monitor alerts', default: null },
-    SHERLOCK_PATH: { desc: 'Path to sherlock binary', default: 'sherlock' },
-    MAIGRET_PATH: { desc: 'Path to maigret binary', default: 'maigret' },
-    NUCLEI_PATH: { desc: 'Path to nuclei binary', default: 'nuclei' },
-    NUCLEI_TEMPLATE_PATH: { desc: 'Path to nuclei templates', default: '/opt/nuclei-templates/http/osint/user-enumeration' },
-    EXIFTOOL_PATH: { desc: 'Path to exiftool binary', default: 'exiftool' },
-    GHUNT_CREDS_PATH: { desc: 'Path to GHunt credentials file (default: ~/.malfrats/ghunt/creds.m)', default: null },
-    JWT_TOOL_PATH: { desc: 'Path to jwt_tool', default: '/opt/tools/jwt_tool' },
-    OPENAI_API_KEY: { desc: 'OpenAI API key for chat', default: null },
-    ANTHROPIC_API_KEY: { desc: 'Anthropic API key for chat', default: null },
-    AI_API_KEY: { desc: 'AI API key for chat fallback', default: null },
-    VIRUSTOTAL_API_KEY: { desc: 'VirusTotal API key', default: null },
-    WHOXY_API_KEY: { desc: 'Whoxy API key', default: null },
-    HOSTIO_API_KEY: { desc: 'Host.io API key', default: null },
-    DNSDUMPSTER_TOKEN: { desc: 'DNSDumpster API token', default: null },
-    PAPPERS_API_KEY: { desc: 'Pappers API key for French company data', default: null },
-    ETHERSCAN_API_KEY: { desc: 'Etherscan API key for Ethereum', default: null },
-    AVIATIONSTACK_API_KEY: { desc: 'AviationStack API key for flight data', default: null },
-    AIRPORTDB_API_KEY: { desc: 'AirportDB API key for airport data', default: null },
-    NIKE_TOKEN: { desc: 'Nike API token', default: null },
-    ALLOWED_GUILD_IDS: { desc: 'Comma-separated guild IDs the bot is allowed to operate in (empty = all)', default: '' },
-    OSINT_ALLOWED_ROLES: { desc: 'Comma-separated Discord role IDs for OSINT access', default: '' },
-    // SECURITY_WEBHOOK_URL: consumed only by commands/redirect-chain.js notifyWebhook().
-    // Do not generalize without first adding webhook-fanout cooldown (follow-up #2).
-    SECURITY_WEBHOOK_URL: { desc: 'Webhook URL for security alerts', default: null },
-    AWS_ACCESS_KEY_ID: { desc: 'AWS access key for Rekognition', default: null },
-    AWS_SECRET_ACCESS_KEY: { desc: 'AWS secret key for Rekognition', default: null },
-    AWS_REGION: { desc: 'AWS region', default: 'us-east-1' },
-    RATE_LIMIT_DAILY: { desc: 'Per-user daily command limit', default: '200' }
+    // Discord and access control
+    GUILD_ID: 'Guild for `bun run deploy` (guild commands); deploy/clear scripts only',
+    ALLOWED_GUILD_IDS: 'Comma-separated guild IDs the bot may operate in (empty = all)',
+    OSINT_ALLOWED_ROLES: 'Comma-separated role IDs that may use restricted commands without the permission',
+    MONITOR_CHANNEL_ID: 'Channel for /bob-monitor alerts',
+    RATE_LIMIT_DAILY: 'Per-user daily command limit (default 200)',
+
+    // Operations
+    LOG_LEVEL: 'pino level: fatal, error, warn, info (default), debug, trace, silent',
+    HEALTH_FILE: 'Health state file read by the Docker healthcheck (default ./temp/.health/health.json)',
+    METRICS_ENABLED: 'true to serve Prometheus metrics (default off)',
+    METRICS_PORT: 'Metrics port (default 9090)',
+    METRICS_HOST: 'Metrics bind address (default 127.0.0.1)',
+    REPORTS_DIR: 'Where command exports are copied (default ./reports; ephemeral in Docker/systemd)',
+    REPORTS_RETENTION_DAYS: 'Reports older than this are pruned (default 30)',
+    // Consumed only by commands/redirect-chain.js notifyWebhook(); don't generalize without a cooldown.
+    SECURITY_WEBHOOK_URL: 'Webhook for /bob-redirect-check security alerts',
+
+    // API keys (each command degrades gracefully without its key)
+    AI_API_KEY: '1min.ai key for /bob-chat and /bob-upload',
+    DNSDUMPSTER_TOKEN: 'DNSDumpster key for /bob-dns (and /bob-health check-apis)',
+    WHOXY_API_KEY: 'Whoxy key for /bob-whoxy',
+    HOSTIO_API_KEY: 'Host.io key for /bob-hostio',
+    PAPPERS_API_KEY: 'Pappers key for /bob-pappers',
+    ETHERSCAN_API_KEY: 'Etherscan API V2 key: every EVM chain in /bob-blockchain (free plan: not BNB Chain)',
+    AVIATIONSTACK_API_KEY: 'AviationStack key for /bob-flight',
+    AIRPORTDB_API_KEY: 'AirportDB key for /bob-airport',
+    NIKE_TOKEN: 'Nike token for /bob-nike (expires after ~1 hour)',
+    AWS_ACCESS_KEY_ID: 'AWS access key for /bob-rekognition',
+    AWS_SECRET_ACCESS_KEY: 'AWS secret key for /bob-rekognition',
+    AWS_REGION: 'AWS region for /bob-rekognition (default us-east-1)',
+
+    // External tools (only needed outside the full Docker image)
+    EXIFTOOL_PATH: 'exiftool binary (default: exiftool on PATH)',
+    SHERLOCK_PATH: 'sherlock binary (default: sherlock on PATH)',
+    MAIGRET_PATH: 'maigret binary (default: maigret on PATH)',
+    NUCLEI_PATH: 'nuclei binary (default: nuclei on PATH)',
+    NUCLEI_TEMPLATE_PATH: 'nuclei OSINT templates (default /opt/nuclei-templates/http/osint/user-enumeration)',
+    JWT_TOOL_PATH: 'jwt_tool checkout (default /opt/tools/jwt_tool)',
+    JWT_WORDLIST: 'Wordlist for /bob-jwt crack mode:dict (default: jwt_tool\'s jwt-common.txt)',
+    GHUNT_CREDS_PATH: 'GHunt credentials file (default ~/.malfrats/ghunt/creds.m)'
 };
 
-function loadConfig() {
-    const config = {};
-    const missing = [];
-
-    for (const [key, desc] of Object.entries(REQUIRED)) {
-        if (!process.env[key]) {
-            missing.push(`${key} (${desc})`);
-        }
-        config[key] = process.env[key];
-    }
-
-    if (missing.length > 0) {
-        logger.error({ missing }, 'Missing required environment variables');
-        process.exit(1);
-    }
-
-    for (const [key, { default: def }] of Object.entries(OPTIONAL)) {
-        config[key] = process.env[key] !== undefined ? process.env[key] : def;
-    }
-
-    return config;
+const missing = Object.entries(REQUIRED)
+    .filter(([key]) => !process.env[key])
+    .map(([key, desc]) => `${key} (${desc})`);
+if (missing.length > 0) {
+    logger.error({ missing }, 'Missing required environment variables');
+    process.exit(1);
 }
 
-// Validate at import time and freeze the result. `loadConfig` itself is not
-// exported because re-running validation is meaningless (env doesn't change).
-const config = Object.freeze(loadConfig());
-module.exports = { config, REQUIRED, OPTIONAL };
+module.exports = { REQUIRED, OPTIONAL };

@@ -74,13 +74,10 @@ async function cleanupDir(dirPath, delay = 0) {
 }
 
 module.exports = {
-    ensureTempDir,
-    ensureReportsDir,
     tempFilePath,
     reportFilePath,
     reportDirPath,
     cleanupFile,
     cleanupDir,
-    TEMP_DIR,
     REPORTS_DIR
 };

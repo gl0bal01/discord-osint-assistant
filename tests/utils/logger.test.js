@@ -9,8 +9,7 @@ import { Writable } from 'node:stream';
 import pino from 'pino';
 
 // Import the shared options from the logger module (no circular dep, no side-effects)
-import loggerModule from '../../utils/logger.js';
-const { _pinoOptions } = loggerModule;
+import { _pinoOptions } from '../../utils/logger.js';
 
 /**
  * Build a test logger that writes to an in-memory sink.

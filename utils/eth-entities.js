@@ -57,4 +57,4 @@ function entityLabel(address) {
     return KNOWN_ENTITIES[String(address || '').toLowerCase()] || null;
 }
 
-module.exports = { KNOWN_ENTITIES, entityLabel };
+module.exports = { entityLabel };

@@ -17,12 +17,5 @@ function splitIntoChunks(text, maxSize = DISCORD_MAX) {
     return chunks;
 }
 
-function chunkArray(array, chunkSize) {
-    const chunks = [];
-    for (let i = 0; i < array.length; i += chunkSize) {
-        chunks.push(array.slice(i, i + chunkSize));
-    }
-    return chunks;
-}
 
-module.exports = { splitIntoChunks, chunkArray, DISCORD_MAX };
+module.exports = { splitIntoChunks };

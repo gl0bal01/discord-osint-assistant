@@ -49,17 +49,7 @@ module.exports = {
                 // Generate tracking links for the IMO number
                 const links = generateTrackingLinks(imoNumber);
                 
-                // Try to fetch basic vessel info if possible
-                let vesselInfo = null;
-                try {
-                    vesselInfo = await fetchVesselInfo(imoNumber);
-                } catch (error) {
-                    logger.error({ err: error }, 'vessel info fetch failed');
-                    // Continue without vessel info - links will still work
-                }
-                
-                // Create embed for response
-                const embed = createVesselEmbed(imoNumber, links, vesselInfo);
+                const embed = createVesselEmbed(imoNumber, links);
                 
                 await interaction.editReply({ embeds: [embed] });
             } 
@@ -162,10 +152,9 @@ function generateNameSearchLinks(name) {
  * Create an embed for vessel information
  * @param {string} imo - The IMO number
  * @param {object} links - Object containing tracking links
- * @param {object} vesselInfo - Optional vessel information
  * @returns {EmbedBuilder} - Discord embed with vessel information
  */
-function createVesselEmbed(imo, links, vesselInfo) {
+function createVesselEmbed(imo, links) {
     const embed = new EmbedBuilder()
         .setColor(0x0099ff)
         .setTitle(`Vessel Tracking: IMO ${imo}`)
@@ -181,29 +170,6 @@ function createVesselEmbed(imo, links, vesselInfo) {
         .setTimestamp()
         .setFooter({ text: 'Maritime vessel tracking data from multiple providers' });
     
-    // Add vessel information if available
-    if (vesselInfo) {
-        if (vesselInfo.name) embed.setTitle(`${vesselInfo.name} (IMO ${imo})`);
-        
-        const infoFields = [];
-        if (vesselInfo.type) infoFields.push({ name: 'Vessel Type', value: vesselInfo.type, inline: true });
-        if (vesselInfo.flag) infoFields.push({ name: 'Flag', value: vesselInfo.flag, inline: true });
-        if (vesselInfo.built) infoFields.push({ name: 'Built', value: vesselInfo.built.toString(), inline: true });
-        if (vesselInfo.length) infoFields.push({ name: 'Length', value: `${vesselInfo.length} m`, inline: true });
-        if (vesselInfo.beam) infoFields.push({ name: 'Beam', value: `${vesselInfo.beam} m`, inline: true });
-        if (vesselInfo.gt) infoFields.push({ name: 'Gross Tonnage', value: vesselInfo.gt.toString(), inline: true });
-        
-        if (infoFields.length > 0) {
-            embed.addFields({ name: 'Vessel Information', value: '\u200B' });
-            embed.addFields(...infoFields);
-        }
-        
-        // Add image if available
-        if (vesselInfo.image) {
-            embed.setImage(vesselInfo.image);
-        }
-    }
-    
     // Add additional resources section
     embed.addFields({
         name: 'Additional Resources', 
@@ -214,25 +180,4 @@ function createVesselEmbed(imo, links, vesselInfo) {
     });
     
     return embed;
-}
-
-/**
- * Attempt to fetch basic vessel information
- * @param {string} imo - The IMO number
- * @returns {Promise<object>} - Promise resolving to vessel information
- */
-async function fetchVesselInfo(_imo) {
-    // Note: This is a placeholder function. In a real-world scenario,
-    // you would implement an actual API call to a maritime database.
-    // For demonstration purposes, this function simulates an API call
-    // but would need to be replaced with a real implementation.
-
-    // Example using a free API (if one were available):
-    // const response = await axios.get(`https://api.maritime-database.com/vessel/imo/${_imo}`, {
-    //     headers: { 'Authorization': `Bearer ${process.env.MARITIME_API_KEY}` }
-    // });
-    // return response.data;
-
-    // For now, return null to indicate no vessel info is available
-    return null;
 }
