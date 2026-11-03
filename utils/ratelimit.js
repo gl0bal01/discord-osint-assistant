@@ -30,7 +30,7 @@ const COMMAND_CATEGORIES = {
     'bob-whoxy': 'medium',
     'bob-hostio': 'medium',
     'bob-pappers': 'medium',
-    'bob-aviation': 'medium',
+    'bob-flight': 'medium',
     'bob-rekognition': 'medium',
     'bob-chat': 'medium',
     'bob-blockchain': 'medium',

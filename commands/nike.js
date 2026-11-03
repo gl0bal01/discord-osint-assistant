@@ -15,7 +15,7 @@
  * 
  * Author: gl0bal01
  */
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
 const { getSafeAxiosConfig } = require('../utils/ssrf');
@@ -173,19 +173,24 @@ module.exports = {
     .addStringOption((option) =>
       option
         .setName('token')
-        .setDescription('New Nike API token (updates stored token)')
+        .setDescription('Replace the shared Nike token (Manage Server; in memory, ~1 hour)')
         .setRequired(false)
     ),
   async execute(interaction) {
-    await interaction.deferReply(); // Defer the reply since we might need time for token operations
-    
-    // Check if a new token was provided
+    // Replacing the shared token affects every user: Manage Server only, answered privately
     const newToken = interaction.options.getString('token');
+    if (newToken && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+      return interaction.reply({
+        content: '❌ **Manage Server only**\nOnly members with Manage Server can replace the shared Nike token.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+    await interaction.deferReply(newToken ? { flags: MessageFlags.Ephemeral } : {});
+
     if (newToken) {
       setToken(newToken);
       await interaction.editReply({
-        content: '✅ New token saved successfully! This token will be used for searches until it expires (typically after 1 hour).',
-        flags: MessageFlags.Ephemeral,
+        content: '✅ New token saved. It is kept in memory and used for searches until it expires (typically after 1 hour).',
       });
     }
 

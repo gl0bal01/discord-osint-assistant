@@ -10,7 +10,6 @@ import { MessageFlags } from 'discord.js';
 // before the command destructures them.
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'jwt-test-'));
 process.env.REPORTS_DIR = path.join(tmp, 'archive');
-process.env.JWT_TEMP_FOLDER = path.join(tmp, 'jwt');
 process.env.JWT_WORDLIST = path.join(tmp, 'words.txt');
 const TOOL = '/opt/tools/jwt_tool';
 const SECRET = 'SECRET_INTERNAL_DETAIL';

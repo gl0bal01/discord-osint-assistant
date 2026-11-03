@@ -1,3 +1,4 @@
+import { MessageFlags } from 'discord.js';
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
@@ -51,6 +52,7 @@ function makeInteraction(opts = {}) {
     return {
         sent,
         options: { getString: (k) => opts[k] ?? null },
+        memberPermissions: { has: () => opts.manageGuild ?? true },
         deferReply: vi.fn().mockResolvedValue(undefined),
         editReply: vi.fn(rec),
         followUp: vi.fn(rec),
@@ -250,3 +252,20 @@ describe('bob-nike security', () => {
         expect(preview.content).not.toMatch(/@everyone/);
     });
 });
+
+describe('bob-nike shared token', () => {
+    it('refuses to replace the shared token without Manage Server, privately', async () => {
+        const i = makeInteraction({ token: 'stolen-token', manageGuild: false });
+        await cmd.execute(i);
+        expect(i.reply.mock.calls[0][0].content).toMatch(/Manage Server only/);
+        expect(i.reply.mock.calls[0][0].flags).toBe(MessageFlags.Ephemeral);
+        expect(i.deferReply).not.toHaveBeenCalled();
+    });
+
+    it('answers a token update privately', async () => {
+        const i = makeInteraction({ token: 'fresh-token' });
+        await cmd.execute(i);
+        expect(i.deferReply.mock.calls[0][0]).toEqual({ flags: MessageFlags.Ephemeral });
+    });
+});
+

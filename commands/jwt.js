@@ -46,12 +46,15 @@ const { reportFilePath, cleanupFile, REPORTS_DIR } = require('../utils/temp');
 const { stripVTControlCharacters } = require('node:util');
 const logger = require('../utils/logger').child({ command: 'bob-jwt' });
 
-// Configuration - adjust these paths according to your environment
+// JWT_TOOL_PATH: jwt_tool checkout (the full image installs it at /opt/tools/jwt_tool).
+// JWT_WORDLIST: dictionary for `crack mode:dict`; defaults to the common-secrets list bundled
+// with jwt_tool (mount a bigger one, e.g. rockyou, and point JWT_WORDLIST at it).
+const JWT_TOOL_PATH = process.env.JWT_TOOL_PATH ?? '/opt/tools/jwt_tool';
 const CONFIG = {
-    JWT_TOOL_PATH: process.env.JWT_TOOL_PATH || '/opt/tools/jwt_tool',
-    TEMP_FOLDER: process.env.JWT_TEMP_FOLDER || REPORTS_DIR,
-    DEFAULT_WORDLIST: process.env.JWT_WORDLIST || '/opt/rockyou.txt',
-    COMMAND_TIMEOUT: parseInt(process.env.JWT_TIMEOUT) || 120000, // 2 minutes
+    JWT_TOOL_PATH,
+    TEMP_FOLDER: REPORTS_DIR,
+    DEFAULT_WORDLIST: process.env.JWT_WORDLIST ?? path.join(JWT_TOOL_PATH, 'jwt-common.txt'),
+    COMMAND_TIMEOUT: 120000, // 2 minutes
     MAX_OUTPUT_SIZE: 10 * 1024 * 1024, // 10MB max output file size
     CLEANUP_INTERVAL: 3600000, // 1 hour cleanup interval
     MAX_FILE_AGE: 24 * 60 * 60 * 1000 // 24 hours max file age
@@ -192,7 +195,7 @@ module.exports = {
                         .setRequired(true))
                 .addStringOption(option =>
                     option.setName('mode')
-                        .setDescription('Cracking mode to use')
+                        .setDescription('Cracking mode (default: dict, uses JWT_WORDLIST)')
                         .setRequired(false)
                         .addChoices(
                             { name: 'Dictionary attack', value: 'dict' },
