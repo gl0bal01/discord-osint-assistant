@@ -8,7 +8,7 @@
  * reconnaissance for OSINT investigations.
  * 
  * Features:
- * - Multi-platform username search (400+ sites)
+ * - Username search across the sites in Sherlock's database
  * - Configurable timeout and verbosity settings
  * - Real-time progress updates during scanning
  * - Secure output handling with automatic cleanup

@@ -1,5 +1,5 @@
 /**
- * File: redirect-chain-enhanced.js
+ * File: redirect-chain.js
  * Description: Advanced URL redirect chain analysis for digital forensics and security research
  * Author: gl0bal01
  * 
@@ -48,17 +48,17 @@ module.exports = {
                 .setRequired(false))
         .addBooleanOption(option =>
             option.setName('headers')
-                .setDescription('Include full response headers in the analysis')
+                .setDescription('Include full response headers in the analysis (default: true)')
                 .setRequired(false))
         .addIntegerOption(option =>
             option.setName('timeout')
-                .setDescription('Request timeout in seconds (default: 10)')
+                .setDescription('Request timeout in seconds (1-30, default: 10)')
                 .setRequired(false)
                 .setMinValue(1)
                 .setMaxValue(30))
         .addBooleanOption(option =>
             option.setName('deep')
-                .setDescription('Perform deep analysis including content scanning')
+                .setDescription('Perform deep analysis including content scanning (default: true)')
                 .setRequired(false))
         .addStringOption(option =>
             option.setName('export')

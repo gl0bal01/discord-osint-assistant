@@ -8,9 +8,9 @@
  * vulnerability scanner that uses YAML-based templates for fast and customizable scanning.
  * 
  * Features:
- * - Username enumeration across 50+ platforms (social media, forums, code repositories)
+ * - Username enumeration with the nuclei-templates OSINT user-enumeration templates
  * - Custom OSINT template execution with user variable injection
- * - Advanced filtering with customizable tags and severity levels
+ * - Category filtering (osint-<category> template tags)
  * - Concurrent scanning with configurable timeout and thread management
  * - Real-time progress tracking with elapsed time updates
  * - Automatic URL extraction and clickable link generation
@@ -99,7 +99,7 @@ module.exports = {
     requiresTool: [process.env.NUCLEI_PATH || 'nuclei'],
     data: new SlashCommandBuilder()
         .setName('bob-nuclei')
-        .setDescription('🔍 Advanced OSINT username enumeration using Nuclei vulnerability scanner')
+        .setDescription('Username enumeration with Nuclei OSINT templates')
         .addStringOption(option =>
             option.setName('username')
                 .setDescription('Target username to scan across platforms (alphanumeric, underscore, dot, hyphen only)')

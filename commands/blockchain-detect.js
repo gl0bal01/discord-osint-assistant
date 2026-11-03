@@ -8,7 +8,7 @@
  * Essential for cryptocurrency investigations and blockchain forensics.
  * 
  * Features:
- * - Multi-blockchain format detection (50+ networks)
+ * - Address format detection across many blockchain networks
  * - Address validation and checksum verification
  * - Format pattern analysis and explanation
  * - Multiple possible blockchain identification

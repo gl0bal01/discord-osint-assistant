@@ -1,7 +1,7 @@
 /**
  * File: rekognition.js
  * Description: Command to analyze images and compare faces using AWS Rekognition
- * Author: global01
+ * Author: gl0bal01
  * 
  * This command interfaces with AWS Rekognition to perform advanced image analysis
  * including object detection, text extraction, face analysis, and face comparison
@@ -58,7 +58,7 @@ module.exports = {
                         .setRequired(false))
                 .addStringOption(option =>
                     option.setName('features')
-                        .setDescription('Features to analyze (comma-separated)')
+                        .setDescription('Feature to analyze (default: all)')
                         .setRequired(false)
                         .addChoices(
                             { name: 'All Features', value: 'all' },

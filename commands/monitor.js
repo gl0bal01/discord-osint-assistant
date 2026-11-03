@@ -71,7 +71,7 @@ module.exports = {
                         .setRequired(true))
                 .addIntegerOption(option =>
                     option.setName('interval')
-                        .setDescription('Check interval in minutes')
+                        .setDescription('Check interval in minutes (max 3 monitors per user, 20 in total)')
                         .setRequired(true)
                         .setMinValue(1)))
         .addSubcommand(subcommand =>

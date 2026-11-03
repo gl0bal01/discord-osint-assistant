@@ -1,5 +1,5 @@
 /**
- * File: bob-web-recon.js
+ * File: recon-web.js
  * Description: Multi-source domain reconnaissance tool for Discord bots
  * Author: gl0bal01
  * 

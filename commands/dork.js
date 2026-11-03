@@ -1,5 +1,5 @@
 /**
- * File: bob-dork.js
+ * File: dork.js
  * Description: Command to generate a list of Google dork URLs for OSINT person lookup
  * Author: gl0bal01
  * 
@@ -16,7 +16,7 @@ const logger = require('../utils/logger').child({ command: 'bob-dork' });
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('bob-dork')
-        .setDescription('Generate Google dork URLs for person lookup')
+        .setDescription('Generate search-engine dork URLs for person lookup')
         .addStringOption(option =>
             option.setName('firstname')
                 .setDescription('First name of the person')
