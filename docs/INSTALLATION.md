@@ -41,39 +41,11 @@ The bot starts with just `DISCORD_TOKEN` and `CLIENT_ID`. All other API keys and
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in your values. [`.env.example`](../.env.example) is the complete reference: every variable the bot reads, grouped and commented, with its default. A test fails when the code reads a variable that is missing from it. The tables below cover the ones you set most often.
-
-**Required:**
-
-| Variable | Purpose |
-|----------|---------|
-| `DISCORD_TOKEN` | Bot token from Discord Developer Portal |
-| `CLIENT_ID` | Application ID from Discord Developer Portal |
-| `GUILD_ID` | Server for guild-scoped command deployment (`bun run deploy` only) |
-
-**Access Control:**
-
-| Variable | Purpose |
-|----------|---------|
-| `ALLOWED_GUILD_IDS` | Comma-separated server IDs the bot is allowed in (empty = all); it leaves any other server |
-| `OSINT_ALLOWED_ROLES` | Comma-separated role IDs that can use restricted commands without the Discord permission ([which commands](../README.md#security)) |
-| `RATE_LIMIT_DAILY` | Per-user daily command limit (default `200`) |
-| `MONITOR_CHANNEL_ID` | Channel ID for `/bob-monitor` alerts |
-
-**Operations:**
-
-| Variable | Purpose |
-|----------|---------|
-| `LOG_LEVEL` | pino log level (default `info`); see [Logging](../README.md#logging) |
-| `HEALTH_FILE` | Gateway state file read by the healthcheck (default `./temp/.health/health.json`); see [Health Check](../README.md#health-check) |
-| `METRICS_ENABLED`, `METRICS_PORT`, `METRICS_HOST` | Opt-in Prometheus endpoint (off, `9090`, `127.0.0.1`); see [Metrics](../README.md#metrics-opt-in) |
-| `REPORTS_DIR`, `REPORTS_RETENTION_DAYS` | Where command exports are copied, and after how many days they are pruned; see [Reports Archive](../README.md#reports-archive) |
-| `SECURITY_WEBHOOK_URL` | Webhook that receives `/bob-redirect-check` security alerts |
-| `BOT_TARGET` | Docker image, `slim` (default) or `full`; read by `docker-compose.yml`, not by the bot |
+Copy `.env.example` to `.env` and fill in your values. [`.env.example`](../.env.example) is the complete reference: every variable the bot reads, grouped and commented, with its default. A test fails when the code reads a variable that is missing from it. Only `DISCORD_TOKEN` and `CLIENT_ID` are required; `GUILD_ID` is read only by `bun run deploy`.
 
 ### API Keys
 
-All optional — each command degrades gracefully without its key.
+Where to get each key. All optional — each command degrades gracefully without its key.
 
 | Variable | Service | Used by |
 |----------|---------|---------|

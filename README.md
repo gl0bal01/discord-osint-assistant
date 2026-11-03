@@ -293,17 +293,13 @@ If an API key is missing, the related command returns a descriptive error. If a 
 
 ### Logging
 
-The bot uses [pino](https://getpino.io/) for structured JSON logging.
-
-| Variable    | Default | Accepted values                          |
-|-------------|---------|------------------------------------------|
-| `LOG_LEVEL` | `info`  | `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent` |
+The bot uses [pino](https://getpino.io/) for structured JSON logging; `LOG_LEVEL` sets the level.
 
 In development (non-production and interactive TTY) logs are pretty-printed via `pino-pretty`. In production, raw JSON is written to stdout for ingestion by log aggregators. Secrets are redacted before output: see [SECURITY.md](SECURITY.md#structured-logging-and-secret-redaction).
 
 ### Health Check
 
-The bot writes its Discord gateway state to `HEALTH_FILE` (default `./temp/.health/health.json`) every 5 seconds. `scripts/healthcheck.js` turns it into an exit code: the Docker `HEALTHCHECK` runs it (`make dhealth` shows the result), and on a systemd host you run `bun run scripts/healthcheck.js`. Its time windows are fixed; see [SECURITY.md](SECURITY.md#healthcheck).
+The bot writes its Discord gateway state to `HEALTH_FILE` every 5 seconds. `scripts/healthcheck.js` turns it into an exit code: the Docker `HEALTHCHECK` runs it (`make dhealth` shows the result), and on a systemd host you run `bun run scripts/healthcheck.js`. Its time windows are fixed; see [SECURITY.md](SECURITY.md#healthcheck).
 
 ### Reports Archive
 
@@ -314,20 +310,9 @@ Besides the Discord attachment, command exports (Sherlock, Maigret, Nuclei, Link
 
 To keep them, point `REPORTS_DIR` at a disk path (Docker: mount a named volume on `/app/reports`; systemd: also add it to `ReadWritePaths`). Files older than `REPORTS_RETENTION_DAYS` are pruned at boot and hourly.
 
-| Variable                 | Default     | Description                                |
-|--------------------------|-------------|--------------------------------------------|
-| `REPORTS_DIR`            | `./reports` | Directory for command exports              |
-| `REPORTS_RETENTION_DAYS` | `30`        | Age (days) after which reports are pruned  |
-
 ### Metrics (opt-in)
 
-With `METRICS_ENABLED=true` the bot serves Prometheus metrics at `GET /metrics`: command duration, command errors, rate-limit blocks and Discord events.
-
-| Variable          | Default     | Description                     |
-|-------------------|-------------|---------------------------------|
-| `METRICS_ENABLED` | off         | `true` starts the metrics server |
-| `METRICS_PORT`    | `9090`      | Listen port                     |
-| `METRICS_HOST`    | `127.0.0.1` | Bind address                    |
+With `METRICS_ENABLED=true` the bot serves Prometheus metrics at `GET /metrics` on `METRICS_HOST`:`METRICS_PORT` (loopback by default): command duration, command errors, rate-limit blocks and Discord events.
 
 Keep the loopback bind and put an authenticated reverse proxy in front before exposing it. Docker Compose publishes no port, so there the endpoint is reachable only from inside the container. See [SECURITY.md](SECURITY.md#metrics-endpoint-opt-in).
 
