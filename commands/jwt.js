@@ -49,11 +49,11 @@ const logger = require('../utils/logger').child({ command: 'bob-jwt' });
 // JWT_TOOL_PATH: jwt_tool checkout (the full image installs it at /opt/tools/jwt_tool).
 // JWT_WORDLIST: dictionary for `crack mode:dict`; defaults to the common-secrets list bundled
 // with jwt_tool (mount a bigger one, e.g. rockyou, and point JWT_WORDLIST at it).
-const JWT_TOOL_PATH = process.env.JWT_TOOL_PATH ?? '/opt/tools/jwt_tool';
+const JWT_TOOL_PATH = process.env.JWT_TOOL_PATH || '/opt/tools/jwt_tool';
 const CONFIG = {
     JWT_TOOL_PATH,
     TEMP_FOLDER: REPORTS_DIR,
-    DEFAULT_WORDLIST: process.env.JWT_WORDLIST ?? path.join(JWT_TOOL_PATH, 'jwt-common.txt'),
+    DEFAULT_WORDLIST: process.env.JWT_WORDLIST || path.join(JWT_TOOL_PATH, 'jwt-common.txt'),
     COMMAND_TIMEOUT: 120000, // 2 minutes
     MAX_OUTPUT_SIZE: 10 * 1024 * 1024, // 10MB max output file size
     CLEANUP_INTERVAL: 3600000, // 1 hour cleanup interval

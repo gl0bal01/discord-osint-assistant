@@ -107,7 +107,7 @@ General AI assistance with optional context presets.
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `message` | **Yes** | Your question or request (max 2000 chars) |
-| `model`   | No       | Claude Haiku 5.5 (default), Sonnet 5.5, Opus 5.5, Fable 5.1; GPT-6 Luna / 6.1 Sol / 6 Astra; Gemini 3.8 Flash / 4 Argon; Grok 4.7; DeepSeek V4.1 Flash / V4 Pro; Qwen3.8 Max; Kimi K3; GLM-5.3; Mistral Medium 3.5; Muse Wonder; Sonar / Sonar Pro / Sonar Reasoning Pro / Sonar Deep Research |
+| `model`   | No       | Claude Haiku 5.5 (default), Claude Sonnet 5.5, Claude Opus 5.5, Claude Fable 5.1, GPT-6 Luna, GPT-6.1 Sol, GPT-6 Astra, Gemini 3.8 Flash, Gemini 4 Argon, Grok 4.7, DeepSeek V4.1 Flash, DeepSeek V4 Pro, Qwen3.8 Max, Kimi K3, GLM-5.3, Mistral Medium 3.5, Muse Wonder, Sonar, Sonar Pro, Sonar Reasoning Pro, Sonar Deep Research |
 | `context` | No       | `general` (default), `osint`, `data`, `investigation`, `technical`, `report` |
 
 Sonar models answer with live web search (5 sites, 10 for Deep Research).
