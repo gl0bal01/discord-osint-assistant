@@ -31,8 +31,18 @@ function readInCode() {
         for (const m of src.matchAll(/process\.env\.([A-Z][A-Z0-9_]*)|process\.env\[['"]([A-Z][A-Z0-9_]*)['"]\]/g)) {
             names.add(m[1] ?? m[2]);
         }
-        // Indirect reads: tables of { envVar: 'X' } (commands/health.js)
+        // Destructuring: const { A, B: alias = 'x' } = process.env
+        for (const m of src.matchAll(/\{([^}]*)\}\s*=\s*process\.env\b/g)) {
+            for (const part of m[1].split(',')) {
+                const name = part.trim().split(/[:=\s]/)[0];
+                if (/^[A-Z][A-Z0-9_]*$/.test(name)) names.add(name);
+            }
+        }
+        // Indirect reads: tables of { envVar: 'X' } (commands/health.js), needsEnv: ['X'] (smoke-test)
         for (const m of src.matchAll(/envVar:\s*['"]([A-Z][A-Z0-9_]*)['"]/g)) names.add(m[1]);
+        for (const m of src.matchAll(/needsEnv:\s*\[([^\]]*)\]/g)) {
+            for (const n of m[1].matchAll(/['"]([A-Z][A-Z0-9_]*)['"]/g)) names.add(n[1]);
+        }
     }
     return names;
 }

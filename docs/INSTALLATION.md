@@ -6,6 +6,7 @@
 - **Bun** ([install](https://bun.sh/)) — the package manager, and the runtime of the Docker image, the systemd unit and the `Makefile`. Only a manual `node index.js` run works without it.
 - A **Discord bot token** — see [Discord setup](#discord-bot-setup) below
 - **Docker** (optional) for the [container path](#docker-deployment)
+- **systemd path** only: `git`, `rsync`, `sudo`, `make` and systemd (`systemd-run`); Bun installed at `/usr/bin/bun` (the unit's `ExecStart`). `make install` checks these first.
 
 ## Quick Start
 
@@ -27,7 +28,7 @@ The bot starts with just `DISCORD_TOKEN` and `CLIENT_ID`. All other API keys and
 2. Under **Bot**:
    - Click "Reset Token" and copy it — this is your `DISCORD_TOKEN`
    - Disable **Public Bot** (so only you can invite it)
-   - No privileged intent is needed: the bot uses only the `Guilds` and `GuildMessages` intents
+   - No privileged intent is needed: the bot uses only the `Guilds` intent (slash commands)
 
 3. Under **OAuth2 > URL Generator**:
    - Scopes: `bot`, `applications.commands`
@@ -149,7 +150,7 @@ make logs-tail          # follow journald
 - **Install path**: `INSTALL_DIR` defaults to `/opt/discord-osint-assistant`. The unit's `WorkingDirectory` and `ReadWritePaths` use that path too, so changing `INSTALL_DIR` means editing the unit as well.
 - **Reports**: they go to the service's private `/tmp` and are wiped when it stops; see [Reports Archive](../README.md#reports-archive) to keep them.
 - **Tool state**: `botuser` has no home and the unit sets `ProtectHome=true`, so the unit gives the service a private, persistent `HOME` at `/var/lib/discord-osint-assistant` (`StateDirectory`). The GHunt login (`/bob-ghunt type:login`, read by the `ghunt` CLI from `$HOME/.malfrats`) survives restarts there; leave `GHUNT_CREDS_PATH` unset.
-- `make deploy-cmds`, `make deploy-cmds-global` and `make clear-cmds` register or clear slash commands with the installed env file. `make uninstall` removes the unit and keeps the install directory and the env file. `make help` lists every target.
+- `make deploy-cmds`, `make deploy-cmds-global`, `make clear-cmds` and `make clear-cmds-global` register or clear slash commands as `botuser`, in a transient systemd unit that reads the installed env file exactly like the service. `make uninstall` removes the unit and keeps the install directory and the env file. `make help` lists every target.
 
 ## Command Deployment
 

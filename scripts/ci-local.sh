@@ -7,6 +7,7 @@
 #   bun run ci:fast   dev loop only: frozen install + test + lint of the WORKING TREE on
 #                     the host Node (touches host node_modules), then the audit
 #
+# CI_LOG_DIR=<dir> keeps the step logs there (default: a fresh temp dir, printed at the end).
 # Pre-push hook (opt-in): git config core.hooksPath .githooks
 # Add a CI step -> add it here in the same commit.
 set -uo pipefail
@@ -52,6 +53,10 @@ trivy() {
 # The containers run the host bun: it must be the version ci.yml pins.
 CI_BUN=$(sed -n 's/.*bun-version: *\([0-9.]*\).*/\1/p' .github/workflows/ci.yml | head -1)
 step "bun $CI_BUN (ci.yml setup-bun)" test "$("$BUN" --version)" = "$CI_BUN"
+# Versions pinned in two files must agree: Bun (ci.yml vs Dockerfile), Trivy (ci.yml vs here).
+TRIVY_VER=${TRIVY_IMAGE#aquasec/trivy:}; TRIVY_VER=${TRIVY_VER%%@*}
+step "pins agree (bun, trivy)" sh -ec "grep -q 'FROM oven/bun:${CI_BUN}-slim@' Dockerfile && \
+    grep -q 'version: v${TRIVY_VER}' .github/workflows/ci.yml"
 
 if [ "${1:-}" = "--fast" ]; then
     step "test (host node $(node -v))" sh -ec 'bun install --frozen-lockfile && bun run test && bun run lint && bun run knip'

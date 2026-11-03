@@ -24,6 +24,15 @@
 | `tests/` | Vitest suites: `commands/`, `utils/`, `integration/`, `scripts/`, `docs/` |
 | `docs/` | `INSTALLATION.md`, and the generated `COMMANDS.md` |
 | `reports/`, `temp/` | Runtime data (command exports, temp files, health state); gitignored |
+| `package.json`, `bun.lock` | Scripts, dependencies (`bufferutil`/`utf-8-validate` are optional native accelerators for discord.js's WebSocket), security `overrides`; the lockfile every install uses with `--frozen-lockfile` |
+| `.env.example` | Complete reference of every environment variable (checked by `tests/utils/env-contract.test.js`) |
+| `Dockerfile`, `docker-compose.yml`, `.dockerignore` | `slim`/`full` images and the hardened container runtime |
+| `Makefile` | systemd and compose operations (`make help`) |
+| `.github/` | CI workflows (below) and `dependabot.yml` |
+| `eslint.config.js`, `knip.json`, `vitest.config.mjs` | Lint, unused-code check and test configuration |
+| `.gitignore` | Secrets, runtime data and local tooling kept out of git (including `CLAUDE.md`, a local assistant guide) |
+| `README.md`, `SECURITY.md`, `CONTRIBUTING.md`, `LICENSE` | Overview, security policy, this guide, MIT license |
+| `CITATION.cff`, `zenodo.json` | Citation and Zenodo archive metadata (`update-doi.yml` refreshes CITATION on release) |
 
 ## Adding a New Command
 
@@ -70,7 +79,7 @@ Opt in to running the local CI mirror before anything leaves your machine with `
 | `ci.yml` | On every push and pull request to `main`: test, lint and knip on Node 22/24/26, `npm audit`, both Docker images with Trivy scans, and a check that the `full` image ships every tool. `bun run ci` mirrors it locally. |
 | `dependabot-auto-merge.yml` | Auto-merges Dependabot patch and minor updates once required checks pass. Never majors, never pip (the `full` image's OSINT tools). |
 | `mirror.yml` | Mirrors the repository to Codeberg on every push to `main` and weekly. |
-| `update-doi.yml` | On a published release, updates `version` and `date-released` in `CITATION.cff`. |
+| `update-doi.yml` ("Update citation") | On a published release, updates `version` and `date-released` in `CITATION.cff`. |
 
 Adding a step to `ci.yml` means adding it to `scripts/ci-local.sh` in the same commit.
 
