@@ -145,9 +145,13 @@ After starting the bot, run `/bob-health` in Discord:
 
 - `/bob-health` reports the overall status, the Discord connection and system usage; `detailed:true` adds detailed system information.
 - `check-apis:true` tests the DNSDumpster, Whoxy and Host.io keys only.
-- `check-tools:true` lists every CLI tool with its command: 🟢 installed, ⚪ not installed (the command is hidden, as everywhere in the `slim` image).
+- `check-tools:true` lists every CLI-backed command and whether its tool's executable is present (it is not run):
+  - 🟢 present, command loaded
+  - ⚪ not installed, command hidden (all of them in the `slim` image); this does not change the overall status
+  - 🔴 gone since boot: the command is still loaded and will fail (status degraded)
+  - 🟡 installed since boot: restart the bot to load the command
 
-The boot log's `Commands loaded` line lists the same hidden commands under `missingTool`, and `bun scripts/check-tools.js` exits 1 when any CLI-backed command would be hidden for a missing tool.
+The boot log's `Commands loaded` line lists the commands hidden at boot under `missingTool`, and `bun scripts/check-tools.js` exits 1 when any CLI-backed command would be hidden for a missing tool.
 
 ## Troubleshooting
 

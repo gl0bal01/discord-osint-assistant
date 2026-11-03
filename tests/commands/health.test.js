@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 
+const fs = require('fs');
 let health;
 let axios;
 let tools;
@@ -151,23 +152,52 @@ describe('bob-health check-apis', () => {
 
 describe('bob-health check-tools', () => {
     const CLI = ['exif', 'ghunt', 'jwt', 'linkook', 'maigret', 'nuclei', 'sherlock', 'xeuledoc'];
+    const NAMES = CLI.map((f) => `bob-${f}`);
+    const loadedClient = (names) => makeClient({ commands: new Map(names.map((n) => [n, {}])) });
 
-    it('lists every CLI-backed command, a missing tool as hidden rather than unhealthy', async () => {
-        vi.stubEnv('SHERLOCK_PATH', '/opt/private/bin/sherlock');
-        available.mockImplementation((candidates) => candidates.some((c) => /nuclei|jwt_tool/.test(c)));
-        const { fields, data } = await run({ 'check-tools': true });
+    it('slim image: every tool absent and every command hidden, still healthy', async () => {
+        const { fields } = await run({ 'check-tools': true }, loadedClient([]));
         expect(fields['🔧 External Tools']).toBe([
             '⚪ exiftool: not installed, /bob-exif hidden',
             '⚪ ghunt: not installed, /bob-ghunt hidden',
-            '🟢 jwt_tool: /bob-jwt',
+            '⚪ jwt_tool: not installed, /bob-jwt hidden',
             '⚪ linkook: not installed, /bob-linkook hidden',
             '⚪ maigret: not installed, /bob-maigret hidden',
-            '🟢 nuclei: /bob-nuclei',
+            '⚪ nuclei: not installed, /bob-nuclei hidden',
             '⚪ sherlock: not installed, /bob-sherlock hidden',
             '⚪ xeuledoc: not installed, /bob-xeuledoc hidden'
         ].join('\n'));
         expect(fields['📊 Overall Status']).toBe('🟢 **HEALTHY** (100/100)\n✅ No issues detected');
-        expect(JSON.stringify(data)).not.toContain('/opt/private');
+    });
+
+    it('full image: every tool present and every command loaded', async () => {
+        available.mockReturnValue(true);
+        const { fields } = await run({ 'check-tools': true }, loadedClient(NAMES));
+        const rows = fields['🔧 External Tools'].split('\n');
+        expect(rows).toHaveLength(CLI.length);
+        expect(rows.every((r) => r.startsWith('🟢 '))).toBe(true);
+        expect(rows).toContain('🟢 sherlock: /bob-sherlock');
+        expect(fields['📊 Overall Status']).toContain('HEALTHY');
+    });
+
+    it('degrades when a loaded command lost its tool, and flags a tool installed since boot', async () => {
+        available.mockImplementation((candidates) => candidates.some((c) => /nuclei|jwt_tool/.test(c)));
+        const { fields } = await run({ 'check-tools': true }, loadedClient(['bob-nuclei', 'bob-sherlock']));
+        const rows = fields['🔧 External Tools'].split('\n');
+        expect(rows).toContain('🟢 nuclei: /bob-nuclei');
+        expect(rows).toContain('🔴 sherlock: missing, /bob-sherlock is loaded and will fail');
+        expect(rows).toContain('🟡 jwt_tool: installed since boot, restart to load /bob-jwt');
+        expect(rows).toContain('⚪ exiftool: not installed, /bob-exif hidden');
+        expect(fields['📊 Overall Status']).toBe('🟡 **DEGRADED** (75/100)\n⚠️ Issues: 1 loaded command(s) lost their tool');
+    });
+
+    it('reports a command file that fails to load instead of failing the whole check', async () => {
+        const real = fs.readdirSync;
+        vi.spyOn(fs, 'readdirSync').mockImplementation((dir, ...rest) => [...real(dir, ...rest), 'zz-broken.js']);
+        const { fields } = await run({ 'check-tools': true }, loadedClient(NAMES));
+        expect(fields['🔧 External Tools'].split('\n').at(-1)).toBe('🔴 zz-broken.js: failed to load');
+        expect(fields['📊 Overall Status']).toContain('1 command file(s) failed to load');
+        expect(fields['💻 System']).toBeDefined();
     });
 
     it('asks the same question bootstrap does: each command\'s own requiresTool', async () => {
@@ -175,11 +205,15 @@ describe('bob-health check-tools', () => {
         expect(available.mock.calls.map(([c]) => c)).toEqual(CLI.map((f) => require(`../../commands/${f}.js`).requiresTool));
     });
 
-    it('shows every tool green when all are installed', async () => {
-        available.mockReturnValue(true);
-        const { fields } = await run({ 'check-tools': true });
-        expect(fields['🔧 External Tools'].split('\n')).toHaveLength(CLI.length);
-        expect(fields['🔧 External Tools']).not.toContain('⚪');
+    it('shows only the tool name, never a configured path', async () => {
+        vi.stubEnv('SHERLOCK_PATH', '/opt/private/bin/sherlock');
+        // requiresTool is computed at load: reload sherlock.js so it picks up the stub
+        delete require.cache[require.resolve('../../commands/sherlock.js')];
+        expect(require('../../commands/sherlock.js').requiresTool).toEqual(['/opt/private/bin/sherlock']);
+        const { fields, data } = await run({ 'check-tools': true });
+        expect(fields['🔧 External Tools']).toContain('⚪ sherlock: not installed, /bob-sherlock hidden');
+        expect(JSON.stringify(data)).not.toContain('/opt/private');
+        delete require.cache[require.resolve('../../commands/sherlock.js')];
     });
 });
 

@@ -8,19 +8,18 @@
  * Essential for maintaining operational awareness and troubleshooting issues.
  * 
  * Features:
- * - System resource monitoring (CPU, memory, disk)
+ * - System resource monitoring (CPU, memory)
  * - Discord API connection status
- * - External tool availability checks
+ * - CLI tool checks for every command that wraps one
  * - API endpoint health validation
  * - Performance metrics and uptime tracking
- * - Environment configuration verification
  * 
  * Usage: /bob-health detailed:true
  */
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const fs = require('fs').promises;
+const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { isToolAvailable } = require('../utils/tools');
@@ -91,7 +90,6 @@ async function gatherHealthData(detailed, checkApis, checkTools, client) {
     
     // Basic system information
     const systemInfo = await getSystemInfo(detailed);
-    const botInfo = getBotInfo(client);
     const discordInfo = getDiscordInfo(client);
     
     // Optional checks
@@ -103,11 +101,11 @@ async function gatherHealthData(detailed, checkApis, checkTools, client) {
     }
     
     if (checkTools) {
-        toolStatus = checkToolAvailability();
+        toolStatus = checkToolAvailability(client);
     }
     
     // Determine overall health status
-    const overall = determineOverallHealth(systemInfo, botInfo, apiStatus, client);
+    const overall = determineOverallHealth(systemInfo, apiStatus, toolStatus, client);
     
     const processingTime = Date.now() - startTime;
     
@@ -116,7 +114,6 @@ async function gatherHealthData(detailed, checkApis, checkTools, client) {
         processingTime,
         overall,
         system: systemInfo,
-        bot: botInfo,
         discord: discordInfo,
         apis: apiStatus,
         tools: toolStatus
@@ -156,8 +153,8 @@ async function getSystemInfo(detailed) {
             // Check disk space for temp directory
             const tempDir = path.join(__dirname, '../temp');
             try {
-                await fs.access(tempDir);
-                const stats = await fs.stat(tempDir);
+                await fs.promises.access(tempDir);
+                const stats = await fs.promises.stat(tempDir);
                 info.tempDir = {
                     exists: true,
                     path: tempDir,
@@ -176,20 +173,6 @@ async function getSystemInfo(detailed) {
     }
     
     return info;
-}
-
-/**
- * Get bot-specific information
- * @returns {Object} Bot information
- */
-function getBotInfo(client) {
-    return {
-        version: require('../package.json').version || '2.0.0',
-        environment: process.env.NODE_ENV || 'development',
-        pid: process.pid,
-        startTime: process.uptime(),
-        commandsLoaded: client?.commands?.size || 0
-    };
 }
 
 /**
@@ -280,33 +263,53 @@ async function checkApiHealth() {
 }
 
 /**
- * One row per CLI-backed command, from its `requiresTool`: the same check
- * bootstrap.loadCommands uses to load or hide it, so this list covers every tool
- * and can't drift. A missing tool is not a fault: the slim image ships none, and
- * the command is simply not registered there.
- * @returns {Object} tool name -> { command, available }
+ * One row per CLI-backed command (it exports `requiresTool`). `loaded` is the boot
+ * decision (bootstrap.loadCommands hid the command if its tool was missing then);
+ * `present` re-runs the same isToolAvailable check now, so a tool lost or installed
+ * since boot shows up. Executables are checked for, not run: this command is light
+ * and open to everyone, so it must not spawn eight tools on demand.
+ * @param {Client} client - Discord client; `client.commands` holds the loaded commands
+ * @returns {Object} "/bob-x" -> { tool, loaded, present }, or file name -> { failed: true }
  */
-function checkToolAvailability() {
+function checkToolAvailability(client) {
     const results = {};
-    for (const file of require('fs').readdirSync(__dirname).filter((f) => f.endsWith('.js')).sort()) {
-        const command = require(path.join(__dirname, file));
-        if (!command.requiresTool) continue;
-        results[path.basename(command.requiresTool.at(-1))] = {
-            command: command.data.name,
-            available: isToolAvailable(command.requiresTool)
-        };
+    for (const file of fs.readdirSync(__dirname).filter((f) => f.endsWith('.js')).sort()) {
+        try {
+            const command = require(path.join(__dirname, file));
+            if (!command.requiresTool) continue;
+            results[`/${command.data.name}`] = {
+                tool: path.basename(command.requiresTool.at(-1)),
+                loaded: Boolean(client?.commands?.has(command.data.name)),
+                present: isToolAvailable(command.requiresTool)
+            };
+        } catch (error) {
+            logger.warn({ err: error, file }, 'command module failed to load');
+            results[file] = { failed: true };
+        }
     }
     return results;
+}
+
+/** One embed line per checkToolAvailability() entry. */
+function toolRow([name, t]) {
+    if (t.failed) return `🔴 ${name}: failed to load`;
+    if (t.loaded && t.present) return `🟢 ${t.tool}: ${name}`;
+    if (t.loaded) return `🔴 ${t.tool}: missing, ${name} is loaded and will fail`;
+    if (t.present) return `🟡 ${t.tool}: installed since boot, restart to load ${name}`;
+    return `⚪ ${t.tool}: not installed, ${name} hidden`;
 }
 
 /**
  * Determine overall health status
  * @param {Object} systemInfo - System information
- * @param {Object} botInfo - Bot information
  * @param {Object} apiStatus - API status (may be null)
+ * @param {Object} toolStatus - Tool status (may be null). A tool absent at boot and now is
+ *   not a fault (the slim image ships none); a loaded command that lost its tool, or a
+ *   command file that fails to load, is.
+ * @param {Client} client - Discord client
  * @returns {Object} Overall health assessment
  */
-function determineOverallHealth(systemInfo, botInfo, apiStatus, client) {
+function determineOverallHealth(systemInfo, apiStatus, toolStatus, client) {
     let status = 'healthy';
     const issues = [];
     
@@ -330,6 +333,15 @@ function determineOverallHealth(systemInfo, botInfo, apiStatus, client) {
             if (status === 'healthy') status = 'degraded';
             issues.push(`${unhealthyApis.length} API(s) unhealthy`);
         }
+    }
+
+    if (toolStatus) {
+        const rows = Object.values(toolStatus);
+        const lost = rows.filter((t) => t.loaded && !t.present).length;
+        const failed = rows.filter((t) => t.failed).length;
+        if (lost) issues.push(`${lost} loaded command(s) lost their tool`);
+        if (failed) issues.push(`${failed} command file(s) failed to load`);
+        if ((lost || failed) && status === 'healthy') status = 'degraded';
     }
     
     return {
@@ -415,9 +427,7 @@ function createHealthEmbed(healthData, detailed) {
     
     // Tool Status (if checked)
     if (healthData.tools) {
-        const toolSummary = Object.entries(healthData.tools).map(([tool, { command, available }]) =>
-            (available ? `🟢 ${tool}: /${command}` : `⚪ ${tool}: not installed, /${command} hidden`)
-        ).join('\n');
+        const toolSummary = Object.entries(healthData.tools).map(toolRow).join('\n');
         
         embed.addFields({
             name: '🔧 External Tools',
