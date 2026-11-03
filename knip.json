@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "commands/*.js",
+    "scripts/healthcheck.js",
+    "scripts/check-tools.js"
+  ],
+  "project": [
+    "**/*.js"
+  ],
+  "ignoreDependencies": [
+    "pino-pretty"
+  ]
+}

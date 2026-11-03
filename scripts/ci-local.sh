@@ -54,10 +54,10 @@ CI_BUN=$(sed -n 's/.*bun-version: *\([0-9.]*\).*/\1/p' .github/workflows/ci.yml 
 step "bun $CI_BUN (ci.yml setup-bun)" test "$("$BUN" --version)" = "$CI_BUN"
 
 if [ "${1:-}" = "--fast" ]; then
-    step "test (host node $(node -v))" sh -ec 'bun install --frozen-lockfile && bun run test && bun run lint'
+    step "test (host node $(node -v))" sh -ec 'bun install --frozen-lockfile && bun run test && bun run lint && bun run knip'
 else
     for v in "${NODE_MATRIX[@]}"; do
-        step "test (node $v)" in_node "$v" 'bun install --frozen-lockfile && bun run test && bun run lint'
+        step "test (node $v)" in_node "$v" 'bun install --frozen-lockfile && bun run test && bun run lint && bun run knip'
     done
 fi
 
