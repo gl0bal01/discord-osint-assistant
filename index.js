@@ -1,7 +1,7 @@
 // Main Discord bot entry point for OSINT Assistant — gl0bal01
 require('dotenv').config({ quiet: true });
 
-const { Client, GatewayIntentBits, Events, MessageFlags } = require('discord.js');
+const { Client, GatewayIntentBits, Events, MessageFlags, ActivityType } = require('discord.js');
 const path = require('node:path');
 const { checkPermission } = require('./utils/permissions');
 const { checkRateLimit, startRateLimitPrune, stopRateLimitPrune } = require('./utils/ratelimit');
@@ -18,7 +18,7 @@ require('axios').defaults.timeout = 60_000; // ceiling for any request that sets
 const tempDir = path.join(__dirname, 'temp');
 bootstrap.sweepBootTemp(tempDir);
 startHourlySweep(tempDir);
-pruneReports();        // boot prune of the durable reports/ archive (long TTL)
+pruneReports();        // boot prune of reports/ (REPORTS_RETENTION_DAYS)
 startReportsSweep();   // hourly reports/ prune
 
 const HEALTH_FILE = process.env.HEALTH_FILE || './temp/.health/health.json';
@@ -35,7 +35,7 @@ if (process.env.METRICS_ENABLED === 'true') {
 const ALLOWED_GUILDS = bootstrap.parseAllowedGuilds(process.env.ALLOWED_GUILD_IDS);
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+    intents: [GatewayIntentBits.Guilds], // slash commands only: no message intents
     // No pings by default: relayed third-party text (LLM, tools, scraped pages) can carry <@id>.
     // A reply that should ping the requester opts in with allowedMentions: { users: [id] }.
     allowedMentions: { parse: [], repliedUser: false }
@@ -61,7 +61,7 @@ function leaveUnauthorized(guild) {
 
 client.once(Events.ClientReady, (readyClient) => {
     logger.info({ tag: readyClient.user.tag, guilds: readyClient.guilds.cache.size, commands: client.commands.size }, 'OSINT Assistant online');
-    client.user.setActivity('OSINT operations', { type: 'WATCHING' });
+    client.user.setActivity('OSINT operations', { type: ActivityType.Watching });
     if (ALLOWED_GUILDS.length > 0) readyClient.guilds.cache.forEach(leaveUnauthorized);
     markReady();
     discordEvents.inc({ event: 'ready' });

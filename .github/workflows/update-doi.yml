@@ -1,4 +1,4 @@
-name: Update DOI and Citation
+name: Update citation
 
 on:
   release:
@@ -18,9 +18,6 @@ jobs:
           # A release event checks out the tag (detached HEAD); check out the
           # default branch instead so the citation commit has a branch to push to.
           ref: ${{ github.event.repository.default_branch }}
-
-      - name: Wait for Zenodo processing
-        run: sleep 300
 
       - name: Update CITATION.cff
         env:

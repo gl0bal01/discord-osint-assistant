@@ -36,7 +36,6 @@ license: MIT
 version: v3.0.0
 date-released: 2026-11-03
 doi: "10.5281/zenodo.15741849"
-commit: "main"
 references:
   - type: software
     title: "ExifTool"

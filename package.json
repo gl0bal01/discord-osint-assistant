@@ -22,7 +22,7 @@
     "knip": "knip",
     "ci": "bash scripts/ci-local.sh",
     "ci:fast": "bash scripts/ci-local.sh --fast",
-    "clean": "rm -rf temp/* || rmdir /s /q temp 2>nul || true"
+    "clean": "rm -rf temp/*"
   },
   "keywords": [
     "discord",
@@ -74,7 +74,6 @@
     "utf-8-validate": "^6.0.6"
   },
   "overrides": {
-    "fast-xml-parser": ">=5.7.0",
     "lodash": ">=4.17.24",
     "brace-expansion": ">=5.0.5",
     "picomatch": ">=4.0.4",

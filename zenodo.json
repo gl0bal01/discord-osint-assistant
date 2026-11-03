@@ -12,7 +12,7 @@
   "upload_type": "software",
   "keywords": [
     "OSINT",
-    "Open Source Intelligence", 
+    "Open Source Intelligence",
     "Digital Forensics",
     "Cybersecurity",
     "Social Media Intelligence",
@@ -41,7 +41,7 @@
     },
     {
       "term": "Computer Security",
-      "identifier": "https://id.loc.gov/authorities/subjects/sh90001862.html", 
+      "identifier": "https://id.loc.gov/authorities/subjects/sh90001862.html",
       "scheme": "url"
     }
   ],
