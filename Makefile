@@ -23,7 +23,7 @@ SYNC = tmp=$$(mktemp -d) && git archive HEAD | tar -x -C $$tmp && \
         start stop restart status logs logs-tail enable disable \
         deploy-cmds deploy-cmds-global clear-cmds \
         up down rebuild ps dlogs dhealth dexec-deploy \
-        check
+        ci smoke check
 
 ## ── meta ────────────────────────────────────────────────────────────────────
 
@@ -115,3 +115,10 @@ dhealth: ## Show container healthcheck state
 
 dexec-deploy: ## Register slash cmds inside running container
 	$(COMPOSE) exec bot bun run deploy
+
+## ── checks (run before pushing) ─────────────────────────────────────────────
+
+ci:      ## Run every CI job locally (Node 22/24/26, audits, both images, Trivy)
+	bun run ci
+smoke:   ## Run every command against the live APIs in a throwaway container
+	$(COMPOSE) run --rm bot bun run smoke

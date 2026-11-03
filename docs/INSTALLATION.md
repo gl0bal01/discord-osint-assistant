@@ -108,7 +108,9 @@ The default `slim` image has no CLI tools. Set `BOT_TARGET=full` in `.env` (or `
 
 The tools sit in their own cached layer, so rebuilding after a code change takes seconds. `docker compose build --pull --no-cache` refreshes them and the base image to their latest releases.
 
-To check every command against the live APIs, in a throwaway container from the same image: `docker compose run --rm bot bun run smoke`. Commands whose API key is unset, or whose tool isn't in the image, are skipped.
+To check every command against the live APIs, in a throwaway container from the same image: `docker compose run --rm bot bun run smoke` (or `make smoke`). `make ci` runs every CI job locally.
+
+The same steps through `make`: `make up BOT_TARGET=full`, `make dexec-deploy`, `make dhealth`, `make dlogs`, `make smoke`, `make ci`. Run `make help` for the full list. Commands whose API key is unset, or whose tool isn't in the image, are skipped.
 
 ## Command Deployment
 
