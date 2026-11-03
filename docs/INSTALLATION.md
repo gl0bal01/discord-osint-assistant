@@ -2,9 +2,10 @@
 
 ## Prerequisites
 
-- **Node.js** >= 20 ([download](https://nodejs.org/))
-- **Bun** ([install](https://bun.sh/)) — used as the package manager
+- **Node.js** >= 22.12 ([download](https://nodejs.org/))
+- **Bun** ([install](https://bun.sh/)) — the package manager, and the runtime of the Docker image, the systemd unit and the `Makefile`. Only a manual `node index.js` run works without it.
 - A **Discord bot token** — see [Discord setup](#discord-bot-setup) below
+- **Docker** (optional) for the [container path](#docker-deployment)
 
 ## Quick Start
 
@@ -17,7 +18,7 @@ bun run deploy          # register slash commands with your server
 bun run start
 ```
 
-The bot starts with just a Discord token. All other API keys and external tools are optional — commands that need them will tell you what's missing.
+The bot starts with just `DISCORD_TOKEN` and `CLIENT_ID`. All other API keys and external tools are optional — commands that need them will tell you what's missing.
 
 ## Discord Bot Setup
 
@@ -26,20 +27,20 @@ The bot starts with just a Discord token. All other API keys and external tools 
 2. Under **Bot**:
    - Click "Reset Token" and copy it — this is your `DISCORD_TOKEN`
    - Disable **Public Bot** (so only you can invite it)
-   - Enable **Server Members Intent** and **Message Content Intent**
+   - No privileged intent is needed: the bot uses only the `Guilds` and `GuildMessages` intents
 
 3. Under **OAuth2 > URL Generator**:
    - Scopes: `bot`, `applications.commands`
-   - Permissions: Send Messages, Use Slash Commands, Attach Files, Embed Links, Read Message History
+   - Permissions: Send Messages, Embed Links, Attach Files, Use Application Commands
    - Copy the generated URL and open it to invite the bot to your server
 
 4. Copy the **Application ID** from the General Information page — this is your `CLIENT_ID`.
 
-5. Right-click your Discord server name > Copy Server ID — this is your `GUILD_ID`. (Enable Developer Mode in Discord settings if you don't see this option.)
+5. Right-click your Discord server name > Copy Server ID — this is your `GUILD_ID`. (Enable Developer Mode in Discord settings if you don't see this option.) Only `bun run deploy` reads it; the bot itself does not.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in your values. Here's what each variable does:
+Copy `.env.example` to `.env` and fill in your values. [`.env.example`](../.env.example) is the complete reference: every variable the bot reads, grouped and commented, with its default. A test fails when the code reads a variable that is missing from it. The tables below cover the ones you set most often.
 
 **Required:**
 
@@ -47,29 +48,42 @@ Copy `.env.example` to `.env` and fill in your values. Here's what each variable
 |----------|---------|
 | `DISCORD_TOKEN` | Bot token from Discord Developer Portal |
 | `CLIENT_ID` | Application ID from Discord Developer Portal |
-| `GUILD_ID` | Server ID for guild-scoped command deployment |
+| `GUILD_ID` | Server for guild-scoped command deployment (`bun run deploy` only) |
 
 **Access Control:**
 
 | Variable | Purpose |
 |----------|---------|
-| `ALLOWED_GUILD_IDS` | Comma-separated server IDs the bot is allowed in (empty = all) |
-| `OSINT_ALLOWED_ROLES` | Comma-separated role IDs that can use restricted commands |
+| `ALLOWED_GUILD_IDS` | Comma-separated server IDs the bot is allowed in (empty = all); it leaves any other server |
+| `OSINT_ALLOWED_ROLES` | Comma-separated role IDs that can use restricted commands without the Discord permission ([which commands](../README.md#security)) |
+| `RATE_LIMIT_DAILY` | Per-user daily command limit (default `200`) |
 | `MONITOR_CHANNEL_ID` | Channel ID for `/bob-monitor` alerts |
 
-**API Keys** (all optional — commands degrade gracefully):
+**Operations:**
+
+| Variable | Purpose |
+|----------|---------|
+| `LOG_LEVEL` | pino log level (default `info`); see [Logging](../README.md#logging) |
+| `HEALTH_FILE` | Gateway state file read by the healthcheck (default `./temp/.health/health.json`); see [Health Check](../README.md#health-check) |
+| `METRICS_ENABLED`, `METRICS_PORT`, `METRICS_HOST` | Opt-in Prometheus endpoint (off, `9090`, `127.0.0.1`); see [Metrics](../README.md#metrics-opt-in) |
+| `REPORTS_DIR`, `REPORTS_RETENTION_DAYS` | Where command exports are copied, and after how many days they are pruned; see [Reports Archive](../README.md#reports-archive) |
+| `SECURITY_WEBHOOK_URL` | Webhook that receives `/bob-redirect-check` security alerts |
+| `BOT_TARGET` | Docker image, `slim` (default) or `full`; read by `docker-compose.yml`, not by the bot |
+
+### API Keys
+
+All optional — each command degrades gracefully without its key.
 
 | Variable | Service | Used by |
 |----------|---------|---------|
 | `DNSDUMPSTER_TOKEN` | [DNSDumpster](https://dnsdumpster.com/) | `/bob-dns` |
 | `WHOXY_API_KEY` | [Whoxy](https://www.whoxy.com/) | `/bob-whoxy` |
 | `HOSTIO_API_KEY` | [Host.io](https://host.io/) | `/bob-hostio` |
-| `AVIATIONSTACK_API_KEY` | [AviationStack](https://aviationstack.com/) | `/bob-flight`, `/bob-flight-number` |
+| `AVIATIONSTACK_API_KEY` | [AviationStack](https://aviationstack.com/) | `/bob-flight` |
 | `AIRPORTDB_API_KEY` | [AirportDB](https://airportdb.io/) | `/bob-airport` |
 | `PAPPERS_API_KEY` | [Pappers](https://www.pappers.fr/) | `/bob-pappers` |
-| `AI_API_KEY` | [1min.ai](https://1min.ai/) | `/bob-chat` |
-| `VIRUSTOTAL_API_KEY` | [VirusTotal](https://www.virustotal.com/) | `/bob-web-recon` |
-| `NIKE_TOKEN` | Nike Run Club | `/bob-nike` |
+| `AI_API_KEY` | [1min.ai](https://1min.ai/) | `/bob-chat`, `/bob-upload` |
+| `NIKE_TOKEN` | Nike Run Club (expires after about 1 hour; members with Manage Server can replace it in memory with `/bob-nike token:`) | `/bob-nike` |
 | `ETHERSCAN_API_KEY` | [Etherscan](https://etherscan.io/apis) (API V2: one key for every EVM chain; BNB Chain needs a paid plan) | `/bob-blockchain` (ETH, BSC, Polygon, testnets, trace) |
 | `AWS_ACCESS_KEY_ID` | AWS | `/bob-rekognition` |
 | `AWS_SECRET_ACCESS_KEY` | AWS | `/bob-rekognition` |
@@ -79,38 +93,62 @@ Copy `.env.example` to `.env` and fill in your values. Here's what each variable
 
 These CLI tools are optional. Install the ones you want to use, or use the `full` Docker image, which ships all of them:
 
-| Tool | Install | Commands |
-|------|---------|----------|
-| [Sherlock](https://github.com/sherlock-project/sherlock) | `pip install sherlock-project` | `/bob-sherlock` |
-| [Maigret](https://github.com/soxoj/maigret) | `pip install maigret` | `/bob-maigret` |
-| [Nuclei](https://github.com/projectdiscovery/nuclei) | `go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest` | `/bob-nuclei` |
-| [ExifTool](https://exiftool.org/) | `apt install exiftool` / `brew install exiftool` | `/bob-exif` |
-| [GHunt](https://github.com/mxrch/GHunt) | `pip install ghunt` | `/bob-ghunt` |
-| [xeuledoc](https://github.com/Malfrats/xeuledoc) | `pip install xeuledoc` | `/bob-xeuledoc` |
-| [Linkook](https://github.com/JackJuly/linkook) | See repo | `/bob-linkook` |
-| [jwt_tool](https://github.com/ticarpi/jwt_tool) | See repo | `/bob-jwt` |
+| Tool | Install | Commands | Path override |
+|------|---------|----------|---------------|
+| [Sherlock](https://github.com/sherlock-project/sherlock) | `pip install sherlock-project` | `/bob-sherlock` | `SHERLOCK_PATH` |
+| [Maigret](https://github.com/soxoj/maigret) | `pip install maigret` | `/bob-maigret` | `MAIGRET_PATH` |
+| [Nuclei](https://github.com/projectdiscovery/nuclei) | `go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest`, plus [nuclei-templates](https://github.com/projectdiscovery/nuclei-templates) | `/bob-nuclei` | `NUCLEI_PATH`; templates: `NUCLEI_TEMPLATE_PATH` (default `/opt/nuclei-templates/http/osint/user-enumeration`) |
+| [ExifTool](https://exiftool.org/) | `apt install exiftool` / `brew install exiftool` | `/bob-exif` | `EXIFTOOL_PATH` |
+| [GHunt](https://github.com/mxrch/GHunt) | `pip install ghunt` | `/bob-ghunt` | `PATH` only; session file: `GHUNT_CREDS_PATH` |
+| [xeuledoc](https://github.com/Malfrats/xeuledoc) | `pip install xeuledoc` | `/bob-xeuledoc` | `PATH` only |
+| [Linkook](https://github.com/JackJuly/linkook) | `pip install linkook` | `/bob-linkook` | `PATH` only |
+| [jwt_tool](https://github.com/ticarpi/jwt_tool) | Clone it to `/opt/tools/jwt_tool` with its own `venv/` (see the repo), or put `jwt_tool` on `PATH` | `/bob-jwt` | `JWT_TOOL_PATH`; wordlist: `JWT_WORDLIST` |
 
 If a tool isn't installed, its command is hidden: `bun run deploy` skips it and the bot doesn't load it. Install the tool and re-run deploy to bring the command back.
 
-To use a non-standard path, set the corresponding env var (e.g., `SHERLOCK_PATH=/opt/sherlock/bin/sherlock`).
+`/bob-jwt crack mode:dict` uses `JWT_WORDLIST`, by default `<JWT_TOOL_PATH>/jwt-common.txt`: the 130 common secrets bundled with jwt_tool. For a bigger list such as rockyou, mount it (Docker) or copy it to the host and point `JWT_WORDLIST` at it.
 
 ## Docker Deployment
 
+One Dockerfile builds two images; `BOT_TARGET` in `.env` picks one:
+
+| `BOT_TARGET` | Contents | Commands |
+|--------------|----------|----------|
+| `slim` (default) | Bun + npm deps only | 24 (CLI-backed ones hidden) |
+| `full` | adds Sherlock, Maigret, GHunt, xeuledoc, Linkook, jwt_tool, Nuclei + templates, ExifTool (~1 GB more) | all 32 |
+
 ```bash
-cp .env.example .env                        # configure tokens; BOT_TARGET=full for all CLI tools
-docker compose up -d --build
-docker compose exec bot bun run deploy      # register commands available in this image
+cp .env.example .env                        # DISCORD_TOKEN, CLIENT_ID, GUILD_ID; optional BOT_TARGET=full
+docker compose up -d --build                # or: make up
+docker compose exec bot bun run deploy      # or: make dexec-deploy; re-run after switching image
 ```
 
-The `docker-compose.yml` includes security hardening: non-root user, dropped capabilities, read-only filesystem, memory/PID limits, and tmpfs mounts. See the [Security section](../README.md#security) in the README for details.
+Run `deploy` inside the container: it registers only the commands whose tools exist there. `/home/botuser` is a named volume (`bot-home`), so the GHunt login (`/bob-ghunt type:login`) persists across restarts.
 
-The default `slim` image has no CLI tools. Set `BOT_TARGET=full` in `.env` (or `docker build --target full .`) for an image with Sherlock, Maigret, GHunt, xeuledoc, Linkook, jwt_tool, Nuclei with templates, and ExifTool. `/home/botuser` is a named volume, so the GHunt login (`/bob-ghunt type:login`) persists across restarts.
+The `docker-compose.yml` includes security hardening: non-root user, dropped capabilities, read-only filesystem, memory/PID limits, and tmpfs mounts. See [Container Security](../SECURITY.md#container-security).
 
-The tools sit in their own cached layer, so rebuilding after a code change takes seconds. `docker compose build --pull --no-cache` refreshes them and the base image to their latest releases.
+The tools are pinned (`docker/osint/requirements.txt`, and version or commit `ARG`s in the Dockerfile) and sit in their own cached layer, so rebuilding after a code change takes seconds. Dependabot proposes upgrades for the Python tools and the base image; the Nuclei, nuclei-templates and jwt_tool pins are bumped by hand.
 
-To check every command against the live APIs, in a throwaway container from the same image: `docker compose run --rm bot bun run smoke` (or `make smoke`). `make ci` runs every CI job locally.
+Day-to-day: `make dlogs` (follow logs), `make dhealth` (healthcheck state), `make rebuild` (rebuild and recreate), `make down` (stop and remove). To check every command against the live APIs in a throwaway container from the same image: `docker compose run --rm bot bun run smoke` (or `make smoke`). `make ci` runs every CI job locally. Commands whose API key is unset, or whose tool isn't in the image, are skipped by the smoke test.
 
-The same steps through `make`: `make up BOT_TARGET=full`, `make dexec-deploy`, `make dhealth`, `make dlogs`, `make smoke`, `make ci`. Run `make help` for the full list. Commands whose API key is unset, or whose tool isn't in the image, are skipped.
+## systemd Deployment
+
+`deploy/discord-osint-assistant.service` runs the bot as `botuser` from `/opt/discord-osint-assistant` with `Restart=always` and full sandboxing ([details](../SECURITY.md#systemd-deployment)). Its `ExecStart` is `/usr/bin/bun run start`, so Bun must be installed at `/usr/bin/bun`.
+
+```bash
+cp .env.example .env    # fill in; make install copies it to /etc/discord-osint-assistant.env
+make install            # create botuser, sync the committed HEAD to /opt/discord-osint-assistant, install deps, enable + start the unit
+make deploy-cmds        # register the slash commands (loads /etc/discord-osint-assistant.env)
+make logs-tail          # follow journald
+```
+
+- **Code**: `make install` and `make update` ship this checkout's committed `HEAD` (`git archive`), never uncommitted changes or untracked files.
+- **Updates**: `make update` does not run `git pull`. Run `git pull` yourself, then `make update`: it syncs `HEAD` to the install directory, runs `bun install --production`, and restarts the service.
+- **Secrets**: the service reads `/etc/discord-osint-assistant.env` (mode `0600`). `make install` copies it from `./.env`; `make update` does not, so after the first install edit `/etc/discord-osint-assistant.env` and run `make restart`.
+- **Install path**: `INSTALL_DIR` defaults to `/opt/discord-osint-assistant`. The unit's `WorkingDirectory` and `ReadWritePaths` use that path too, so changing `INSTALL_DIR` means editing the unit as well.
+- **Reports**: they go to the service's private `/tmp` and are wiped when it stops; see [Reports Archive](../README.md#reports-archive) to keep them.
+- **Tool state**: `botuser` has no home and the unit sets `ProtectHome=true`, so the unit gives the service a private, persistent `HOME` at `/var/lib/discord-osint-assistant` (`StateDirectory`). The GHunt login (`/bob-ghunt type:login`, read by the `ghunt` CLI from `$HOME/.malfrats`) survives restarts there; leave `GHUNT_CREDS_PATH` unset.
+- `make deploy-cmds`, `make deploy-cmds-global` and `make clear-cmds` register or clear slash commands with the installed env file. `make uninstall` removes the unit and keeps the install directory and the env file. `make help` lists every target.
 
 ## Command Deployment
 
@@ -125,12 +163,17 @@ bun run deploy:global
 bun run redeploy
 ```
 
+[docs/COMMANDS.md](COMMANDS.md) lists every command and option that `deploy` registers.
+
 ## Verification
 
-After starting the bot, type `/bob-health detailed:true check-apis:true check-tools:true` in Discord to verify:
-- Bot connectivity
-- API key validity
-- External tool availability
+After starting the bot, run `/bob-health` in Discord:
+
+- `/bob-health` reports the overall status, the Discord connection and system usage; `detailed:true` adds detailed system information.
+- `check-apis:true` tests the DNSDumpster, Whoxy and Host.io keys only.
+- `check-tools:true` checks ExifTool, Sherlock and Nuclei only.
+
+For every CLI tool, read the boot log: its `Commands loaded` line lists the hidden commands under `missingTool`. `bun scripts/check-tools.js` exits 1 when any CLI-backed command would be hidden for a missing tool.
 
 ## Troubleshooting
 
@@ -138,8 +181,8 @@ After starting the bot, type `/bob-health detailed:true check-apis:true check-to
 
 **"DISCORD_TOKEN missing"** — the bot validates required env vars at startup. Make sure `.env` exists and `DISCORD_TOKEN` is set.
 
-**API command returns an error** — check that the corresponding API key is set in `.env`. Run `/bob-health check-apis:true` to test connectivity.
+**API command returns an error** — check that the corresponding API key is set in `.env`. For DNSDumpster, Whoxy and Host.io, `/bob-health check-apis:true` tests the key.
 
-**A tool command is missing in Discord** — its tool isn't installed where `deploy` ran. Install it (or use `BOT_TARGET=full`), make sure it's in your PATH or set the path via env var (e.g., `SHERLOCK_PATH=/usr/local/bin/sherlock`), then re-run `bun run deploy`.
+**A tool command is missing in Discord** — its tool isn't installed where `deploy` ran. Install it (or use `BOT_TARGET=full`), make sure it's in your PATH or set the path via env var where one exists (e.g., `SHERLOCK_PATH=/usr/local/bin/sherlock`), then re-run `bun run deploy`.
 
 **Commands not showing in Discord** — slash commands can take up to an hour to appear for global deployments. Use guild deployment (`bun run deploy`) for instant registration.

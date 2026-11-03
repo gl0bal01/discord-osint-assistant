@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "Discord OSINT Assistant: A Comprehensive Open Source Intelligence Gathering Platform"
+title: "Discord OSINT Assistant: An Open Source Intelligence Gathering Platform"
 message: "If you use this software, please cite it using the metadata from this file."
 type: software
 authors:
@@ -8,11 +8,13 @@ authors:
 repository-code: "https://github.com/gl0bal01/discord-osint-assistant"
 url: "https://github.com/gl0bal01/discord-osint-assistant"
 abstract: >-
-  A Discord bot that puts 31 OSINT tools behind slash commands. Covers
-  username enumeration, DNS and WHOIS lookups, blockchain address analysis,
-  image forensics, aviation and maritime tracking, and AI-assisted analysis.
-  Integrates external tools (Sherlock, Maigret, Nuclei, ExifTool, GHunt)
-  and third-party APIs within Discord's collaborative environment.
+  A self-hosted Discord bot that exposes 32 OSINT workflows as slash
+  commands. Covers username enumeration, DNS and WHOIS lookups, blockchain
+  address analysis and tracing, image forensics, aviation and maritime
+  tracking, and AI-assisted analysis. Integrates external tools (Sherlock,
+  Maigret, Linkook, Nuclei, ExifTool, GHunt, xeuledoc, jwt_tool) and
+  third-party APIs such as AWS Rekognition within Discord's collaborative
+  environment.
 keywords:
   - "OSINT"
   - "Open Source Intelligence"
@@ -31,9 +33,9 @@ keywords:
   - "Image Analysis"
   - "Network Security"
 license: MIT
-version: v2.3.0
-date-released: 2026-07-09
-doi: "10.5281/zenodo.15741850" # Will be assigned by Zenodo
+version: v3.0.0
+date-released: 2026-11-03
+doi: "10.5281/zenodo.15741849"
 commit: "main"
 references:
   - type: software
@@ -59,7 +61,7 @@ references:
   - type: software
     title: "Linkook"
     url: "https://github.com/JackJuly/linkook"
-    notes: "LinkedIn OSINT and reconnaissance tool"
+    notes: "Username search across social platforms"
   - type: software
     title: "GHunt"
     url: "https://github.com/mxrch/GHunt"

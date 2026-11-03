@@ -1,6 +1,6 @@
 {
-  "title": "Discord OSINT Assistant: A Comprehensive Open Source Intelligence Gathering Platform",
-  "description": "A professional-grade Discord bot providing specialized commands for Open Source Intelligence (OSINT) gathering and analysis. The platform offers comprehensive digital reconnaissance capabilities including domain analysis, identity investigation, blockchain analysis, transportation intelligence, image metadata extraction, and AI-powered analysis. Designed for investigators, researchers, security professionals, and educational institutions conducting legitimate OSINT research.",
+  "title": "Discord OSINT Assistant: An Open Source Intelligence Gathering Platform",
+  "description": "A self-hosted Discord bot that exposes 32 slash commands for Open Source Intelligence (OSINT) gathering and analysis. It covers domain analysis, identity investigation, blockchain analysis, transportation intelligence, image metadata extraction, and AI-powered analysis. Designed for investigators, researchers, security professionals, and educational institutions conducting legitimate OSINT research.",
   "creators": [
     {
       "name": "gl0bal01",
@@ -43,11 +43,6 @@
       "term": "Computer Security",
       "identifier": "https://id.loc.gov/authorities/subjects/sh90001862.html", 
       "scheme": "url"
-    },
-    {
-      "term": "Information Technology",
-      "identifier": "https://id.loc.gov/authorities/subjects/sh90001862.html",
-      "scheme": "url"
     }
   ],
   "communities": [
@@ -69,7 +64,7 @@
       "resource_type": "software"
     }
   ],
-  "version": "2.0.0",
-  "publication_date": "2025-06-25",
-  "notes": "This software is designed for legitimate OSINT research, security testing, and educational purposes. Users are responsible for ensuring compliance with applicable laws and ethical guidelines. The platform provides comprehensive intelligence gathering capabilities through an accessible Discord interface, supporting collaborative investigations and research workflows."
+  "version": "3.0.0",
+  "publication_date": "2026-11-03",
+  "notes": "This software is designed for legitimate OSINT research, security testing, and educational purposes. Users are responsible for ensuring compliance with applicable laws and ethical guidelines. It runs OSINT workflows through a Discord interface, supporting collaborative investigations and research workflows."
 }

@@ -8,14 +8,18 @@ Discord OSINT Assistant is a self-hosted Discord intelligence bot for Open Sourc
 
 ## In Two Minutes
 
+Needs Node.js 22.12+ and [Bun](https://bun.sh/).
+
 ```bash
 git clone https://github.com/gl0bal01/discord-osint-assistant.git
 cd discord-osint-assistant
 bun install
-cp .env.example .env              # set DISCORD_TOKEN and CLIENT_ID
-bun run deploy
+cp .env.example .env              # set DISCORD_TOKEN, CLIENT_ID and GUILD_ID
+bun run deploy                    # register the slash commands in GUILD_ID
 bun run start
 ```
+
+The full setup guide (Discord application, API keys, CLI tools, Docker, systemd) is [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 ## Why This Project
 
@@ -51,6 +55,8 @@ flowchart LR
 
 The bot currently provides 32 commands across 8 functional areas. Run `/bob-help` in Discord to list every command live with its description.
 
+[docs/COMMANDS.md](docs/COMMANDS.md) is the full reference, generated from the command definitions: every subcommand and option with its choices and limits, the required permission, the rate-limit tier, and whether the command needs the `full` Docker image.
+
 ### Identity and Social
 
 `/bob-sherlock`, `/bob-maigret`, `/bob-linkook`, `/bob-ghunt`, `/bob-generate-usernames`, `/bob-nuclei`
@@ -69,8 +75,8 @@ The bot currently provides 32 commands across 8 functional areas. Run `/bob-help
 
 #### `/bob-blockchain` Subcommands
 
-- `address` / `transaction` / `block`: look up an address, transaction, or block across 9 chains (BTC, ETH, LTC, BCH, DOGE, DASH, ZEC, BSC, Polygon). A `network:mainnet|testnet` option is available; testnet is supported for ETH (Sepolia), BSC, Polygon (Amoy), and BTC/LTC/BCH/DASH/DOGE (via Blockchair).
-- `trace`: follow-the-money graph tracer for EVM chains via the Etherscan V2 multichain API. Recursively crawls transactions from a start address and returns the dominant native-value path, top sinks (where value accumulates), and known-entity / high-degree hubs to ignore, plus CSV / JSON / Mermaid exports. Key addresses are enriched with balance, tx count, and last activity, and known exchanges/mixers/bridges are labeled. Options: `address`, `chain`, `depth` (1-3), `max-tx`, `direction` (both/out/in), `types`, and `focus` (spotlight one address's direct in/out flows). Requires `ETHERSCAN_API_KEY`.
+- `address` / `transaction` / `block`: look up an address, transaction, or block across 9 chains (BTC, ETH, LTC, BCH, DOGE, DASH, ZEC, BSC, Polygon). These three subcommands take a `network:mainnet|testnet` option; testnet is supported for ETH (Sepolia), BSC, Polygon (Amoy), and BTC/LTC/BCH/DASH/DOGE (via Blockchair).
+- `trace`: follow-the-money graph tracer for EVM chains via the Etherscan V2 multichain API. Recursively crawls transactions from a start address and returns the dominant native-value path, top sinks (where value accumulates), and known-entity / high-degree hubs to ignore, plus CSV / JSON / Mermaid exports. Key addresses are enriched with balance, tx count, and last activity, and known exchanges/mixers/bridges are labeled. Options: `address`, `chain`, `depth` (1-3), `max-tx`, `direction` (both/out/in), `types`, and `focus` (spotlight one address's direct in/out flows). `trace` has no `network` option: `chain` takes the chain ID, one of `1` (Ethereum), `11155111` (Sepolia), `56` (BNB Chain), `137` (Polygon), `42161` (Arbitrum One), `10` (Optimism), `8453` (Base), `43114` (Avalanche C-Chain), `250` (Fantom). Requires `ETHERSCAN_API_KEY`.
 
 `/bob-blockchain-detect` also recognizes testnet address formats (BTC/LTC/BCH/DOGE/DASH) and notes that EVM addresses are format-ambiguous between mainnet and testnet.
 
@@ -203,10 +209,6 @@ Clear conversation context so the next interaction starts fresh.
 /bob-chat reset model:code
 ```
 
-### Operations
-
-`/bob-monitor`, `/bob-health`, `/bob-upload`, `/bob-help`
-
 ---
 
 ### `/bob-upload`
@@ -254,6 +256,8 @@ GHunt requires a valid Google session before it can perform lookups. The bot can
 | `type:geolocate` | `query` | Geolocate a BSSID (`XX:XX:XX:XX:XX:XX`) |
 | `type:spiderdal` | `query` | Find assets using Digital Asset Links |
 
+Two boolean options tune the lookups: `sight:true` also searches Google Sight profiles (`type:email` only), and `driver:true` uses a Chrome driver instead of plain requests (`type:email` and `type:gaia`).
+
 **How to authenticate**
 1. Install the [GHunt Companion](https://github.com/mxrch/GHunt/tree/master/gc-assets) browser extension (Firefox or Chrome).
 2. Log in to your Google account in the browser.
@@ -274,63 +278,34 @@ GHunt requires a valid Google session before it can perform lookups. The bot can
 ```
 
 **Environment variable**
-- `GHUNT_CREDS_PATH` — custom path for the credentials file (default: `~/.malfrats/ghunt/creds.m`)
-
-## Prerequisites
-
-- Node.js 22.12+
-- Discord bot application and token
-- Bun (optional)
-- Docker (optional)
-
-## Installation
-
-See the unified clone/install/deploy/start snippet under [In Two Minutes](#in-two-minutes). Bun is preferred; `npm` works for every script.
-
-### Docker
-
-Two images from one Dockerfile:
-
-| `BOT_TARGET` | Contents | Commands |
-|--------------|----------|----------|
-| `slim` (default) | Bun + npm deps only | 24 (CLI-backed ones hidden) |
-| `full` | adds Sherlock, Maigret, GHunt, xeuledoc, Linkook, jwt_tool, Nuclei + templates, ExifTool (~1 GB more) | all 32 |
-
-```bash
-cp .env.example .env                        # DISCORD_TOKEN, CLIENT_ID, GUILD_ID; optional BOT_TARGET=full
-docker compose up -d --build                # or: make up
-docker compose exec bot bun run deploy      # register slash commands (re-run after switching image)
-```
-
-Run `deploy` inside the container: it registers only the commands whose tools exist there. `$HOME` (`/home/botuser`) is a named volume, so the GHunt login survives restarts.
+- `GHUNT_CREDS_PATH` — custom path for the credentials file (default: `~/.malfrats/ghunt/creds.m`).
 
 ## Configuration
 
-Copy `.env.example` to `.env` and configure at minimum:
+Copy `.env.example` to `.env`. Only `DISCORD_TOKEN` and `CLIENT_ID` are required; `GUILD_ID` is read only by `bun run deploy` (guild commands).
 
-- `DISCORD_TOKEN`
-- `CLIENT_ID`
-
-Optional integrations unlock additional commands:
-
-- API services such as Whoxy, DNSDumpster, Host.io, AviationStack, AWS Rekognition, and Etherscan (`ETHERSCAN_API_KEY`, required for `/bob-blockchain trace`)
-- External CLI tools such as Sherlock, Maigret, Nuclei, ExifTool, GHunt, xeuledoc, Linkook, and jwt_tool (all preinstalled in the `full` Docker image)
+- [`.env.example`](.env.example) is the complete, commented reference of every environment variable and its default.
+- [docs/INSTALLATION.md](docs/INSTALLATION.md#api-keys) lists where to get each API key and which command uses it.
 
 If an API key is missing, the related command returns a descriptive error. If a CLI tool is missing, its command is not registered at all.
 
-## Logging
+## Operations
+
+### Logging
 
 The bot uses [pino](https://getpino.io/) for structured JSON logging.
 
 | Variable    | Default | Accepted values                          |
 |-------------|---------|------------------------------------------|
-| `LOG_LEVEL` | `info`  | `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
+| `LOG_LEVEL` | `info`  | `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent` |
 
-In development (non-production and interactive TTY) logs are pretty-printed via `pino-pretty`. In production, raw JSON is written to stdout for ingestion by log aggregators.
+In development (non-production and interactive TTY) logs are pretty-printed via `pino-pretty`. In production, raw JSON is written to stdout for ingestion by log aggregators. Secrets are redacted before output: see [SECURITY.md](SECURITY.md#structured-logging-and-secret-redaction).
 
-Sensitive fields (`token`, `authorization`, `password`, `api_key`, `headers.authorization`, `headers.cookie`) are automatically redacted to `[REDACTED]` before output.
+### Health Check
 
-## Reports Archive
+The bot writes its Discord gateway state to `HEALTH_FILE` (default `./temp/.health/health.json`) every 5 seconds. `scripts/healthcheck.js` turns it into an exit code: the Docker `HEALTHCHECK` runs it (`make dhealth` shows the result), and on a systemd host you run `bun run scripts/healthcheck.js`. Its time windows are fixed; see [SECURITY.md](SECURITY.md#healthcheck).
+
+### Reports Archive
 
 Besides the Discord attachment, command exports (Sherlock, Maigret, Nuclei, Linkook, GHunt, blockchain, and others) are copied to `reports/`. They hold personal data about investigation subjects, so they are owner-only (`0700` directory, `0600` files) and **ephemeral by default**:
 
@@ -344,6 +319,18 @@ To keep them, point `REPORTS_DIR` at a disk path (Docker: mount a named volume o
 | `REPORTS_DIR`            | `./reports` | Directory for command exports              |
 | `REPORTS_RETENTION_DAYS` | `30`        | Age (days) after which reports are pruned  |
 
+### Metrics (opt-in)
+
+With `METRICS_ENABLED=true` the bot serves Prometheus metrics at `GET /metrics`: command duration, command errors, rate-limit blocks and Discord events.
+
+| Variable          | Default     | Description                     |
+|-------------------|-------------|---------------------------------|
+| `METRICS_ENABLED` | off         | `true` starts the metrics server |
+| `METRICS_PORT`    | `9090`      | Listen port                     |
+| `METRICS_HOST`    | `127.0.0.1` | Bind address                    |
+
+Keep the loopback bind and put an authenticated reverse proxy in front before exposing it. Docker Compose publishes no port, so there the endpoint is reachable only from inside the container. See [SECURITY.md](SECURITY.md#metrics-endpoint-opt-in).
+
 ## Security
 
 This project executes investigations against user-provided input and applies defensive controls by default.
@@ -351,8 +338,17 @@ This project executes investigations against user-provided input and applies def
 - Argument-array process execution with restricted child-process environments
 - SSRF protections on URL-capable commands
 - Centralized validators for usernames, domains, URLs, emails, and IP addresses
-- Permission gating for high-impact commands
-- Per-user rate limits and daily usage controls
+- Permission gating for high-impact commands (below)
+- Per-user cooldowns (heavy 30s, medium 10s, light 3s) and a daily cap, `RATE_LIMIT_DAILY` (default 200)
+
+Restricted commands:
+
+| Required permission | Commands |
+|---------------------|----------|
+| Administrator | `/bob-nuclei`, `/bob-ghunt type:login` |
+| Manage Server | `/bob-sherlock`, `/bob-maigret`, `/bob-ghunt`, `/bob-jwt`, `/bob-rekognition`, `/bob-monitor`, `/bob-linkook`, `/bob-xeuledoc`, `/bob-nike token:` |
+
+`/bob-help` marks the commands that are restricted as a whole with 🔒. A role listed in `OSINT_ALLOWED_ROLES` unlocks those commands, `/bob-nuclei` included. It does not unlock `/bob-ghunt type:login` (Administrator only) or `/bob-nike token:` (Manage Server only), which the commands check themselves. [docs/COMMANDS.md](docs/COMMANDS.md) shows each command's permission and cooldown tier.
 
 See [SECURITY.md](SECURITY.md) for full details.
 
@@ -362,42 +358,22 @@ See [SECURITY.md](SECURITY.md) for full details.
 bun run dev          # nodemon hot-reload
 bun run test         # vitest
 bun run lint         # eslint
+bun run knip         # unused files, exports and dependencies
 bun run ci           # every CI job locally (Node 22/24/26, audits, both images, Trivy); git config core.hooksPath .githooks runs it before each push
-bun run ci:fast      # test + lint on your Node, then the audit
+bun run ci:fast      # test + lint + knip on your Node, then the audit
 bun run smoke        # run every command against the live APIs (Docker: docker compose run --rm bot bun run smoke)
 ```
 
-Slash command registration (`deploy`, `deploy:global`, `clear`, `clear:global`, `clear:all`, `clear:list`) and other scripts live in `package.json`. Run `bun run` with no args to see them all.
+Other scripts: `start`, `test:watch`, `docs:commands` (regenerate [docs/COMMANDS.md](docs/COMMANDS.md)), `deploy` / `deploy:global`, `clear` / `clear:global` / `clear:all` / `clear:list`, `redeploy` / `redeploy:global`, and `clean` (empty `temp/`). `bun run` with no arguments lists them all.
 
-Contribution guidance is available in [CONTRIBUTING.md](CONTRIBUTING.md).
+Contribution guidance and the repository layout are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Deployment
 
-The bot exits with code 1 on `uncaughtException` or `unhandledRejection`, so it must run under a supervisor that restarts on failure. A `Makefile` wraps both supported paths.
+The bot exits with code 1 on `uncaughtException` or `unhandledRejection`, so it must run under a supervisor that restarts on failure. A `Makefile` wraps both supported paths; `make help` lists every target.
 
-### systemd (recommended)
-
-The repository ships a unit at `deploy/discord-osint-assistant.service` with `Restart=always` and full sandboxing.
-
-```bash
-make install           # creates botuser, copies repo to /opt, installs unit, enables service
-make restart           # restart after code update
-make update            # git pull + bun install + restart
-make logs-tail         # follow journald
-```
-
-Override the install path with `make INSTALL_DIR=/srv/bot install`. Run `make help` to list every target.
-
-### Docker Compose
-
-```bash
-make up                # build + start (or: docker compose up -d --build)
-make dlogs             # follow logs
-make dhealth           # show healthcheck state
-make down              # stop and remove
-```
-
-The container runs read-only with `cap_drop: ALL`, tmpfs for `/app/temp` and `/app/reports`, and a built-in healthcheck (`scripts/healthcheck.js`).
+- **systemd** (recommended): `make install` ships the committed `HEAD` to `/opt/discord-osint-assistant` and enables `deploy/discord-osint-assistant.service`. See [systemd Deployment](docs/INSTALLATION.md#systemd-deployment).
+- **Docker Compose**: `make up`, then `make dexec-deploy` to register the commands. See [Docker Deployment](docs/INSTALLATION.md#docker-deployment).
 
 PM2 is not supported — it needs a writable `~/.pm2` which conflicts with the hardened `read_only` container and systemd `ProtectHome=true`.
 
