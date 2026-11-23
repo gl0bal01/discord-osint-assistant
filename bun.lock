@@ -5,7 +5,7 @@
     "": {
       "name": "discord-osint-assistant",
       "dependencies": {
-        "@aws-sdk/client-rekognition": "^3.1168.0",
+        "@aws-sdk/client-rekognition": "^3.1173.0",
         "axios": "^1.21.1",
         "cheerio": "^1.2.0",
         "discord.js": "^14.28.1",
@@ -38,7 +38,7 @@
     "vite": ">=8.0.5",
   },
   "packages": {
-    "@aws-sdk/client-rekognition": ["@aws-sdk/client-rekognition@3.1168.0", "", { "dependencies": { "@aws-sdk/core": "^3.981.0", "@aws-sdk/credential-provider-node": "^3.972.97", "@aws-sdk/types": "^3.975.1", "@smithy/core": "^3.40.0", "@smithy/fetch-http-handler": "^5.8.1", "@smithy/node-http-handler": "^4.14.2", "@smithy/types": "^4.20.0", "tslib": "^2.6.2" } }, "sha512-pu7s1PA8mB0ZS/5+5xZdEhvx059JkqfZROLelF/uL8OBKiFicG62yLS6BffRUTXgYTkKUnj5V+J0OHrOtPkX/Q=="],
+    "@aws-sdk/client-rekognition": ["@aws-sdk/client-rekognition@3.1173.0", "", { "dependencies": { "@aws-sdk/core": "^3.981.0", "@aws-sdk/credential-provider-node": "^3.972.97", "@aws-sdk/types": "^3.975.1", "@smithy/core": "^3.40.0", "@smithy/fetch-http-handler": "^5.8.1", "@smithy/node-http-handler": "^4.14.2", "@smithy/types": "^4.20.0", "tslib": "^2.6.2" } }, "sha512-8C63AI5/dYhmixR5Tm2WBhx8TFdovYjrwDG3bgfqcC7v2SFfbvKe/DUcsrVVfB6dfyQKha5eLCdvPypzEaQ/KQ=="],
 
     "@aws-sdk/core": ["@aws-sdk/core@3.981.0", "", { "dependencies": { "@aws-sdk/types": "^3.975.1", "@aws-sdk/xml-builder": "^3.972.43", "@aws/lambda-invoke-store": "^0.3.0", "@smithy/core": "^3.40.0", "@smithy/signature-v4": "^5.7.5", "@smithy/types": "^4.20.0", "bowser": "^2.11.0", "tslib": "^2.6.2" } }, "sha512-Mnu7gaDrC5UCdyH8uLxLfB2eWbjE/HbjKX1U1J2VQxG3TTATUDObW2wU3I8iH3e9YH5NN2CY6w1mlAIe2XJ3jg=="],
 
